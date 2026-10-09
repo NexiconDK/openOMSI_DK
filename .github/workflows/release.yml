@@ -36,7 +36,7 @@ jobs:
       - id: v
         env:
           PR: ${{ github.event.pull_request.number }}
-        run: echo "version=$(sh scripts/version.sh)${PR:+-pr$PR}" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(sh scripts/version.sh)-fork${PR:+-pr$PR}" >> "$GITHUB_OUTPUT"
       - run: echo "### openOMSI ${{ steps.v.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
 
   windows:
@@ -146,6 +146,8 @@ jobs:
           path: out/*.zip
 
   macos:
+    # (the fork builds Windows only)
+    if: false
     needs: version
     runs-on: macos-latest
     strategy:
@@ -184,6 +186,8 @@ jobs:
           path: out/*.zip
 
   linux:
+    # (the fork builds Windows only)
+    if: false
     needs: version
     strategy:
       fail-fast: false
@@ -254,6 +258,8 @@ jobs:
           path: out/*.zip
 
   android:
+    # (the fork builds Windows only)
+    if: false
     needs: version
     runs-on: ubuntu-latest
     env:
@@ -299,7 +305,7 @@ jobs:
 
   release:
     if: github.event_name != 'pull_request'
-    needs: [version, windows, macos, linux, android]
+    needs: [version, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

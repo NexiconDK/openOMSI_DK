@@ -84,8 +84,9 @@ impl ScheduleSim {
     /// the trip is still open, the AI's, and leaves within the layover.
     pub fn may_take_on(&self, j: usize, day_time: f64) -> bool {
         let d = &self.departures[j];
-        let open = self.awaiting.contains(&j) || (!d.spawned && self.runs(j));
-        open && !self.is_player_tour(j) && self.day_base + d.time - day_time < TOUR_LAYOVER_MAX
+        // (a night tour's bus goes on past midnight: its trip after 24:00 is tonight's)
+        let open = self.awaiting.contains(&j) || (!d.spawned && (self.runs(j) || self.runs_tonight(j)));
+        open && !self.is_player_tour(j) && self.dep_time(j) - day_time < TOUR_LAYOVER_MAX
     }
 
     /// The tour's bus took departure `j` on.

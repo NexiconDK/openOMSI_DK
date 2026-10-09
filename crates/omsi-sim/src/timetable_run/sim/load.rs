@@ -64,8 +64,12 @@ impl ScheduleSim {
                         let profile = usize::try_from(t.profile)
                             .unwrap_or(0)
                             .min(times[ti].len() - 1);
+                        // (24:50 is the next morning's 0:50, see `Departure::night`)
+                        let at = t.departure as f64 * 60.0;
+                        let night = at >= DAY;
                         departures.push(Departure {
-                            time: t.departure as f64 * 60.0,
+                            time: if night { at - DAY } else { at },
+                            night,
                             trip: ti,
                             profile,
                             line: line.name.clone(),
@@ -85,9 +89,16 @@ impl ScheduleSim {
         }
         // the previous departure of each tour, looked up once: the layover check used to
         // walk all 3600 Spandau departures for each of them, every two seconds - 1.5 fps
+        // (in the tour's own order: its night trips after the evening's, as the .ttl has them)
+        let mut tour_order: Vec<usize> = (0..departures.len()).collect();
+        tour_order.sort_by(|&a, &b| {
+            let at = |d: &Departure| d.time + if d.night { DAY } else { 0.0 };
+            at(&departures[a]).total_cmp(&at(&departures[b]))
+        });
         let mut tour_prev = vec![None; departures.len()];
         let mut last_of: HashMap<(String, String), usize> = HashMap::new();
-        for (i, d) in departures.iter().enumerate() {
+        for &i in &tour_order {
+            let d = &departures[i];
             let key = (d.line.clone(), d.tour.clone());
             tour_prev[i] = last_of.get(&key).copied();
             last_of.insert(key, i);
@@ -258,13 +269,14 @@ impl ScheduleSim {
             calendar,
             day: date,
             day_bits: (day_bit, school_bit),
-            next_day_bit: 1 << ((clock.weekday() + 1) % 7),
+            prev_bits: (0, 0),
             day_base: 0.0,
             date_clock: clock.clone(),
             car_use,
             tour_vehicle: HashMap::new(),
             used_numbers: HashSet::new(),
         };
+        s.prev_bits = s.yesterday_bits();
         s.assign_car_use();
         s
     }
@@ -342,8 +354,14 @@ impl ScheduleSim {
     }
 
     /// When departure `i` leaves on the traffic's clock.
+    /// A night trip (`Departure::night`) leaves this morning for yesterday's tour, or the
+    /// coming night for today's: this morning's while it is not over yet, else tonight's.
     pub(super) fn dep_time(&self, i: usize) -> f64 {
-        self.day_base + self.departures[i].time
+        let d = &self.departures[i];
+        if d.night && self.runs_tonight(i) && (!self.runs(i) || self.last_tod > d.time + self.times_of(i).duration) {
+            return self.day_base + DAY + d.time;
+        }
+        self.day_base + d.time
     }
 
     /// Past midnight on the traffic's clock: the next day's timetable.
@@ -360,16 +378,16 @@ impl ScheduleSim {
     }
 
     /// Whether a tour is offered on the current day (the lists of lines and tours): its day
-    /// mask has the day (and school day or holiday), or - for a night tour with trips after
-    /// 24:00 - the next day's weekday, as the night belongs to both, or the day before's
-    /// (its trips after midnight run today, #1576).
+    /// mask has the day (and school day or holiday), or it is the day before's night tour
+    /// still under way (its trips after midnight run this morning, #1576). A tour of the
+    /// next day is not offered the evening before: a Saturday's night tour begins on
+    /// Saturday evening, and Friday's lists showed it beside Friday's own.
     pub fn tour_available(&self, tour: &omsi_timetable::Tour) -> bool {
-        let m = tour.extra.trim().parse::<i32>().unwrap_or(1023);
-        if m & self.day_bits.0 != 0 && m & self.day_bits.1 != 0 {
+        if self.tour_runs_on(tour, self.day_bits) {
             return true;
         }
-        let night = tour.trips.iter().any(|t| t.departure >= 24.0 * 60.0);
-        night && ((m & self.next_day_bit != 0 && m & self.day_bits.1 != 0) || self.tour_runs_on(tour, self.yesterday_bits()))
+        let last = tour.trips.iter().map(|t| t.departure as f64 * 60.0).fold(f64::MIN, f64::max);
+        last >= DAY && last - DAY >= self.last_tod && self.tour_runs_on(tour, self.prev_bits)
     }
 
     /// Whether a tour's day mask has these day bits (`day_bits`).
@@ -390,10 +408,19 @@ impl ScheduleSim {
         day_bits(&self.calendar, &c)
     }
 
-    /// Whether departure `i`'s tour runs on the current day.
+    /// Whether departure `i` runs on the current day: its tour's mask has the day - for a
+    /// night trip (`Departure::night`) the day before, whose tour it is this morning.
     pub(super) fn runs(&self, i: usize) -> bool {
-        let m = self.departures[i].mask;
-        m & self.day_bits.0 != 0 && m & self.day_bits.1 != 0
+        let d = &self.departures[i];
+        let bits = if d.night { self.prev_bits } else { self.day_bits };
+        d.mask & bits.0 != 0 && d.mask & bits.1 != 0
+    }
+
+    /// Whether night trip `i` runs the coming night (after the next midnight), for today's
+    /// tour: a bus of it takes it on before midnight.
+    pub(super) fn runs_tonight(&self, i: usize) -> bool {
+        let d = &self.departures[i];
+        d.night && d.mask & self.day_bits.0 != 0 && d.mask & self.day_bits.1 != 0
     }
 
     /// Move the timetable on to the clock's date when it has changed (midnight): the day's
@@ -408,7 +435,8 @@ impl ScheduleSim {
         }
         self.day = date;
         self.day_bits = day_bits(&self.calendar, clock);
-        self.next_day_bit = 1 << ((clock.weekday() + 1) % 7);
+        self.date_clock = clock.clone();
+        self.prev_bits = self.yesterday_bits();
         let busy: HashSet<usize> = self
             .pending
             .iter()

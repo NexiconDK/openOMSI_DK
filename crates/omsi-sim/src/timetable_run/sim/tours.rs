@@ -130,7 +130,7 @@ impl ScheduleSim {
         let of = |d: &Departure, t: &(String, String)| d.line.eq_ignore_ascii_case(&t.0) && d.tour.eq_ignore_ascii_case(&t.1);
         for t in &removed {
             let later: Vec<usize> = (0..self.departures.len())
-                .filter(|&i| of(&self.departures[i], t) && self.departures[i].time > self.last_tod && !self.is_player_tour(i))
+                .filter(|&i| of(&self.departures[i], t) && self.dep_time(i) - self.day_base > self.last_tod && !self.is_player_tour(i))
                 .collect();
             for &i in &later {
                 self.departures[i].spawned = false;
@@ -165,7 +165,8 @@ impl ScheduleSim {
             (Some((line, tour)), Some(d)) => {
                 d.line.eq_ignore_ascii_case(line)
                     && d.tour.eq_ignore_ascii_case(tour)
-                    && self.player_departure.map(|t| (d.time - t).abs() < 30.0).unwrap_or(true)
+                    // (a picked trip after 24:00 is the departure's of the next morning)
+                    && self.player_departure.map(|t| { let x = (d.time - t).rem_euclid(DAY); x < 30.0 || x > DAY - 30.0 }).unwrap_or(true)
             }
             _ => false,
         }
@@ -299,7 +300,10 @@ impl ScheduleSim {
         // tonight's): its times a day earlier, so the duty goes on with the trip running
         // now. After a restart at 0:45 the night lines begun the day before could not be
         // taken (#1576).
-        if !self.tour_runs_on(t, self.day_bits) && self.tour_runs_on(t, self.yesterday_bits()) && trips.iter().any(|p| p.departure >= DAY) && trips.last().is_some_and(|p| p.end - DAY > now) {
+        // (also for a tour of both days, Monday to Thursday on a Tuesday at 0:30: this morning
+        // its Monday's night trips run, today's begin in the evening)
+        let tonight = self.tour_runs_on(t, self.day_bits) && trips.first().is_some_and(|p| p.departure <= now);
+        if !tonight && self.tour_runs_on(t, self.prev_bits) && trips.iter().any(|p| p.departure >= DAY) && trips.last().is_some_and(|p| p.end - DAY > now) {
             for p in &mut trips {
                 p.departure -= DAY;
                 p.end -= DAY;

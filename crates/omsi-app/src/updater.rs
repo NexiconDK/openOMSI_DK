@@ -226,7 +226,9 @@ fn version_parts(v: &str) -> Vec<u64> {
 
 /// A pull request's test build: `release.yml` gives it the version `<release>-pr<number>`.
 pub fn is_test_build(version: &str) -> bool {
-    version.contains("-pr")
+    // (and the fork's own builds, `<release>-fork`: a release of openOMSI-org would
+    // replace them without the fork's changes)
+    version.contains("-pr") || version.contains("-fork")
 }
 
 /// Whether `candidate` is a newer version than `current`.

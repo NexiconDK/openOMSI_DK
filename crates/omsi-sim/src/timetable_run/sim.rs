@@ -9,6 +9,8 @@ mod boards;
 mod choice;
 mod dispatch;
 mod load;
+#[cfg(test)]
+mod night_tests;
 mod place;
 mod route;
 mod tours;
@@ -62,6 +64,10 @@ struct Departure {
     /// holidays, 9 school days): every tour's departures are kept, and which run is decided
     /// by the day (`Schedule::runs`), so a session carries on past midnight.
     mask: i32,
+    /// A trip the .ttl gives past 24:00 (a night tour's): `time` is its time of the next
+    /// morning (24:50 is 0:50), and it runs the morning after a day of the tour's mask, as
+    /// in OMSI - a Friday tour's 24:50 trip leaves on Saturday at 0:50, not on Friday.
+    night: bool,
     spawned: bool,
 }
 
@@ -199,8 +205,9 @@ pub struct ScheduleSim {
     /// school); `set_day` moves them on at midnight.
     day: i32,
     day_bits: (i32, i32),
-    /// The weekday bit of the next day (night tours run on into it).
-    next_day_bit: i32,
+    /// The mask bits of the day before (`yesterday_bits`): the night trips running this
+    /// morning are its tours'.
+    prev_bits: (i32, i32),
     /// Where today's midnight lies on the traffic's clock (`Traffic::day_time` counts on past
     /// 24:00): a departure leaves at `day_base + time` (`dep_time`), and the date moves on
     /// when the clock passes the next midnight.
