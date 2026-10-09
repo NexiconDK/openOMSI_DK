@@ -653,7 +653,7 @@ impl PeopleSim {
         let rot = bus.body_rotation();
         let off = places_off(bus, &cabin);
         for _ in 0..n {
-            let Some(k) = self.reserve_place(BusId::Player, cabin.seats.len(), &off) else { break };
+            let Some(k) = self.reserve_place(BusId::Player, &cabin.seats, &off, None) else { break };
             let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
             let r = self.rand_f() as f32;
             let mut pax = Pax::new(walk, self.rand_f());

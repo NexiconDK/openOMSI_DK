@@ -300,7 +300,17 @@ impl PeopleSim {
                 let Some(stop) = p.stop else { return };
                 if let Some(bn) = bn {
                     if bn.speed.abs() < 3.0 && self.in_stop_box(stop, bn.id) {
-                        if let Some(k) = self.reserve_place(bn.id, bn.cabin.seats.len(), &bn.places_off) {
+                        // (the fork, PR #1394: on the player's duty a ride of 1 km and more
+                        // takes a seat while one is free, a shorter one stands 7 times in 10;
+                        // the timetable's buses take any place, as Omsi.exe)
+                        let prefer_seat = match (bn.id, self.duty.as_ref(), p.dest.as_deref()) {
+                            (BusId::Player, Some((trip, _, false)), Some(dest)) => {
+                                let short = super::pax_stops::duty_ride_m(trip, &self.stops, stop, dest).is_some_and(|m| m < 1000.0);
+                                Some(!short || self.rand_f() < 0.3)
+                            }
+                            _ => None,
+                        };
+                        if let Some(k) = self.reserve_place(bn.id, &bn.cabin.seats, &bn.places_off, prefer_seat) {
                             let (tk, id) = self.decide_pax_ticket(i, bn);
                             let price = self.tickets.as_ref().and_then(|t| t.tickets.get(id.saturating_sub(1) as usize)).map(|t| t.value).unwrap_or(0.0);
                             let pp = self.pax_mut(i).unwrap();

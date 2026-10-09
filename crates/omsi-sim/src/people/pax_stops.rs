@@ -125,8 +125,11 @@ impl PeopleSim {
     }
 
     /// sub_7e910c: a free place of the bus, at random (none free: nobody gets on). `off`:
-    /// the places its scripts have switched off (#721), which nobody takes.
-    pub fn reserve_place(&mut self, bus: BusId, n: usize, off: &[bool]) -> Option<usize> {
+    /// the places its scripts have switched off (#721), which nobody takes. `prefer_seat`
+    /// (the fork, PR #1394): a seat (true) or a standing place (false) while one is free,
+    /// else the other kind; None: any, as Omsi.exe.
+    pub fn reserve_place(&mut self, bus: BusId, places: &[Seat], off: &[bool], prefer_seat: Option<bool>) -> Option<usize> {
+        let n = places.len();
         let seats = self.seats.entry(bus).or_insert_with(|| vec![false; n]);
         if seats.len() < n {
             seats.resize(n, false);
@@ -135,7 +138,7 @@ impl PeopleSim {
         if free.is_empty() {
             return None;
         }
-        let k = free[(self.rand() as usize) % free.len()];
+        let k = choose_place(&free, places, prefer_seat, self.rand() as usize);
         self.seats.get_mut(&bus).unwrap()[k] = true;
         Some(k)
     }
@@ -198,4 +201,32 @@ impl PeopleSim {
         self.stops.get_mut(&stop).unwrap().taken[k] = true;
         Some(k)
     }
+}
+
+/// A free place of `free` (indices into `places`), drawn with `pick`: of the kind wanted
+/// (seated or standing) while there is one, else any.
+pub(super) fn choose_place(free: &[usize], places: &[Seat], prefer_seat: Option<bool>, pick: usize) -> usize {
+    let wanted: Vec<usize> = match prefer_seat {
+        Some(seat) => free.iter().copied().filter(|k| places.get(*k).is_some_and(|p| p.seated == seat)).collect(),
+        None => Vec::new(),
+    };
+    let from = if wanted.is_empty() { free } else { &wanted };
+    from[pick % from.len()]
+}
+
+/// How far (m, stop to stop in a straight line) the player's duty trip takes somebody from
+/// `stop` to the stop named `dest`; None where either is not on the trip or not placed.
+pub(super) fn duty_ride_m(trip: &DutyTrip, stops: &HashMap<i64, PaxStop>, stop: i64, dest: &str) -> Option<f64> {
+    let here = stops.get(&stop)?;
+    let from = trip.stops.iter().position(|(id, name, s)| *s && (*id == stop || here.is_named(name)))?;
+    let to = from + 1 + trip.stops[from + 1..].iter().position(|(_, name, s)| *s && name.trim() == dest.trim())?;
+    let mut m = 0.0;
+    let mut last = here.pos;
+    for (id, ..) in &trip.stops[from + 1..=to] {
+        if let Some(p) = stops.get(id) {
+            m += (p.pos - last).length();
+            last = p.pos;
+        }
+    }
+    Some(m)
 }

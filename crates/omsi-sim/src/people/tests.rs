@@ -685,11 +685,11 @@ fn places_follow_their_own_variables() {
     assert_eq!(off, [true, false, false, false], "only the place whose variable is 0 is off");
     let mut h = PeopleSim::new(Path::new("/nonexistent"), 200);
     for _ in 0..40 {
-        let k = h.reserve_place(BusId::Player, 4, &off).expect("a free place");
+        let k = h.reserve_place(BusId::Player, &cabin.seats, &off, None).expect("a free place");
         assert_ne!(k, 0, "nobody takes a place that is switched off");
         h.free_seat(BusId::Player, k);
     }
-    assert_eq!(h.reserve_place(BusId::Player, 4, &[true; 4]), None, "all off: nobody gets on");
+    assert_eq!(h.reserve_place(BusId::Player, &cabin.seats, &[true; 4], None), None, "all off: nobody gets on");
     v.set_var("layout_long", 1.0);
     assert_eq!(places_off(&v, &cabin), [false; 4]);
     // somebody sits on the tip-up seat (place 1) of this bus, somebody on place 1 of another
@@ -935,4 +935,18 @@ fn walking_can_find_a_biarticulated_bus_at_its_last_section() {
     assert_eq!(people.bus_ids_near(at_rear, 25.0), [BusId::Ai(42)]);
     assert!(people.bus_ids_near(DVec3::new(100.0, -34.0, 0.0), 25.0).is_empty());
     assert_eq!(people.bus_ids_near(DVec3::ZERO, 25.0), [BusId::Ai(42)]);
+}
+
+/// The fork (PR #1394): a passenger who wants a seat takes one while one is free, else a
+/// standing place; one who wants to stand the other way round; no wish, any place.
+#[test]
+fn a_preferred_place_kind_falls_back_to_the_other() {
+    let place = |seated: bool| Seat { pos: Vec3::ZERO, floor: Vec3::ZERO, rot: 0.0, seated, height: if seated { 0.4 } else { 0.0 }, omsi_seat: 0, switch_var: None, taken_var: None, group: 0 };
+    let places = [place(true), place(false), place(true)];
+    for pick in 0..6 {
+        assert!(places[super::pax_stops::choose_place(&[0, 1, 2], &places, Some(true), pick)].seated);
+        assert_eq!(super::pax_stops::choose_place(&[0, 1, 2], &places, Some(false), pick), 1);
+        assert_eq!(super::pax_stops::choose_place(&[1], &places, Some(true), pick), 1, "no seat free: standing");
+        assert_eq!(super::pax_stops::choose_place(&[0, 2], &places, Some(false), pick), [0, 2][pick % 2], "nowhere to stand: a seat");
+    }
 }
