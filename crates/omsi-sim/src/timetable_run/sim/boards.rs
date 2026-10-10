@@ -20,6 +20,20 @@ pub struct AiBusRow {
 }
 
 impl ScheduleSim {
+    /// The departures of `trip` the boards show, with what to add to their time: today's
+    /// (0), and before midnight the night trips of tonight's tours (a day: 0:20 is 24:20),
+    /// which the boards left out until midnight (the fork).
+    pub(super) fn board_runs(&self, trip: usize) -> Vec<(usize, f64)> {
+        self.trip_departures[trip]
+            .iter()
+            .flat_map(|&i| {
+                let today = self.runs(i).then_some((i, 0.0));
+                let tonight = self.runs_tonight(i).then_some((i, DAY));
+                today.into_iter().chain(tonight)
+            })
+            .collect()
+    }
+
     /// The buses due at one bus stop (map object id) within the next two hours, unsorted, as
     /// (expected arrival, line, terminus, time it stands at the stop), all in seconds of the day:
     /// the timetable buses with the delay they run with, and the player's.
@@ -35,27 +49,26 @@ impl ScheduleSim {
         // the last time each line leaves this stop today (for "last bus")
         let mut last_of_line: HashMap<String, f64> = HashMap::new();
         for &(trip, k) in self.visits.get(&stop).map(|v| v.as_slice()).unwrap_or(&[]) {
-            for &i in &self.trip_departures[trip] {
+            for (i, shift) in self.board_runs(trip) {
                 let d = &self.departures[i];
                 let tt = &self.times[d.trip][d.profile];
-                if self.runs(i) && tt.stops[k] {
-                    let leave = d.time + tt.stations[k].1;
+                if tt.stops[k] {
+                    let leave = d.time + shift + tt.stations[k].1;
                     let e = last_of_line.entry(self.display_line(i)).or_insert(f64::MIN);
                     *e = e.max(leave);
                 }
             }
         }
         for &(trip, k) in self.visits.get(&stop).map(|v| v.as_slice()).unwrap_or(&[]) {
-            for &i in &self.trip_departures[trip] {
-                if !self.runs(i) {
-                    continue;
-                }
+            for (i, shift) in self.board_runs(trip) {
                 let d = &self.departures[i];
                 let tt = &self.times[d.trip][d.profile];
                 if !tt.stops[k] {
                     continue;
                 }
-                let (arrive, leave) = (d.time + tt.stations[k].0, d.time + tt.stations[k].1);
+                // (`shift`: a night trip of tonight's tour, after the next midnight)
+                let start = d.time + shift;
+                let (arrive, leave) = (start + tt.stations[k].0, start + tt.stations[k].1);
                 if arrive > now + BOARD_AHEAD || leave < now - BOARD_AHEAD {
                     continue;
                 }
@@ -78,7 +91,7 @@ impl ScheduleSim {
                         Some(next) => {
                             // its next stop's place in the trip: the stops from there up to
                             // this one are still to come (the one it stands at is not)
-                            if let Some(j) = tt.stations.iter().position(|s| (d.time + s.1 - next).abs() < 0.5) {
+                            if let Some(j) = tt.stations.iter().position(|s| (start + s.1 - next).abs() < 0.5) {
                                 let from = if r.dwelling { j + 1 } else { j };
                                 extra.stops_away = Some((from..=k).filter(|&x| tt.stops.get(x).copied().unwrap_or(false)).count() as u32);
                             }
@@ -89,8 +102,8 @@ impl ScheduleSim {
                             let next_arrive = tt
                                 .stations
                                 .iter()
-                                .find(|s| (d.time + s.1 - next).abs() < 0.5)
-                                .map(|s| d.time + s.0)
+                                .find(|s| (start + s.1 - next).abs() < 0.5)
+                                .map(|s| start + s.0)
                                 .unwrap_or(next);
                             let late = if r.dwelling {
                                 r.late

@@ -135,3 +135,15 @@ fn a_night_tours_trip_now_is_the_one_after_midnight() {
     // a tour that did not run the night before: at 2:18 its first trip, this evening
     assert_eq!(super::tours::trip_at(&order, h(2.0, 18.0), false), 0);
 }
+
+/// The stop boards before midnight list tonight's night trips too (24:10 as 0:10 after
+/// midnight), not Thursday's or Saturday's.
+#[test]
+fn the_boards_show_tonights_night_trips_before_midnight() {
+    let (s, dir) = friday_evening();
+    let runs = s.board_runs(0);
+    let at = |tour: &str, minute: i32| runs.iter().any(|&(i, shift)| { let d = &s.departures[i]; d.tour == tour && ((d.time + shift) / 60.0 - minute as f64).abs() < 0.5 });
+    assert!(at("TEST-FRE", 1380) && at("TEST-FRE", 1450) && at("TEST-FRE", 1510));
+    assert!(!at("TEST-TOR", 1455) && !at("TEST-LOR", 1460) && !at("TEST-LOR", 1390));
+    std::fs::remove_dir_all(dir).ok();
+}
