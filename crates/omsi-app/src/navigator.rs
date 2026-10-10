@@ -402,6 +402,9 @@ pub struct Navigator {
     /// (the fork) The board unfolded (its arrow): every stop of the trip ahead, as many as
     /// the window has room for.
     pub expanded: bool,
+    /// (the fork) The classic look (the setting `nav_classic`): the next stops under the map
+    /// and the city map as they were, without the duty board, sheet and stop signs.
+    pub classic: bool,
     /// (the fork) The navigator's size as the player dragged it (1: as designed).
     pub size: f32,
     /// (the fork) A press on the navigator's corner: the cursor's x, the size and the width
@@ -547,6 +550,7 @@ impl Navigator {
             enabled,
             schedule: false,
             expanded: false,
+            classic: false,
             size: 1.0,
             panel_resize: None,
             arrow_rect: None,
@@ -1107,8 +1111,14 @@ impl Navigator {
         // trip when unfolded, as many as the window has room for
         let duty = f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time));
         let room = (sh * 0.94 - map_h - bars).max(0.0);
-        let board = if self.schedule && duty.is_some() { crate::nav_duty::board_up_to(duty.as_ref(), s, room, if self.expanded { usize::MAX } else { 4 }) } else { Vec::new() };
-        let sched = if board.is_empty() { 0.0 } else { (crate::nav_duty::board_height(&board) * s).round() };
+        let board = if self.schedule && duty.is_some() && !self.classic { crate::nav_duty::board_up_to(duty.as_ref(), s, room, if self.expanded { usize::MAX } else { 4 }) } else { Vec::new() };
+        let sched = if self.classic {
+            if self.schedule { (f.stops.len().clamp(1, 5) as f32 * 22.0 + 12.0) * s } else { 0.0 }
+        } else if board.is_empty() {
+            0.0
+        } else {
+            (crate::nav_duty::board_height(&board) * s).round()
+        };
         let ph = (map_h + bars + sched).round();
         let (w, h) = (pw as u32, ph as u32);
         let (x0, y0) = self.panel_origin((sw, sh), (pw, ph), crate::platform::touch_controls(), f.info_rect);
@@ -1403,7 +1413,7 @@ impl Navigator {
         };
         let stop_row = stop_request_icon(&mut ui, &mut self.atlas, f.stop_requested, stop_row, s);
         // (the fork) the arrow that folds the duty's board out and in, right of the stop
-        let stop_row = if f.duty.is_some() && !f.stops.is_empty() {
+        let stop_row = if f.duty.is_some() && !f.stops.is_empty() && !self.classic {
             let b = 24.0 * s;
             let r = Rect::new(pw - pad - b, bottom.y + (bottom.h - b) * 0.5, b, b);
             ui.rounded(r, 5.0 * s, Color::rgba(255, 255, 255, 0.10));
@@ -1469,6 +1479,23 @@ impl Navigator {
             None => {
                 let t = f.terminus.clone().filter(|t| !t.trim().is_empty()).unwrap_or_else(|| wd.no_duty.to_string());
                 ui.text_in(&mut self.atlas, &self.fonts, &t, 13.0 * s, Weight::Medium, stop_row, Align::Left, TEXT_DIM);
+            }
+        }
+        // the classic schedule: the next stops with their planned times
+        if self.classic && self.schedule && !f.stops.is_empty() {
+            let mut y = bottom.bottom() + 6.0 * s;
+            ui.rect(Rect::new(pad, bottom.bottom(), pw - 2.0 * pad, 1.0), Color::WHITE.alpha(0.06));
+            let late = f.delay.unwrap_or(0.0);
+            for st in f.stops.iter().take(5) {
+                let r = Rect::new(pad, y, pw - 2.0 * pad, 22.0 * s);
+                let planned = format!("{:02}:{:02}", (st.arrival / 3600.0) as i32 % 24, ((st.arrival % 3600.0) / 60.0) as i32);
+                ui.text_in(&mut self.atlas, &self.fonts, &planned, 12.5 * s, Weight::Bold, r, Align::Left, TEXT_DIM);
+                ui.text_in(&mut self.atlas, &self.fonts, st.name.trim(), 13.0 * s, Weight::Medium, Rect::new(r.x + 46.0 * s, r.y, r.w - 100.0 * s, r.h), Align::Left, TEXT);
+                // when the bus will be there at this lateness
+                let exp = st.arrival + late;
+                let e = format!("{:02}:{:02}", (exp / 3600.0).rem_euclid(24.0) as i32, ((exp.rem_euclid(3600.0)) / 60.0) as i32);
+                ui.text_in(&mut self.atlas, &self.fonts, &e, 12.5 * s, Weight::Medium, r, Align::Right, if late > 59.0 { LATE } else if late < -59.0 { EARLY } else { TEXT_DIM });
+                y += 22.0 * s;
             }
         }
         // (the fork) the duty's board: the trip, the stops with their planned times and, when
@@ -2590,7 +2617,7 @@ impl Navigator {
         }
         let s = (h / 760.0).clamp(0.95, 2.0) * f.ui_scale;
         // (the fork) the duty sheet's place on the left, when there is a duty
-        let sheet_rect = (f.duty.is_some() && !self.city.sheet_hidden).then(|| Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s)));
+        let sheet_rect = (f.duty.is_some() && !self.city.sheet_hidden && !self.classic).then(|| Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s)));
         if self.city.follow {
             // (the bus in the middle of what the sheet leaves of the map)
             let side = sheet_rect.map(|r| r.right()).unwrap_or(0.0);
@@ -2677,8 +2704,21 @@ impl Navigator {
         let mut dots = Painter::new();
         // (the fork) at their own size and shape (Luc-nbr's), the line tag over each bus
         let vehicles = map_vehicles(f.traffic.filter(|_| self.show_ai), f.bus, f64::INFINITY);
-        paint_vehicles(&mut dots, &vehicles, &rel, self.city.mpp as f32, s);
-        let lines: Vec<(DVec3, Color, String, [DVec3; 2])> = vehicles.iter().filter_map(|v| v.line.clone().map(|l| (v.at, v.color, l, v.drawn_ends(self.city.mpp as f32, s)))).collect();
+        if self.classic {
+            // (classic: dots, the public transport as pictograms)
+            for car in f.traffic.filter(|_| self.show_ai).map(|t| t.cars.as_slice()).unwrap_or(&[]).iter().filter(|c| !c.gone) {
+                let (color, _) = traffic_kind(car);
+                if color == DOT {
+                    dots.world_disc(rel(car.vehicle.position), 2.2, 3.4, Color::rgba(8, 8, 8, 0.9));
+                    dots.world_disc(rel(car.vehicle.position), 1.5, 2.3, color);
+                } else {
+                    vehicle_icon(&mut dots, rel(car.vehicle.position), car.vehicle.heading, color, car.is_rail(), 7.5);
+                }
+            }
+        } else {
+            paint_vehicles(&mut dots, &vehicles, &rel, self.city.mpp as f32, s);
+        }
+        let lines: Vec<(DVec3, Color, String, [DVec3; 2])> = vehicles.iter().filter_map(|v| v.line.clone().map(|l| (v.at, v.color, l, if self.classic { [v.at, v.at] } else { v.drawn_ends(self.city.mpp as f32, s) }))).collect();
         let n_dots = dots.len();
         // stops with their names, the bus, the frame and the header
         let mut ui = Painter::new();
@@ -2758,7 +2798,27 @@ impl Navigator {
         // everything, those ahead over their names; far out the ones between as dots
         let signs = crate::stop_signs::style();
         let far = self.city.mpp >= 4.0;
-        for q in crate::stop_signs::served(f.duty, &self.stop_pos).into_iter().map(&to_screen).filter(|q| win.contains(*q) && q.y > 50.0 * s && markers.iter().all(|(_, m)| m.distance(*q) >= 14.0 * s)) {
+        if self.classic {
+            for (k, p) in markers.iter().copied().rev() {
+                let next = k == 0;
+                if self.city.mpp < 4.0 || next || k + 1 == n_stops {
+                    let badge = if next { 7.0 } else { 5.5 } * s;
+                    ui.circle(p, badge + 1.5 * s, Color::rgba(8, 8, 8, 0.95));
+                    let fill = if next { Color::rgba(45, 116, 205, 1.0) } else if k + 1 == n_stops { ROUTE } else { Color::rgba(76, 91, 112, 0.98) };
+                    ui.circle(p, badge, fill);
+                    ui.icon(&mut self.atlas, "directions_bus", p, if next { 11.5 } else { 9.5 } * s, TEXT);
+                } else {
+                    ui.circle(p, 5.0 * s, Color::rgba(12, 12, 12, 0.95));
+                    ui.circle(p, 3.2 * s, TEXT_DIM);
+                }
+            }
+            for (k, name, r) in &stop_labels {
+                ui.rounded(*r, 4.0 * s, Color::rgba(12, 12, 12, 0.85));
+                ui.text_in(&mut self.atlas, &self.fonts, name, 12.5 * s, if *k == 0 { Weight::Bold } else { Weight::Medium }, r.pad(6.0 * s, 0.0), Align::Left, if *k == 0 { TEXT } else { TEXT_DIM });
+            }
+        }
+        let (markers, stop_labels) = if self.classic { (Vec::new(), Vec::new()) } else { (markers, stop_labels) };
+        for q in crate::stop_signs::served(f.duty.filter(|_| !self.classic), &self.stop_pos).into_iter().map(&to_screen).filter(|q| win.contains(*q) && q.y > 50.0 * s && markers.iter().all(|(_, m)| m.distance(*q) >= 14.0 * s)) {
             crate::stop_signs::draw(&mut ui, signs, crate::stop_signs::Kind::Passed, q, if far { 6.0 } else { 13.0 } * s);
         }
         for (k, name, r) in stop_labels {
@@ -2809,7 +2869,7 @@ impl Navigator {
         let bs = 30.0 * s;
         let mut bx = w - pad - bs;
         // (the fork) and with a duty, the button that shows and hides its sheet (green while shown)
-        let sheet_button = f.duty.is_some().then_some(("view_list", 4u8));
+        let sheet_button = (f.duty.is_some() && !self.classic).then_some(("view_list", 4u8));
         for (icon, id) in [("close", 3u8), ("zoom_out", 2), ("zoom_in", 1), ("my_location", 0)].into_iter().chain(sheet_button) {
             let r = Rect::new(bx, head.y + (head.h - bs) * 0.5, bs, bs);
             let fill = if id == 4 && !self.city.sheet_hidden {

@@ -29463,3 +29463,11 @@ _version: 2
   uk: "рейсів: %{n}"
   pl: "kursy: %{n}"
   da: "%{n} ture"
+
+"Classic navigator":
+  de: "Klassischer Navigator"
+  da: "Klassisk navigator"
+
+"The navigator and the city map as before: without the duty board, the duty sheet and the stop signs":
+  de: "Navigator und Stadtplan wie früher: ohne Dienstanzeige, Dienstplan und Haltestellenschilder"
+  da: "Navigatoren og bykortet som før: uden vagt-tavlen, vagt-panelet og H-skiltene"

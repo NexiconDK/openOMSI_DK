@@ -1562,6 +1562,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
     Some(match id {
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
+        "nav_classic" => s.nav_classic,
         "shadows" => s.shadows,
         "head" => s.head_movement,
         "cam_smooth" => s.driverview_smooth,
@@ -1649,6 +1650,13 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
             }
             app.settings.navigator = on;
             Some(("navigator", bit))
+        }
+        "nav_classic" => {
+            app.settings.nav_classic = on;
+            if let Some(n) = app.menus.navigator.as_mut() {
+                n.classic = on;
+            }
+            Some(("nav_classic", bit))
         }
         "nav_ai" => {
             if let Some(n) = app.menus.navigator.as_mut() {
@@ -2357,6 +2365,7 @@ fn options_pages(app: &App) -> Vec<Page> {
     let game: Vec<(String, String)> = vec![
         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
+        switch_row(app, "nav_classic", "Classic navigator", "The navigator and the city map as before: without the duty board, the duty sheet and the stop signs"),
         switch_row(app, "nav_arrows", "Route arrows (as in OMSI 2)", "Shows OMSI 2's route arrows over the road"),
         pick("navigator_corner", "Corner", later),
         switch_row(app, "get_up", "Ability to get up (Ctrl+Shift+G)", "Allows you to get out of the car and explore the world"),

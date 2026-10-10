@@ -409,6 +409,7 @@ impl App {
                     n.arrows = self.settings.nav_arrows;
                     n.show_ai = self.settings.nav_ai;
                     n.size = self.settings.navigator_size;
+                    n.classic = self.settings.nav_classic;
                 }
                 if let Some(d) = self.args.driver.as_deref() {
                     self.session.career = career::Career::load(&self.args.root, d);
