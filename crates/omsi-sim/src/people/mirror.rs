@@ -24,6 +24,30 @@ pub fn remote_bus_id(player: u32) -> u64 {
     (1 << 40) | player as u64
 }
 
+/// (the fork) Would a person waiting for line record `line` of a stop with `lines` get into a
+/// bus to `terminus`? Without a record anybody would, with one only a bus to one of its
+/// termini.
+fn takes_line(line: Option<usize>, lines: &[(String, HashSet<String>)], terminus: Option<&str>) -> bool {
+    match line.and_then(|k| lines.get(k)) {
+        None => true,
+        Some((_, termini)) => terminus.map(str::trim).is_some_and(|t| !t.is_empty() && termini.iter().any(|x| x.trim().eq_ignore_ascii_case(t))),
+    }
+}
+
+#[cfg(test)]
+mod takes_line_tests {
+    use super::*;
+
+    #[test]
+    fn a_friends_bus_gets_only_who_waits_for_it() {
+        let lines = vec![("Markt".to_string(), HashSet::from(["Ahlheim Hbf".to_string()])), ("Park".to_string(), HashSet::from(["Eichenhöhe Bf".to_string()]))];
+        assert!(takes_line(None, &lines, Some("Ahlheim Hbf")), "no line record: any bus");
+        assert!(takes_line(Some(0), &lines, Some(" ahlheim hbf ")));
+        assert!(!takes_line(Some(1), &lines, Some("Ahlheim Hbf")), "waiting for the other line");
+        assert!(!takes_line(Some(0), &lines, None), "a bus to nowhere known");
+    }
+}
+
 /// The bus id (`BusId::Ai`) of a vehicle the player placed (`Player::uid`).
 pub fn placed_bus_id(uid: u64) -> u64 {
     (2 << 40) | uid
@@ -162,13 +186,20 @@ impl PeopleSim {
     /// A client's bus takes these waiting people (host): those still waiting leave our
     /// world (they are the client's now); returns them. Somebody who has meanwhile walked
     /// up to another bus stays ours.
-    pub fn hand_over(&mut self, player: u32, ids: &[u32]) -> Vec<u32> {
+    pub fn hand_over(&mut self, player: u32, ids: &[u32], terminus: Option<&str>) -> Vec<u32> {
         let mut out = Vec::new();
         for id in ids {
             let Some(i) = self.people.iter().position(|p| p.id == *id) else {
                 continue;
             };
             if !matches!(&self.people[i].state, State::Pax(x) if x.task == Task::WaitingForBus) || self.people[i].remote {
+                continue;
+            }
+            // (the fork) only those who would take that bus here: without a line record
+            // anybody, with one those whose line goes to its terminus - as our own bus
+            // takes them. (Every person waiting at the stop went to a friend's bus, those
+            // waiting for other lines too: it filled up where ours took a third as many.)
+            if !self.would_take(i, terminus) {
                 continue;
             }
             // (still counted at their stop while that bus stands there, as the people
@@ -182,6 +213,13 @@ impl PeopleSim {
             out.push(*id);
         }
         out
+    }
+
+    /// (the fork) Would waiting person `i` get into a bus to `terminus` (None: not known)?
+    fn would_take(&self, i: usize, terminus: Option<&str>) -> bool {
+        let Some(p) = self.pax(i) else { return false };
+        let Some(lines) = p.stop.and_then(|s| self.stops.get(&s)).map(|s| &s.lines) else { return true };
+        takes_line(p.line, lines, terminus)
     }
 
     /// Draw the host's people from now on (`on`), or simulate our own again. Everybody who

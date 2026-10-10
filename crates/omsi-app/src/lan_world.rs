@@ -605,12 +605,17 @@ impl LanWorld {
         }
         // waiting people a client's bus takes
         for (id, ids) in lan.take_claims() {
+            // (the fork) to the people waiting, where that bus goes: its duty's terminus, or
+            // what its sign shows
+            let terminus = lan.peers().find(|p| p.pose.id == id).map(|p| p.pose.destination.clone());
             let granted = humans
                 .as_deref_mut()
-                .map(|h| h.hand_over(id, &ids))
+                .map(|h| h.hand_over(id, &ids, terminus.as_deref()))
                 .unwrap_or_default();
             let denied: Vec<u32> = ids.iter().copied().filter(|i| !granted.contains(i)).collect();
-            if !granted.is_empty() || !denied.is_empty() {
+            // (those waiting for another line are asked for again every ten seconds while
+            // the bus stands there: told of only with somebody granted)
+            if !granted.is_empty() {
                 log::info!(
                     "LAN: player {id}'s bus takes {} waiting passenger(s) {:?}{}",
                     granted.len(),
@@ -618,7 +623,7 @@ impl LanWorld {
                     if denied.is_empty() {
                         String::new()
                     } else {
-                        format!("; {denied:?} have boarded another bus")
+                        format!("; {denied:?} wait for another line or have boarded another bus")
                     }
                 );
             }
