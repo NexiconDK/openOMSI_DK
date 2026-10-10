@@ -603,6 +603,10 @@ impl World {
                     let text = o.inst.str_var(st.def.variable.trim());
                     let shown = now_word.as_deref().and_then(|w| due_now_text(text, w, blink_on));
                     let text = shown.as_deref().unwrap_or(text);
+                    // (a board's script adds the minutes to go to the time of day: past
+                    // midnight that came out as 24:29, which a clock never shows)
+                    let wrapped = if o.arrivals { past_midnight_text(text) } else { None };
+                    let text = wrapped.as_deref().unwrap_or(text);
                     if st.update(text) {
                         let (w, h) = (st.def.width.max(1) as u32, st.def.height.max(1) as u32);
                         if let Some(rgba) = st.pending.take() {
@@ -851,9 +855,45 @@ fn due_now_text(text: &str, word: &str, on: bool) -> Option<String> {
     Some(format!("{}{word}{}", &text[..at], &text[at + DUE_NOW.len()..]))
 }
 
+/// `text` with every clock time of 24:00 or later (`24:29`, `25.10`) as the clock shows it
+/// (`00:29`, `01.10`); `None` when it has none.
+fn past_midnight_text(text: &str) -> Option<String> {
+    let b = text.as_bytes();
+    let mut out: Option<String> = None;
+    let mut from = 0;
+    let digit = |i: usize| b.get(i).is_some_and(|c| c.is_ascii_digit());
+    for i in 0..b.len().saturating_sub(4) {
+        let time = digit(i) && digit(i + 1) && matches!(b[i + 2], b':' | b'.') && digit(i + 3) && digit(i + 4);
+        if !time || (i > 0 && digit(i - 1)) || digit(i + 5) {
+            continue;
+        }
+        let hour = (b[i] - b'0') as u32 * 10 + (b[i + 1] - b'0') as u32;
+        if !(24..48).contains(&hour) {
+            continue;
+        }
+        let o = out.get_or_insert_with(String::new);
+        o.push_str(&text[from..i]);
+        o.push_str(&format!("{:02}", hour - 24));
+        from = i + 2;
+    }
+    out.map(|mut o| {
+        o.push_str(&text[from..]);
+        o
+    })
+}
+
 #[cfg(test)]
 mod due_now_tests {
-    use super::due_now_text;
+    use super::{due_now_text, past_midnight_text};
+
+    #[test]
+    fn a_board_shows_times_past_midnight_as_the_clock_does() {
+        assert_eq!(past_midnight_text("24:29").as_deref(), Some("00:29"));
+        assert_eq!(past_midnight_text("@NE21 25.10@").as_deref(), Some("@NE21 01.10@"));
+        assert_eq!(past_midnight_text("23:59"), None);
+        assert_eq!(past_midnight_text("124:29"), None);
+        assert_eq!(past_midnight_text("5 min"), None);
+    }
 
     #[test]
     fn a_board_says_now_in_the_language_and_blinks() {
