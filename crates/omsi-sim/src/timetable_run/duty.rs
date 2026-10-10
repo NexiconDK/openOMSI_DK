@@ -628,7 +628,7 @@ impl PlayerDuty {
         served
     }
 
-    pub fn doors_open(bus: &crate::VehicleInstance) -> bool {
+    pub(crate) fn doors_open(bus: &crate::VehicleInstance) -> bool {
         let mut reports_passenger_doors = false;
         let mut passenger_door_open = false;
         for i in 0..16 {

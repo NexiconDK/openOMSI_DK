@@ -145,7 +145,7 @@ impl App {
                 riders,
             );
             // (the fork) the summary of the trip just driven, when it is wanted: only once the
-            // bus stands quite still at its terminus with a door open (the trip counts as
+            // bus stands quite still at its terminus (the trip counts as
             // ended already as it comes within reach of the last stop, still moving)
             if let Some(t) = ended.filter(|_| self.settings.trip_summary) {
                 self.session.trip_summary_due = Some(t);
@@ -157,11 +157,10 @@ impl App {
                     || (d.trip_index == t + 1 && d.next_stop == 0 && d.at_stop());
                 let gone_on = d.trip_index > t + 1 || (d.trip_index == t + 1 && d.next_stop > 0);
                 if gone_on || !self.settings.trip_summary {
-                    // (the duty went on without the doors opened at the end: it is not shown)
+                    // (the duty went on without the bus stopping at the end: it is not shown)
                     self.session.trip_summary_due = None;
                 } else if at_terminus
                     && p.vehicle.physics.velocity_kmh().abs() < 0.36
-                    && omsi_sim::timetable_run::PlayerDuty::doors_open(&p.vehicle)
                 {
                     self.session.trip_summary = self.session.trip_summary_due.take();
                 }
