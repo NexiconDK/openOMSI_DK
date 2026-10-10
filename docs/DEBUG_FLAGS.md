@@ -182,6 +182,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_LAUNCHER_SIZE` | text | - | use | app | Launcher: WxH window size. |
 | `OMSI_MOBILE` | bool | off | use | app | The phone layout on a computer (launcher, screen cut-outs). |
 | `OMSI_MUTE` | bool | off | use | audio | Mix everything as usual but play nothing. |
+| `OMSI_NAV_DUTY_PREVIEW` | text | - | test | app | Duty board and duty sheet preview test: the folder for its pictures. |
 | `OMSI_NAV_MAP` | bool | off | use | app | Open the navigation map. |
 | `OMSI_NAV_MAP_MPP` | num | 2.5 | use | app | Navigation map zoom in metres per pixel. |
 | `OMSI_NAV_PROBE` | text | - | use | app | x,y[,r]: the network lanes that start or end within r of that point. |
@@ -209,6 +210,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_SKIP_OBJECT` | text | - | use | app | Leave out the objects whose file name contains this text. |
 | `OMSI_SKIP_PIPE` | text | - | frame | render | Pipeline kinds to leave out of the main pass (comma-separated numbers). |
 | `OMSI_SPOT_SELECT` | num | - | use | app | Turn on spotlight n (headlight pictures). |
+| `OMSI_STOP_SIGNS_PREVIEW` | text | - | test | app | City map stop sign preview test: the folder for its pictures. |
 | `OMSI_TEST_CONTENT` | text | - | test | app, o3d | Content root for tests that need real OMSI content. |
 | `OMSI_TEST_WINE_DIR` | text | - | test | plugin | Plugin demo test: folder holding omsi-plugin-host.exe for Wine. |
 | `OMSI_TOUCH` | bool | off | use | app | The on-screen touch controls on a computer. |

@@ -45,7 +45,10 @@ impl TimetableWorld for NightWorld {
 /// Tours of line TEST, the trip `T` (40 min): Friday's at 22:00, 23:00, 24:10, 25:10, and
 /// Thursday's and Saturday's five and ten minutes later.
 fn night_map() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("openomsi-night-{}", std::process::id()));
+    // (a folder of each test's own: the tests run side by side and each removes its folder)
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("openomsi-night-{}-{n}", std::process::id()));
     let tt = dir.join("TTData");
     std::fs::create_dir_all(&tt).unwrap();
     std::fs::write(tt.join("T.ttp"), "[trip]\r\n\r\nNochem\r\nTEST\r\n\r\n[profile]\r\nStandard\r\n40\r\n").unwrap();

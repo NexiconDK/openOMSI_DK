@@ -316,6 +316,7 @@ flags! {
     OMSI_MIRROR_HUD: Num, Tuning, Use, "settings", "Mirror HUD mode (number).";
     OMSI_MOBILE: Bool, Test, Use, "off", "The phone layout on a computer (launcher, screen cut-outs).";
     OMSI_MUTE: Bool, Test, Use, "off", "Mix everything as usual but play nothing.";
+    OMSI_NAV_DUTY_PREVIEW: Text, Test, Test, "-", "Duty board and duty sheet preview test: the folder for its pictures.";
     OMSI_NAV_MAP: Bool, Test, Use, "off", "Open the navigation map.";
     OMSI_NAV_MAP_MPP: Num, Test, Use, "2.5", "Navigation map zoom in metres per pixel.";
     OMSI_NAV_PROBE: Text, Test, Use, "-", "x,y[,r]: the network lanes that start or end within r of that point.";
@@ -415,6 +416,7 @@ flags! {
     OMSI_SKIP_OBJECT: Text, Test, Use, "-", "Leave out the objects whose file name contains this text.";
     OMSI_SKIP_PIPE: Text, Test, Frame, "-", "Pipeline kinds to leave out of the main pass (comma-separated numbers).";
     OMSI_SPOT_SELECT: Num, Test, Use, "-", "Turn on spotlight n (headlight pictures).";
+    OMSI_STOP_SIGNS_PREVIEW: Text, Test, Test, "-", "City map stop sign preview test: the folder for its pictures.";
     OMSI_SURFACE_BIAS: Num, Tuning, Use, "-24", "Depth bias of road surfaces.";
     OMSI_SURFACE_FLUSH: Num, Tuning, Once, "0.12", "Height in metres under which a surface counts as flush with the road.";
     OMSI_SUSP_TRACE: Text, Debug, Use, "-", "Offscreen CSV: body height and each wheel's travel and load every frame.";
