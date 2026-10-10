@@ -23,6 +23,9 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 ### Lys
 - Forlygterne fra en bus eller bil bag dig (andre spillere og AI) lyser ikke længere igennem din bus ind på forruden, instrumentbrættet og kabinen, når du sidder i førerhuset (grafik: Enhanced og Enhanced+).
 
+### Multiplayer
+- Destinationsskiltet (matrix) på de andre spilleres busser viser nu linje og destination. Før forblev skiltet ofte sort, fordi bussens script troede, at det allerede havde tegnet skiltet.
+
 ### Passagerer
 - I din egen bus sætter passagererne sig, hvis der er en ledig plads. På din vagt står 7 ud af 10 dog op, hvis de kun skal under **1 km**. Er den ønskede slags plads optaget, tager de den anden. Ændringen kommer fra openOMSI PR #1394.
 - AI-bussernes passagerer tager stadig en tilfældig plads, som i OMSI 2.

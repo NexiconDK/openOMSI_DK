@@ -514,6 +514,17 @@ pub struct RemoteVehicle {
     synced: hashbrown::HashMap<u16, f32>,
     synced_strings: hashbrown::HashMap<u16, String>,
     smooth: hashbrown::HashSet<u16>,
+    /// Their variables that stay ours (see [`scripts_own`]): floats, then strings.
+    own: (hashbrown::HashSet<u16>, hashbrown::HashSet<u16>),
+}
+
+/// A script's memory of what it last drew - `Matrix_Nr_Last`, `Matrix_TerminusIndex_Last`
+/// and the like - is not taken from the other game. The matrices draw their script texture
+/// only when the line or terminus differs from those; taken with the line and terminus
+/// they always matched, and the copy here, whose texture starts empty, never drew its
+/// destination (a friend's O530 drove with a blank sign).
+fn scripts_own(name: &str) -> bool {
+    name.to_ascii_lowercase().ends_with("_last")
 }
 
 impl RemoteVehicle {
@@ -2682,6 +2693,7 @@ fn new_remote(
         synced: Default::default(),
         synced_strings: Default::default(),
         smooth: Default::default(),
+        own: Default::default(),
     })
 }
 
@@ -3089,6 +3101,14 @@ fn sync_vars(lan: &mut LanSession, game: &mut LanGame, player: Option<&Player>, 
             let t = var_table(&rv.vehicle.ty.program);
             let tbl = &rv.table;
             rv.smooth = tbl.lamps.iter().chain(&tbl.switches).chain(&tbl.values).map(|(_, id)| *id as u16).chain(tbl.doors.iter().map(|id| *id as u16)).chain(tbl.engine_n.map(|id| id as u16)).collect();
+            let p = &rv.vehicle.ty.program;
+            rv.own = (
+                t.floats.iter().copied().filter(|id| p.var_names.get(*id as usize).is_some_and(|n| scripts_own(n))).collect(),
+                t.strings.iter().copied().filter(|id| p.str_var_names.get(*id as usize).is_some_and(|n| scripts_own(n))).collect(),
+            );
+            // (and drawn once now, whatever the line and terminus)
+            rv.vehicle.set_var("Matrix_Nr_Last", -1.0);
+            rv.vehicle.set_var("Matrix_TerminusIndex_Last", -1.0);
             rv.vars = Some(t);
         }
         let Some(t) = rv.vars.as_ref() else { continue };
@@ -3097,12 +3117,12 @@ fn sync_vars(lan: &mut LanSession, game: &mut LanGame, player: Option<&Player>, 
         }
         let (nf, ns) = (rv.vehicle.state.vars.len(), rv.vehicle.state.str_vars.len());
         for (id, x) in v.floats {
-            if (id as usize) < nf && x.is_finite() {
+            if (id as usize) < nf && x.is_finite() && !rv.own.0.contains(&id) {
                 rv.synced.insert(id, x);
             }
         }
         for (id, s) in v.strings {
-            if (id as usize) < ns {
+            if (id as usize) < ns && !rv.own.1.contains(&id) {
                 rv.synced_strings.insert(id, s);
             }
         }
