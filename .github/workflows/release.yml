@@ -48,9 +48,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             arch: x64
-          # ARM64 (Snapdragon laptops): built on the x64 runner with its ARM64 tools
-          - target: aarch64-pc-windows-msvc
-            arch: arm64
+          # (the fork: no ARM64 build for Snapdragon laptops, none of us has one)
     env:
       OPENOMSI_VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -352,7 +350,6 @@ jobs:
           | Platform | Download |
           | --- | --- |
           | Windows x64 | \`openOMSI-$VERSION-windows-x64.zip\` |
-          | Windows ARM64 | \`openOMSI-$VERSION-windows-arm64.zip\` |
           NOTES
           # (the fork builds Windows only: no .apk to upload)
           files=$(ls out/*.zip out/*.apk 2>/dev/null || true)

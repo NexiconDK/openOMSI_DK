@@ -57,3 +57,4 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 
 ### Opdateringer
 - openOMSI DK opdaterer sig selv fra denne fork og ikke fra den officielle openOMSI, så ændringerne bliver.
+- Der bygges kun til almindelige Windows-pc'er (x64), ikke længere til Windows på ARM (Snapdragon-bærbare).
