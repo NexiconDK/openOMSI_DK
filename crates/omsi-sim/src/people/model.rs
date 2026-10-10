@@ -166,6 +166,9 @@ pub struct Person {
     pub puppet: Option<Puppet>,
     /// LAN play: one of the host's people, drawn where the host says (`mirror_set`).
     pub remote: bool,
+    /// LAN play: the place in the bus one of the host's people has (`mirror_set`) - on a
+    /// seat they are drawn sitting, not standing on it.
+    pub mirror_seat: Option<usize>,
 }
 
 impl Person {

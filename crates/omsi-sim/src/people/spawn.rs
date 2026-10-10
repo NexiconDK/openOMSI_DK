@@ -504,6 +504,7 @@ impl PeopleSim {
             ankles: [Vec3::ZERO; 2],
             puppet: None,
             remote: false,
+            mirror_seat: None,
         });
         Some(self.people.len() - 1)
     }

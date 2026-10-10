@@ -340,6 +340,21 @@ impl PeopleSim {
                         pack,
                     )
                 }
+                // one of the host's people on a seat of a bus: sitting (they were drawn
+                // standing on the seat)
+                _ if p.remote && seated_mirror(p, buses, bus_ix).is_some() => {
+                    let h = seated_mirror(p, buses, bus_ix).unwrap_or(0.0);
+                    (
+                        AnimInput {
+                            kind: 2,
+                            room_height: pax::OUTSIDE_ROOM,
+                            seat_height: h,
+                            dt_ms,
+                            ..Default::default()
+                        },
+                        None,
+                    )
+                }
                 _ => {
                     let v = p.vel.length() as f32;
                     (
@@ -363,4 +378,12 @@ impl PeopleSim {
             }
         }
     }
+}
+
+/// The seat height of the seat one of the host's people sits on in a bus here (LAN play),
+/// None when they stand (or the bus or the place is not known here).
+fn seated_mirror(p: &Person, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) -> Option<f32> {
+    let Place::Bus(bus, _) = p.place else { return None };
+    let seat = bus_ix.get(&bus).and_then(|k| buses[*k].cabin.seats.get(p.mirror_seat?))?;
+    seat.seated.then_some(seat.height)
 }

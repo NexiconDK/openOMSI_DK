@@ -56,6 +56,7 @@ fn the_pool_counts_local_people_and_never_recycles_riders_or_avatars() {
         ankles: [Vec3::ZERO; 2],
         puppet,
         remote,
+        mirror_seat: None,
     };
     let mut h = PeopleSim::new(Path::new("/nonexistent"), 200);
     h.max_people = 2;

@@ -289,12 +289,16 @@ impl PeopleSim {
             }
         }
         match pose.aboard {
-            Some((bus, local, lheading, _)) => {
+            Some((bus, local, lheading, seat)) => {
                 p.place = Place::Bus(BusId::Ai(bus), local);
                 p.lheading = lheading;
                 p.vel = DVec2::ZERO;
+                p.mirror_seat = seat;
             }
-            None => p.place = Place::Ground,
+            None => {
+                p.place = Place::Ground;
+                p.mirror_seat = None;
+            }
         }
     }
 
