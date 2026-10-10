@@ -93,6 +93,41 @@ fn near_player_vehicle(world: vec3<f32>) -> f32 {
     return select(0.0, 1.0, abs(x) < h.x && abs(y) < h.y && abs(z) < h.z);
 }
 
+// (the fork) The point in the frame of the player's vehicle's `[boundingbox]` (its centre 0).
+fn in_player_box(world: vec3<f32>) -> vec3<f32> {
+    let d = world - camera.inside_a.xyz;
+    let sh = camera.inside_a.w;
+    let ch = camera.inside_b.x;
+    return vec3<f32>(d.x * ch - d.y * sh, d.x * sh + d.y * ch, d.z) - camera.inside_c.xyz;
+}
+
+// (the fork) Does the player's vehicle stand between a lamp at `lamp` and the point `p`
+// outside it? Nothing shadows another vehicle's lamps: the headlights of a bus behind shone
+// through the player's bus onto the road ahead, seen through the windscreen. (A lamp of the
+// player's own vehicle is never blocked; its box taken 0.1 m smaller, so that the skin
+// facing the lamp is still lit.)
+fn player_vehicle_blocks(lamp: vec3<f32>, p: vec3<f32>) -> bool {
+    if (camera.inside_c.w < 0.5) {
+        return false;
+    }
+    let a = in_player_box(lamp);
+    let h = camera.inside_b.yzw;
+    if (all(abs(a) < h + vec3<f32>(0.25))) {
+        return false;
+    }
+    let hb = max(h - vec3<f32>(0.1), vec3<f32>(0.05));
+    let dir = in_player_box(p) - a;
+    // (a slab test; an axis the segment runs along takes a tiny step, not a division by 0)
+    let run = select(dir, select(vec3<f32>(-1e-6), vec3<f32>(1e-6), dir >= vec3<f32>(0.0)), abs(dir) < vec3<f32>(1e-6));
+    let ta = (-hb - a) / run;
+    let tb = (hb - a) / run;
+    let lo = min(ta, tb);
+    let hi = max(ta, tb);
+    let t0 = max(max(lo.x, lo.y), max(lo.z, 0.0));
+    let t1 = min(min(hi.x, hi.y), min(hi.z, 1.0));
+    return t0 < t1;
+}
+
 // How much of the way from the camera to `world` lies outside the player's vehicle: there is
 // no fog in the cab. From the driver's seat the whole saloon (seats 2 m away, the doors 5 m
 // away) took the fog of that distance and in thick ground fog the interior went milky, the
@@ -1170,7 +1205,12 @@ fn point_lights(p: vec3<f32>, n: vec3<f32>, map_k: f32) -> vec3<f32> {
             if (dist >= l.pos.w) {
                 continue;
             }
-            if (own && (l.dir.w >= -1.5 || l.dir.z > -0.5) && near_player_vehicle(l.pos.xyz) < 0.5) {
+            let vehicle_lamp = l.dir.w >= -1.5 || l.dir.z > -0.5;
+            if (own && vehicle_lamp && near_player_vehicle(l.pos.xyz) < 0.5) {
+                continue;
+            }
+            // (the player's bus casts its shadow: a lamp behind it lights no road ahead of it)
+            if (vehicle_lamp && player_vehicle_blocks(l.pos.xyz, p)) {
                 continue;
             }
             // full intensity within 1/8 of the range, then inverse-square, cut off at the range;
