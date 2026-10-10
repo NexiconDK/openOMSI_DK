@@ -226,7 +226,7 @@ fn version_parts(v: &str) -> Vec<u64> {
 
 /// A pull request's test build: `release.yml` gives it the version `<release>-pr<number>`.
 pub fn is_test_build(version: &str) -> bool {
-    // (the fork's releases, `<release>-fork`, update from the fork's own: `REPO`)
+    // (the fork's releases, `<release>-dk`, update from the fork's own: `REPO`)
     version.contains("-pr")
 }
 
