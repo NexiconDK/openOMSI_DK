@@ -595,9 +595,14 @@ impl World {
             // was still empty at its first frame stayed blank for good (#367)
             if !o.texts.is_empty() {
                 let _ = o.inst.take_refresh_strings();
+                // a departure board's "sofort" (due now) in the interface's language, blinking
+                let now_word = o.arrivals.then(|| omsi_ui::tr(DUE_NOW)).filter(|w| w != DUE_NOW);
+                let blink_on = (now.time * 2.0).rem_euclid(2.0) < 1.0;
                 for (tex, st) in o.texts.iter_mut() {
                     // (read in place: a copy each frame was only compared with the last)
                     let text = o.inst.str_var(st.def.variable.trim());
+                    let shown = now_word.as_deref().and_then(|w| due_now_text(text, w, blink_on));
+                    let text = shown.as_deref().unwrap_or(text);
                     if st.update(text) {
                         let (w, h) = (st.def.width.max(1) as u32, st.def.height.max(1) as u32);
                         if let Some(rgba) = st.pending.take() {
@@ -824,5 +829,38 @@ impl World {
             let xf = Mat4::from_translation(pos.as_vec3()) * xf;
             ss.update(a, var, &xf, fired);
         }
+    }
+}
+
+/// What a departure board's script writes for a bus that leaves now (OMSI's German boards).
+const DUE_NOW: &str = "sofort";
+
+/// `text` with its [`DUE_NOW`] written as `word` (in capitals when the board wrote it so), or
+/// left out while `on` is false so it blinks; `None` when the text has no such word.
+fn due_now_text(text: &str, word: &str, on: bool) -> Option<String> {
+    let lower = text.to_ascii_lowercase();
+    let at = lower.find(DUE_NOW)?;
+    let found = &text[at..at + DUE_NOW.len()];
+    let word = if !on {
+        String::new()
+    } else if found.chars().all(|c| c.is_ascii_uppercase()) {
+        word.to_uppercase()
+    } else {
+        word.to_string()
+    };
+    Some(format!("{}{word}{}", &text[..at], &text[at + DUE_NOW.len()..]))
+}
+
+#[cfg(test)]
+mod due_now_tests {
+    use super::due_now_text;
+
+    #[test]
+    fn a_board_says_now_in_the_language_and_blinks() {
+        assert_eq!(due_now_text("@sofort@", "Nu", true).as_deref(), Some("@Nu@"));
+        assert_eq!(due_now_text("@sofort@", "Nu", false).as_deref(), Some("@@"));
+        assert_eq!(due_now_text("SOFORT", "Nu", true).as_deref(), Some("NU"));
+        assert_eq!(due_now_text("Sofort", "Nu", true).as_deref(), Some("Nu"));
+        assert_eq!(due_now_text("3 min", "Nu", true), None);
     }
 }

@@ -616,6 +616,8 @@ pub enum WorldUpdate {
     Weather(Option<String>),
     /// Host: the timetable tours the other players drive (line, tour; lower case).
     Tours(hashbrown::HashSet<(String, String)>),
+    /// The other players' buses on their duties, where they are (for the departure boards).
+    LanBuses(Vec<omsi_sim::timetable_run::LanBus>),
 }
 
 /// What the game keeps about a session besides the transport: the other players' buses,
@@ -633,6 +635,8 @@ pub struct LanGame {
     adopted: u32,
     /// Host: the tours the other players drive, as last told the timetable.
     tours: hashbrown::HashSet<(String, String)>,
+    /// The other players' buses on their duties, as last told the timetable.
+    lan_buses: Vec<omsi_sim::timetable_run::LanBus>,
     /// Clock difference still to catch up (s).
     slew: f64,
     status_t: f32,
@@ -668,6 +672,9 @@ pub struct Frame<'a> {
     pub clock: Option<&'a omsi_sim::SimClock>,
     /// The timetable tour we drive, `<line>/<tour>` (the host's timetable leaves it to us).
     pub tour: Option<String>,
+    /// How far along it we are (`PlayerDuty::lan_progress`): the others' departure boards
+    /// show our bus where it is.
+    pub progress: Option<String>,
     /// We are out of the seat, walking about.
     pub walker: Option<omsi_net::Walker>,
     /// We stand or sit in this player's bus: it is drawn from inside.
@@ -2007,6 +2014,7 @@ pub fn my_pose(
         line,
         destination,
         tour: String::new(),
+        progress: String::new(),
         texts,
         freetex,
         figure: p.driver.as_ref().map(|d| content_relative(&d.human_type().def.path, &args.root)).unwrap_or_default(),
@@ -3259,6 +3267,16 @@ pub fn tick(
     }
     let mut mine = my_pose(game, player.as_deref(), args, duty, frame.riders);
     mine.tour = frame.tour.clone().unwrap_or_default();
+    mine.progress = frame.progress.clone().unwrap_or_default();
+    // the others' buses on their duties, for the departure boards (host and clients alike)
+    let buses: Vec<omsi_sim::timetable_run::LanBus> = lan
+        .peers()
+        .filter_map(|p| omsi_sim::timetable_run::LanBus::parse(&p.pose.tour, &p.pose.progress))
+        .collect();
+    if buses != game.lan_buses {
+        game.lan_buses = buses.clone();
+        updates.push(WorldUpdate::LanBuses(buses));
+    }
     mine.walker = frame.walker;
     // (only while driving: on foot or as a passenger the radio key does nothing)
     mine.radio_keyed = frame.radio_keyed && frame.walker.is_none() && mine.has_vehicle();

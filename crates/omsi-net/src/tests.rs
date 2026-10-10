@@ -77,7 +77,8 @@ fn info_carries_the_freetex_pictures_and_an_older_info_has_none() {
     assert_eq!(q.freetex, p.freetex);
     assert_eq!(q.texts, p.texts);
     // an older game's INFO ends with the figure: no pictures, everything else as before
-    let older = text.rsplit_once('|').unwrap().0;
+    // (and the tour's progress after the pictures)
+    let older = text.rsplit_once('|').unwrap().0.rsplit_once('|').unwrap().0;
     let q = Pose::decode_info(&older.split('|').collect::<Vec<_>>()).unwrap();
     assert!(q.freetex.is_empty());
     assert_eq!(q.texts, p.texts);
@@ -85,6 +86,7 @@ fn info_carries_the_freetex_pictures_and_an_older_info_has_none() {
     p.freetex = (0..MAX_FREETEX).map(|k| format!("{k}{}", "é".repeat(200))).collect();
     p.bus = format!("Vehicles/{}/{}.bus", "Ü".repeat(60), "b".repeat(120));
     p.texts = (0..MAX_TEXTS).map(|k| format!("{k}ß{}", "ñ".repeat(40))).collect();
+    p.progress = "86400,12,-3600,1".into();
     assert!(p.encode_info().len() <= MAX_DATAGRAM);
 }
 
@@ -94,6 +96,7 @@ fn info_round_trip_and_cleaning() {
     p.id = 7;
     p.table = 0xDEAD_BEEF;
     p.tour = "37/5".into();
+    p.progress = "45000,3,-60".into();
     let text = p.encode_info();
     let parts: Vec<&str> = text.split('|').collect();
     let q = Pose::decode_info(&parts).unwrap();
@@ -119,6 +122,7 @@ fn info_round_trip_and_cleaning() {
     );
     assert_eq!((q.length, q.width, q.box_offset), (11.5, 2.5, -0.75));
     assert_eq!(q.tour, "37/5");
+    assert_eq!(q.progress, "45000,3,-60");
     // what a hostile or broken game might send
     let long = "x".repeat(500);
     let evil = format!("INFO|7|a\u{7}b{long}|../../etc/passwd.bus|p|l|d|11|2.5|0|0");

@@ -25,6 +25,7 @@ impl App {
             riders: self.session.humans.as_ref().map(|h| h.riding()).unwrap_or(0),
             clock: Some(&self.clock),
             tour: self.session.duty.as_ref().map(|d| format!("{}/{}", d.line, d.tour)),
+            progress: self.session.duty.as_ref().map(|d| d.lan_progress(self.clock.time)),
             walker,
             inside_of: self.net.inside_remote,
             radio_keyed,
@@ -131,6 +132,11 @@ impl App {
             lan::WorldUpdate::Tours(tours) => {
                 if let Some(s) = self.session.schedule.as_mut() {
                     s.set_lan_tours(tours);
+                }
+            }
+            lan::WorldUpdate::LanBuses(buses) => {
+                if let Some(s) = self.session.schedule.as_mut() {
+                    s.set_lan_buses(buses);
                 }
             }
         }

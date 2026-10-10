@@ -72,6 +72,47 @@ impl ScheduleSim {
                 if arrive > now + BOARD_AHEAD || leave < now - BOARD_AHEAD {
                     continue;
                 }
+                // the other LAN players' buses on this tour, where they are (two players on
+                // one tour: both)
+                let lan: Vec<&LanBus> = self
+                    .lan_buses
+                    .iter()
+                    .filter(|b| d.line.eq_ignore_ascii_case(&b.line) && d.tour.eq_ignore_ascii_case(&b.tour))
+                    .collect();
+                if !lan.is_empty() {
+                    let terminus = &self.data.trips[d.trip].terminus;
+                    let hof = self
+                        .depots
+                        .get(&d.ai_group.to_ascii_lowercase())
+                        .and_then(|v| v.iter().find_map(|x| x.2.as_deref()));
+                    let line = self.display_line(i);
+                    for b in lan {
+                        // this trip against the one the bus is on: the same, later or done
+                        let ahead = (start - b.departure).rem_euclid(DAY);
+                        let mut extra = StopExtra::default();
+                        let expected = if !(30.0..=DAY - 30.0).contains(&ahead) {
+                            if k < b.next_stop {
+                                continue;
+                            }
+                            extra.delay = Some(b.late);
+                            let from = if b.at_stop { b.next_stop + 1 } else { b.next_stop };
+                            if b.at_stop && k == b.next_stop {
+                                extra.stops_away = Some(0);
+                                now
+                            } else {
+                                extra.stops_away = Some((from..=k).filter(|&x| tt.stops.get(x).copied().unwrap_or(false)).count() as u32);
+                                (arrive + b.late).max(now)
+                            }
+                        } else if ahead < DAY / 2.0 {
+                            (arrive + b.late.max(0.0)).max(now)
+                        } else {
+                            continue;
+                        };
+                        extra.last_trip = last_of_line.get(&line).is_some_and(|&l| leave >= l - 0.5);
+                        list.push((expected, line.clone(), terminus_text(hof, terminus), (leave - arrive).max(0.0), extra));
+                    }
+                    continue;
+                }
                 if self.is_player_tour(i) {
                     continue;
                 }

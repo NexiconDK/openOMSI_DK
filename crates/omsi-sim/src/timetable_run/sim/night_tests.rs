@@ -147,3 +147,37 @@ fn the_boards_show_tonights_night_trips_before_midnight() {
     assert!(!at("TEST-TOR", 1455) && !at("TEST-LOR", 1460) && !at("TEST-LOR", 1390));
     std::fs::remove_dir_all(dir).ok();
 }
+
+/// LAN play: two players on the same tour both come onto the boards where they are - the one
+/// still to reach the stop on this trip with its delay, both on their tour's later trips -
+/// and the timetable's own bus of that tour does not.
+#[test]
+fn the_boards_show_the_other_players_buses_where_they_are() {
+    let (mut s, dir) = friday_evening();
+    // the trip `T`: three stations 10 minutes apart, the middle one the stop 77
+    for t in s.times[0].iter_mut() {
+        t.stations = vec![(0.0, 0.0), (600.0, 630.0), (1200.0, 1200.0)];
+        t.stops = vec![true; 3];
+    }
+    s.visits.insert(77, vec![(0, 1)]);
+    let now = 22.0 * 3600.0 + 45.0 * 60.0;
+    let at = |m: f64| m * 60.0;
+    let times = |s: &ScheduleSim| {
+        let mut l: Vec<f64> = s.stop_list(77, now, &HashMap::new(), None, None).iter().map(|e| e.0).collect();
+        l.sort_by(f64::total_cmp);
+        l
+    };
+    // the timetable alone: 23:00 (23:10 at the stop) and 24:10 (0:20); 22:00's has gone by
+    assert_eq!(times(&s), vec![at(1390.0), at(1460.0)]);
+    let bus = |p: &str| LanBus::parse("TEST/test-fre", p).unwrap();
+    // one on the 23:00 trip before the stop, 2 min late; one past it, 5 min late
+    s.set_lan_buses(vec![bus("82800,0,120,0"), bus("82800,2,300,0")]);
+    assert_eq!(times(&s), vec![at(1390.0) + 120.0, at(1460.0) + 120.0, at(1460.0) + 300.0]);
+    // standing at the stop: due now
+    s.set_lan_buses(vec![bus("82800,1,60,1")]);
+    let list = s.stop_list(77, now, &HashMap::new(), None, None);
+    let first = list.iter().map(|e| e.0).fold(f64::MAX, f64::min);
+    assert_eq!(first, now);
+    assert_eq!(LanBus::parse("TEST/x", "nonsense"), None);
+    std::fs::remove_dir_all(dir).ok();
+}

@@ -257,6 +257,7 @@ impl ScheduleSim {
             player_departure: None,
             purge_player_tour: false,
             lan_tours: HashSet::new(),
+            lan_buses: Vec::new(),
             last_tod: 0.0,
             deactivated,
             served,

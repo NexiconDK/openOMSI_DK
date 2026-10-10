@@ -156,6 +156,11 @@ impl ScheduleSim {
         }
     }
 
+    /// LAN play: where the other players' buses are on their duties (for the boards).
+    pub fn set_lan_buses(&mut self, buses: Vec<LanBus>) {
+        self.lan_buses = buses;
+    }
+
     /// Does a player drive departure `i` (we, or another LAN player)?
     pub(super) fn is_player_tour(&self, i: usize) -> bool {
         if let Some(d) = self.departures.get(i) {

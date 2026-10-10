@@ -835,3 +835,51 @@ impl PlayerDuty {
         served
     }
 }
+
+/// Another LAN player's bus on its duty, for the departure boards: which trip of which tour,
+/// the next stop on it and how late it runs (see [`PlayerDuty::lan_progress`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LanBus {
+    /// Line and tour (lower case).
+    pub line: String,
+    pub tour: String,
+    /// The current trip's departure (s, the duty's own count: past 24:00 for a night trip).
+    pub departure: f64,
+    /// The next stop on it (the trip's station index); past the last once the trip is done.
+    pub next_stop: usize,
+    /// How late it runs (s; negative = early), as the player's own bus is shown.
+    pub late: f64,
+    pub at_stop: bool,
+}
+
+impl LanBus {
+    /// From a player's `<line>/<tour>` and the progress its game sent, or None.
+    pub fn parse(tour: &str, progress: &str) -> Option<LanBus> {
+        let (line, tour) = tour.split_once('/')?;
+        let (line, tour) = (line.trim().to_lowercase(), tour.trim().to_lowercase());
+        let mut f = progress.split(',').map(str::trim);
+        let departure: f64 = f.next()?.parse().ok().filter(|v: &f64| v.is_finite())?;
+        let next_stop: usize = f.next()?.parse().ok()?;
+        let late: f64 = f.next()?.parse().ok().filter(|v: &f64| v.is_finite() && v.abs() < 86_400.0)?;
+        let at_stop = f.next() == Some("1");
+        (!line.is_empty() && !tour.is_empty()).then_some(LanBus { line, tour, departure, next_stop, late, at_stop })
+    }
+}
+
+impl PlayerDuty {
+    /// Where the duty is, for the others' departure boards: `<trip's departure s>,<next
+    /// stop>,<late s>,<at stop 0/1>` (the lateness in steps of 10 s, so it is not sent anew
+    /// every second; a done trip's next stop past its last).
+    pub fn lan_progress(&self, now: f64) -> String {
+        let delay = self.delay(now);
+        let late = if self.left_late.is_some() || self.at_stop { delay } else { delay.max(0.0) };
+        let next = if self.done { self.trip().stops.len() } else { self.next_stop };
+        format!(
+            "{:.0},{},{:.0},{}",
+            self.trip().departure,
+            next,
+            (late / 10.0).round() * 10.0,
+            self.at_stop as u8
+        )
+    }
+}

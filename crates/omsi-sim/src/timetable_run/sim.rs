@@ -177,6 +177,9 @@ pub struct ScheduleSim {
     /// LAN play (host): the tours the other players drive (line, tour; lower case), left to
     /// them like our own.
     lan_tours: HashSet<(String, String)>,
+    /// LAN play: where the other players' buses are on their duties (the departure boards
+    /// show them coming, two players on one tour both).
+    lan_buses: Vec<LanBus>,
     /// Time of today's timetable at the last tick (s).
     last_tod: f64,
     /// The lines the date's chrono folders take off the timetable, with the folder that does

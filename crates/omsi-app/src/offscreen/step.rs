@@ -781,6 +781,7 @@ impl Offscreen<'_> {
                 riders: humans_off.as_ref().map(|h| h.riding()).unwrap_or(0),
                 clock,
                 tour: duty.as_ref().map(|d| format!("{}/{}", d.line, d.tour)),
+                progress: duty.as_ref().map(|d| d.lan_progress(run_clock.time)),
                 walker: None,
                 inside_of: None,
                 radio_keyed: false,
@@ -802,8 +803,10 @@ impl Offscreen<'_> {
                 &frame,
             );
             for u in updates {
-                if let (lan::WorldUpdate::Tours(tours), Some(s)) = (u, schedule.as_mut()) {
-                    s.set_lan_tours(tours);
+                match (u, schedule.as_mut()) {
+                    (lan::WorldUpdate::Tours(tours), Some(s)) => s.set_lan_tours(tours),
+                    (lan::WorldUpdate::LanBuses(buses), Some(s)) => s.set_lan_buses(buses),
+                    _ => {}
                 }
             }
             // the other games run in real time (see `RealTime`)
