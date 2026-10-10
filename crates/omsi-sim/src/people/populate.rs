@@ -345,7 +345,7 @@ impl PeopleSim {
             .collect();
         let crowd = (lanes.len() as f32 / 120.0).clamp(0.6, 3.0);
         let target =
-            (self.pedestrians as f32 * crowd * self.density.clamp(0.0, 3.0)).round() as usize;
+            (self.pedestrians as f32 * crowd * self.density.clamp(0.0, 3.0) * self.pedestrian_factor.clamp(0.0, 4.0)).round() as usize;
         // (0x62463c: walking the pavements only while fewer than half the pool do, and never
         // past the pool)
         let target = target.min(self.max_people / 2).min((self.max_people + self.people.iter().filter(|p| matches!(p.state, State::Strolling(_))).count()).saturating_sub(self.pool_used()));
@@ -358,6 +358,23 @@ impl PeopleSim {
                 self.lan_centers.is_empty() || (p.position - center).length() < STROLL_RADIUS
             })
             .count();
+        // (the fork) fewer wanted than walk (the `pedestrians` setting turned down): those
+        // out of sight go, a few at a time
+        if have > target {
+            let mut extra = (have - target).min(4);
+            for i in (0..self.people.len()).rev() {
+                if extra == 0 {
+                    break;
+                }
+                let p = &self.people[i];
+                let mine = self.lan_centers.is_empty() || (p.position - center).length() < STROLL_RADIUS;
+                if matches!(p.state, State::Strolling(_)) && p.puppet.is_none() && !p.remote && mine && !self.seen(p.position) {
+                    let p = self.people.swap_remove(i);
+                    self.retire(&p);
+                    extra -= 1;
+                }
+            }
+        }
         if have < target && !lanes.is_empty() {
             for _ in 0..(target - have).min(4) {
                 let lane = lanes[(self.rand() as usize) % lanes.len()];

@@ -29114,3 +29114,23 @@ _version: 2
 "Not In Service":
   de: "Betriebsfahrt"
   da: "Ikke i rute"
+
+"Few":
+  de: "Wenige"
+  da: "Få"
+
+"Many":
+  de: "Viele"
+  da: "Mange"
+
+"Very many":
+  de: "Sehr viele"
+  da: "Rigtig mange"
+
+"People on the streets":
+  de: "Menschen auf den Straßen"
+  da: "Mennesker på gaden"
+
+"How many people walk the pavements":
+  de: "Wie viele Menschen auf den Gehwegen gehen"
+  da: "Hvor mange mennesker der går på fortovene"

@@ -383,6 +383,8 @@ pub struct PeopleSim {
     pub stamped: Vec<BusId>,
     /// Pedestrians to keep strolling near the player (scaled by `density`).
     pub pedestrians: usize,
+    /// (the fork) The `pedestrians` setting: a factor on how many walk the pavements.
+    pub pedestrian_factor: f32,
     /// Omsi.exe's people (`[AIMaxCountRandom]`'s second line, the `ai_max_humans` setting):
     /// it makes that many at the start (0x709274) and draws everybody waiting at a stop,
     /// walking the pavements or riding from them - never more; at most half of them walk

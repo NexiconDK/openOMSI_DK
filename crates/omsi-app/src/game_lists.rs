@@ -2256,6 +2256,7 @@ fn select_options(key: &str) -> Vec<(&'static str, &'static str)> {
         "boarding" => vec![("auto", "Pay and take the ticket"), ("pay", "The driver sells the ticket"), ("walk", "Just walk in")],
         "pax_voices" => vec![("all", "Greetings and tickets"), ("tickets", "Only the ticket asked for"), ("off", "Silent")],
         "maintenance" => vec![("0", "Infinite (no wear)"), ("1", "Very bad"), ("2", "Bad"), ("3", "Normal"), ("4", "Good")],
+        "pedestrians" => vec![("0", "None"), ("50", "Few"), ("100", "Normal"), ("200", "Many"), ("400", "Very many")],
         "ai_unsched_factor" => vec![("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%"), ("150", "150%"), ("200", "200%")],
         "ai_max_scheduled" => vec![("0", "All"), ("10", "At most 10"), ("25", "At most 25"), ("50", "At most 50")],
         "ai_max_parked" => vec![("-1", "None"), ("0", "Every space"), ("35", "At most 35"), ("100", "At most 100"), ("250", "At most 250")],
@@ -2331,6 +2332,7 @@ fn sync_live(app: &mut App) {
     if let Some(h) = app.session.humans.as_mut() {
         h.exact_fare = s.exact_fare;
         h.boarding = s.boarding.clone();
+        h.pedestrian_factor = s.pedestrians;
         h.voices = match s.pax_voices.as_str() {
             "off" => 2,
             "tickets" => 1,
@@ -2360,6 +2362,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
         switch_row(app, "full_sign", "OPTAGET on the destination display when the bus is full", "With fewer than 3 free places the sign turns between the destination and OPTAGET"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
+        pick("pedestrians", "People on the streets", "How many people walk the pavements"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),
         pick("ai_max_scheduled", "Timetable vehicles", later),
