@@ -336,8 +336,10 @@ jobs:
           if ! grep -q '[^[:space:]]' changes.md; then
             echo "Small changes and fixes." > changes.md
           fi
+          # (the fork: its own notes, in Danish, FORK.md)
+          if [ -f FORK.md ]; then cp FORK.md changes.md; fi
           cat > notes.md <<NOTES
-          **openOMSI $VERSION**
+          **openOMSI DK $VERSION**
 
           > **Early release, expect bugs.** openOMSI needs an original OMSI 2 installation to run; it contains no game content.
 
@@ -351,13 +353,6 @@ jobs:
           | --- | --- |
           | Windows x64 | \`openOMSI-$VERSION-windows-x64.zip\` |
           | Windows ARM64 | \`openOMSI-$VERSION-windows-arm64.zip\` |
-          | macOS (Apple silicon) | \`openOMSI-$VERSION-macos-arm64.zip\` |
-          | macOS (Intel) | \`openOMSI-$VERSION-macos-x64.zip\` |
-          | Linux x64 | \`openOMSI-$VERSION-linux-x64.zip\` |
-          | Linux ARM64 | \`openOMSI-$VERSION-linux-arm64.zip\` |
-          | Android (arm64, 8.0+) | \`openOMSI-$VERSION-android-arm64.apk\` |
-          | Dedicated server, Linux | \`openOMSI-$VERSION-server-linux-x64.zip\`, \`openOMSI-$VERSION-server-linux-arm64.zip\` |
-          | Dedicated server, Windows | \`openOMSI-$VERSION-server-windows-x64.zip\`, \`openOMSI-$VERSION-server-windows-arm64.zip\` |
           NOTES
           # (the fork builds Windows only: no .apk to upload)
           files=$(ls out/*.zip out/*.apk 2>/dev/null || true)
@@ -367,10 +362,10 @@ jobs:
             # the same version built again (main was rewritten and pushed once more): the
             # release stays, with this build's files and notes
             gh release upload "v$VERSION" $files --clobber
-            gh release edit "v$VERSION" --title "openOMSI $VERSION" --notes-file notes.md
+            gh release edit "v$VERSION" --title "openOMSI DK $VERSION" --notes-file notes.md
           else
             gh release create "v$VERSION" $files \
               --verify-tag \
-              --title "openOMSI $VERSION" \
+              --title "openOMSI DK $VERSION" \
               --notes-file notes.md
           fi

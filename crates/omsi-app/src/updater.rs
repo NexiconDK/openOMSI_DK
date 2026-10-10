@@ -1,4 +1,4 @@
-//! Updates from the project's GitHub releases (github.com/openOMSI-org/openOMSI).
+//! Updates from the project's GitHub releases (the fork's: github.com/NexiconDK/openOMSI_DK).
 //!
 //! Every push to main publishes a release `v<MAJOR.MINOR.COMMIT>` with one archive per
 //! platform (see .github/workflows/release.yml). The launcher asks the GitHub API for the
@@ -43,9 +43,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 /// The project on GitHub.
-pub const REPO: &str = "openOMSI-org/openOMSI";
-pub const REPO_URL: &str = "https://github.com/openOMSI-org/openOMSI";
-const LATEST_API: &str = "https://api.github.com/repos/openOMSI-org/openOMSI/releases/latest";
+pub const REPO: &str = "NexiconDK/openOMSI_DK";
+pub const REPO_URL: &str = "https://github.com/NexiconDK/openOMSI_DK";
+const LATEST_API: &str = "https://api.github.com/repos/NexiconDK/openOMSI_DK/releases/latest";
 
 /// A release newer than this build, with the file for this platform.
 #[derive(Clone, Debug, PartialEq)]
@@ -226,9 +226,8 @@ fn version_parts(v: &str) -> Vec<u64> {
 
 /// A pull request's test build: `release.yml` gives it the version `<release>-pr<number>`.
 pub fn is_test_build(version: &str) -> bool {
-    // (and the fork's own builds, `<release>-fork`: a release of openOMSI-org would
-    // replace them without the fork's changes)
-    version.contains("-pr") || version.contains("-fork")
+    // (the fork's releases, `<release>-fork`, update from the fork's own: `REPO`)
+    version.contains("-pr")
 }
 
 /// Whether `candidate` is a newer version than `current`.
