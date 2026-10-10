@@ -144,18 +144,27 @@ impl App {
                 Some(&mut self.integrations.plugin_events),
                 riders,
             );
-            // (the fork) the summary of the trip just driven, when it is wanted: once the
-            // bus stands at its terminus with a door open (the trip counts as ended a little
-            // before it, as it reaches the last stop)
+            // (the fork) the summary of the trip just driven, when it is wanted: only once the
+            // bus stands quite still at its terminus with a door open (the trip counts as
+            // ended already as it comes within reach of the last stop, still moving)
             if let Some(t) = ended.filter(|_| self.settings.trip_summary) {
                 self.session.trip_summary_due = Some(t);
             }
-            if self.session.trip_summary_due.is_some()
-                && self.settings.trip_summary
-                && p.vehicle.physics.velocity_kmh().abs() < 1.0
-                && omsi_sim::timetable_run::PlayerDuty::doors_open(&p.vehicle)
-            {
-                self.session.trip_summary = self.session.trip_summary_due.take();
+            if let Some(t) = self.session.trip_summary_due {
+                // at the terminus; or at the next trip's first stop when the trip ended there
+                // (a terminus that is the next trip's start, reached past its last stop)
+                let at_terminus = (d.trip_index == t && d.trip_done() && d.at_stop())
+                    || (d.trip_index == t + 1 && d.next_stop == 0 && d.at_stop());
+                let gone_on = d.trip_index > t + 1 || (d.trip_index == t + 1 && d.next_stop > 0);
+                if gone_on || !self.settings.trip_summary {
+                    // (the duty went on without the doors opened at the end: it is not shown)
+                    self.session.trip_summary_due = None;
+                } else if at_terminus
+                    && p.vehicle.physics.velocity_kmh().abs() < 0.36
+                    && omsi_sim::timetable_run::PlayerDuty::doors_open(&p.vehicle)
+                {
+                    self.session.trip_summary = self.session.trip_summary_due.take();
+                }
             }
         }
         if let Some(p) = self.player.as_mut() {
