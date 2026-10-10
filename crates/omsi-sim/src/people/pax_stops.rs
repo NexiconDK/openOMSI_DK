@@ -228,18 +228,20 @@ pub(super) fn choose_place(free: &[usize], places: &[Seat], prefer_seat: Option<
 }
 
 /// How far (m, stop to stop in a straight line) the player's duty trip takes somebody from
-/// `stop` to the stop named `dest`; None where either is not on the trip or not placed.
+/// `stop` to the stop named `dest`, by where the timetable places the trip's stops; None
+/// where either is not on the trip or a stop between them is not placed. (The people's own
+/// stops are only those round the camera: the ones further on were left out, every ride
+/// came out under a kilometre and 7 in 10 stood in a bus of free seats.)
 pub(super) fn duty_ride_m(trip: &DutyTrip, stops: &HashMap<i64, PaxStop>, stop: i64, dest: &str) -> Option<f64> {
     let here = stops.get(&stop)?;
     let from = trip.stops.iter().position(|(id, name, s)| *s && (*id == stop || here.is_named(name)))?;
     let to = from + 1 + trip.stops[from + 1..].iter().position(|(_, name, s)| *s && name.trim() == dest.trim())?;
     let mut m = 0.0;
-    let mut last = here.pos;
-    for (id, ..) in &trip.stops[from + 1..=to] {
-        if let Some(p) = stops.get(id) {
-            m += (p.pos - last).length();
-            last = p.pos;
-        }
+    let mut last = trip.places.get(from).copied().flatten().unwrap_or(here.pos);
+    for k in from + 1..=to {
+        let p = trip.places.get(k).copied().flatten()?;
+        m += (p - last).length();
+        last = p;
     }
     Some(m)
 }

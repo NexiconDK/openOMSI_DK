@@ -206,7 +206,9 @@ impl Humans {
         let (t, next) = d.trip_for_ibis();
         let done = std::ptr::eq(t, d.trip()) && d.trip_done();
         let trip = match self.sim.duty.take() {
-            Some((trip, ..)) if trip.name == t.name && trip.departure == t.departure => trip,
+            // (made again once the timetable has placed more of its stops: the length of a
+            // ride is measured by them)
+            Some((trip, ..)) if trip.name == t.name && trip.departure == t.departure && trip.places.iter().filter(|p| p.is_some()).count() == t.stops.iter().filter(|s| s.position.is_some()).count() => trip,
             _ => Arc::new(DutyTrip::of(&trip_plan(t), self.sim.stop_names.as_ref())),
         };
         self.sim.duty = Some((trip, next, done));
@@ -256,6 +258,6 @@ fn trip_plan(trip: &crate::schedule::PlannedTrip) -> TripPlan {
         line: trip.line.clone(),
         terminus: trip.terminus.clone(),
         departure: trip.departure,
-        stops: trip.stops.iter().map(|s| StopPlan { object_id: s.object_id, name: s.name.clone(), stops: s.stops }).collect(),
+        stops: trip.stops.iter().map(|s| StopPlan { object_id: s.object_id, name: s.name.clone(), stops: s.stops, position: s.position }).collect(),
     }
 }

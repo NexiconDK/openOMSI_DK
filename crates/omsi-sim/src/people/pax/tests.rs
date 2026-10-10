@@ -245,6 +245,7 @@ fn who_boards_the_players_bus() {
         },
         name: format!("{name} "),
         stops: name != "Depot",
+        position: None,
     };
     let planned = TripPlan {
         name: "76-1".into(),

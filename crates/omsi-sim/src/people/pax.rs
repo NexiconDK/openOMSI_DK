@@ -466,6 +466,9 @@ pub struct DutyTrip {
     /// Its stops in order: the object, its timetable name (what the destinations of the
     /// people waiting are made of) and whether the bus stops there.
     pub stops: Vec<(i64, String, bool)>,
+    /// (the fork) Where each of its stops stands, as the timetable places it (None where it
+    /// does not): how far a passenger rides on it (`duty_ride_m`).
+    pub places: Vec<Option<DVec3>>,
 }
 
 impl DutyTrip {
@@ -483,6 +486,7 @@ impl DutyTrip {
             terminus: trip.terminus.trim().to_string(),
             public: !trip.line.trim().is_empty(),
             stops: trip.stops.iter().map(|s| (s.object_id, name(s), s.stops)).collect(),
+            places: trip.stops.iter().map(|s| s.position).collect(),
         }
     }
 }
@@ -506,6 +510,8 @@ pub struct StopPlan {
     pub name: String,
     /// The trip stops there (not a station it passes).
     pub stops: bool,
+    /// (the fork) Where it stands, as the timetable places it.
+    pub position: Option<DVec3>,
 }
 
 /// Whom a bus takes on at the stops (see `at_stop` and `fit`).
