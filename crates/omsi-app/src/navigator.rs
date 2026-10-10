@@ -2288,6 +2288,8 @@ pub struct CityMap {
     /// and how long ago the wheel scrolled it (it keeps the stop the bus heads for in view
     /// otherwise).
     sheet: Option<Rect>,
+    /// (the fork) The sheet hidden by its button in the header.
+    pub sheet_hidden: bool,
     sheet_scroll: f32,
     sheet_wheel: Option<f32>,
 }
@@ -2502,6 +2504,10 @@ impl Navigator {
             Some(1) => self.city.mpp = (self.city.mpp / 1.6).max(0.25),
             Some(2) => self.city.mpp = (self.city.mpp * 1.6).min(self.max_mpp()),
             Some(3) => self.city.open = false,
+            Some(4) => {
+                self.city.sheet_hidden = !self.city.sheet_hidden;
+                self.city.sheet_wheel = None;
+            }
             _ => self.city.drag = Some((x, y)),
         }
     }
@@ -2584,7 +2590,7 @@ impl Navigator {
         }
         let s = (h / 760.0).clamp(0.95, 2.0) * f.ui_scale;
         // (the fork) the duty sheet's place on the left, when there is a duty
-        let sheet_rect = f.duty.is_some().then(|| Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s)));
+        let sheet_rect = (f.duty.is_some() && !self.city.sheet_hidden).then(|| Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s)));
         if self.city.follow {
             // (the bus in the middle of what the sheet leaves of the map)
             let side = sheet_rect.map(|r| r.right()).unwrap_or(0.0);
@@ -2802,9 +2808,18 @@ impl Navigator {
         self.city.buttons.clear();
         let bs = 30.0 * s;
         let mut bx = w - pad - bs;
-        for (icon, id) in [("close", 3u8), ("zoom_out", 2), ("zoom_in", 1), ("my_location", 0)] {
+        // (the fork) and with a duty, the button that shows and hides its sheet (green while shown)
+        let sheet_button = f.duty.is_some().then_some(("view_list", 4u8));
+        for (icon, id) in [("close", 3u8), ("zoom_out", 2), ("zoom_in", 1), ("my_location", 0)].into_iter().chain(sheet_button) {
             let r = Rect::new(bx, head.y + (head.h - bs) * 0.5, bs, bs);
-            ui.rounded(r, 5.0 * s, if id == 0 && self.city.follow { Color::rgba(60, 60, 60, 1.0) } else { Color::rgba(34, 34, 34, 1.0) });
+            let fill = if id == 4 && !self.city.sheet_hidden {
+                crate::nav_duty::accent()
+            } else if id == 0 && self.city.follow {
+                Color::rgba(60, 60, 60, 1.0)
+            } else {
+                Color::rgba(34, 34, 34, 1.0)
+            };
+            ui.rounded(r, 5.0 * s, fill);
             ui.icon(&mut self.atlas, icon, r.center(), 18.0 * s, TEXT);
             self.city.buttons.push((r, id));
             bx -= bs + 8.0 * s;
