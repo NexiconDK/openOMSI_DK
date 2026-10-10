@@ -139,6 +139,19 @@ impl PeopleSim {
             return None;
         }
         let k = choose_place(&free, places, prefer_seat, self.rand() as usize);
+        // (the fork) what the player's bus offered and what was taken: why people stand
+        if bus == BusId::Player {
+            let count = |seated: bool, pick: &dyn Fn(usize) -> bool| (0..n).filter(|&j| places[j].seated == seated && pick(j)).count();
+            let is_free = |j: usize| free.contains(&j);
+            let is_off = |j: usize| off.get(j).copied().unwrap_or(false);
+            log::info!(
+                "player bus boarding: wants {}; seats free {}/{} (off {}), standing free {}/{} (off {}); took a {} place ({k})",
+                match prefer_seat { Some(true) => "a seat", Some(false) => "to stand", None => "any place" },
+                count(true, &is_free), count(true, &|_| true), count(true, &is_off),
+                count(false, &is_free), count(false, &|_| true), count(false, &is_off),
+                if places[k].seated { "seated" } else { "standing" },
+            );
+        }
         self.seats.get_mut(&bus).unwrap()[k] = true;
         Some(k)
     }
