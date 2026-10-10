@@ -245,6 +245,10 @@ fn lamp_light(p: vec3<f32>, n: vec3<f32>, v: vec3<f32>, sf: Surface, thin: bool,
     let a = max(sf.rough * sf.rough, 0.02);
     let a_film = max(film.y * film.y, 0.02);
     let nv = max(dot(n, v), 1e-4);
+    // (the fork) seen from the cab, the player's own vehicle - its cab, its seats, its glass -
+    // takes no light from another vehicle's lamps: nothing shadows them, and the headlights
+    // of a bus behind shone through the whole body onto the windscreen and the dashboard.
+    let own = inside_vehicle(camera.cam_pos.xyz) * near_player_vehicle(p) > 0.5;
     let base = (u32(y) * side + u32(x)) * CELL_CAP;
     for (var j = 0u; j < CELL_CAP; j = j + 1u) {
         let li = grid[base + j];
@@ -257,6 +261,9 @@ fn lamp_light(p: vec3<f32>, n: vec3<f32>, v: vec3<f32>, sf: Surface, thin: bool,
         // (pos.w is 0 on a spot light, which the vanilla shader is to pass by)
         let range = l.extra.w;
         if (dist2 >= range * range) {
+            continue;
+        }
+        if (own && (l.extra.z != 0.0 || l.dir.w > -1.5) && near_player_vehicle(l.pos.xyz) < 0.5) {
             continue;
         }
         let dist = sqrt(dist2);
