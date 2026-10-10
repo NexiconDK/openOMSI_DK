@@ -2794,8 +2794,10 @@ fn tour_listed(sch: &crate::schedule::Schedule, line: &str, tour: &omsi_timetabl
     }
     let start = tour_start(tour).unwrap_or(0.0);
     let end = sch.tour_stops(line, &tour.number).iter().map(|s| s.3).fold(start, f64::max);
-    // (a night tour's times go on past 24:00: the early hours of the next day count too)
-    [now, now + 86400.0].iter().any(|n| *n >= start - LIST_AHEAD && *n <= end + LIST_BEHIND)
+    let near = |n: f64| n >= start - LIST_AHEAD && n <= end + LIST_BEHIND;
+    // (a night tour's times go on past 24:00: in the early hours the day before's tour,
+    // not this day's, whose night is the next one)
+    (sch.tour_runs_today(tour) && near(now)) || (sch.tour_runs_yesterday(tour) && near(now + 86400.0))
 }
 
 /// The fork: tours are listed from two hours before they start (s)...

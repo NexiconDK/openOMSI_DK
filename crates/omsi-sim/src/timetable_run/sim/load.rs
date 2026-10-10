@@ -390,6 +390,16 @@ impl ScheduleSim {
         last >= DAY && last - DAY >= self.last_tod && self.tour_runs_on(tour, self.prev_bits)
     }
 
+    /// (the fork) Whether a tour runs on the current day, by its mask.
+    pub fn tour_runs_today(&self, tour: &omsi_timetable::Tour) -> bool {
+        self.tour_runs_on(tour, self.day_bits)
+    }
+
+    /// (the fork) Whether a tour ran the day before: its trips past 24:00 run this morning.
+    pub fn tour_runs_yesterday(&self, tour: &omsi_timetable::Tour) -> bool {
+        self.tour_runs_on(tour, self.prev_bits)
+    }
+
     /// Whether a tour's day mask has these day bits (`day_bits`).
     pub(super) fn tour_runs_on(&self, tour: &omsi_timetable::Tour, bits: (i32, i32)) -> bool {
         let m = tour.extra.trim().parse::<i32>().unwrap_or(1023);

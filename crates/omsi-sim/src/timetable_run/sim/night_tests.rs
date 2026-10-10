@@ -115,6 +115,9 @@ fn a_night_tour_runs_on_its_own_day_and_on_past_midnight() {
     assert!(s.runs(dep(&s, "TEST-LOR", 1390)));
     assert!(s.tour_available(tour(&s, "TEST-FRE")));
     assert!(!s.tour_available(tour(&s, "TEST-TOR")));
+    // the lists after midnight: Friday's night tour is yesterday's, Saturday's is tonight's
+    assert!(s.tour_runs_yesterday(tour(&s, "TEST-FRE")) && !s.tour_runs_today(tour(&s, "TEST-FRE")));
+    assert!(s.tour_runs_today(tour(&s, "TEST-LOR")) && !s.tour_runs_yesterday(tour(&s, "TEST-LOR")));
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -124,9 +127,11 @@ fn a_night_tours_trip_now_is_the_one_after_midnight() {
     let h = |h: f64, m: f64| (h * 60.0 + m) * 60.0;
     // 19:29, 21:00, 25:10 (1:10), 26:50 (2:50)
     let order = [(0, h(19.0, 29.0), h(20.0, 10.0)), (1, h(21.0, 0.0), h(21.0, 40.0)), (2, h(25.0, 10.0), h(25.0, 50.0)), (3, h(26.0, 50.0), h(27.0, 30.0))];
-    assert_eq!(super::tours::trip_at(&order, h(2.0, 18.0)), 3);
-    assert_eq!(super::tours::trip_at(&order, h(1.0, 20.0)), 2);
-    assert_eq!(super::tours::trip_at(&order, h(20.0, 30.0)), 1);
+    assert_eq!(super::tours::trip_at(&order, h(2.0, 18.0), true), 3);
+    assert_eq!(super::tours::trip_at(&order, h(1.0, 20.0), true), 2);
+    assert_eq!(super::tours::trip_at(&order, h(20.0, 30.0), true), 1);
     // the afternoon before it starts: its first trip
-    assert_eq!(super::tours::trip_at(&order, h(15.0, 0.0)), 0);
+    assert_eq!(super::tours::trip_at(&order, h(15.0, 0.0), true), 0);
+    // a tour that did not run the night before: at 2:18 its first trip, this evening
+    assert_eq!(super::tours::trip_at(&order, h(2.0, 18.0), false), 0);
 }

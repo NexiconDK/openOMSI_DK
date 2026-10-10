@@ -353,7 +353,10 @@ fn duty_panel(l: &mut Launcher, body: Rect) {
     for t in &line.tours {
         // (the fork: only the tours of the chosen day that start within two hours of the
         // chosen time or ended within the hour before it, as the game's own list)
-        if !t.runs || ![now, now + 86400.0].iter().any(|n| *n >= t.first - crate::game_lists::LIST_AHEAD && *n <= t.last + crate::game_lists::LIST_BEHIND) {
+        // (after midnight the day before's night tour, its times past 24:00 - not tonight's
+        // tour of this day, whose night trips are after the next midnight)
+        let near = |n: f64| n >= t.first - crate::game_lists::LIST_AHEAD && n <= t.last + crate::game_lists::LIST_BEHIND;
+        if !((t.today && near(now)) || (t.yesterday_night && near(now + 86400.0))) {
             continue;
         }
         let (ended, trip) = tour_trip(t, now, &q);
@@ -1670,6 +1673,8 @@ mod vehicle_picker_tests {
             last: 0.0,
             days: "Mon-Fri".into(),
             runs: true,
+            today: true,
+            yesterday_night: false,
             next_run: None,
             trips,
         };

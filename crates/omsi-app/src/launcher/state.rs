@@ -1303,7 +1303,7 @@ fn game_listed(pid: Option<u32>, instances: &[core::Instance]) -> bool {
 /// The trip a tour starts with at `now`, shared by the route preview and the launch choice.
 pub(super) fn trip_index_at(tour: &core::TourInfo, now: f64) -> Option<usize> {
     // (a night tour after midnight: 2:18 is its 26:18, see omsi-sim's `trip_at`)
-    let now = if now < tour.first && now + 86400.0 >= tour.first && now + 86400.0 <= tour.last + 60.0 { now + 86400.0 } else { now };
+    let now = if tour.yesterday_night && now < tour.first && now + 86400.0 >= tour.first && now + 86400.0 <= tour.last + 60.0 { now + 86400.0 } else { now };
     tour.trips.iter().position(|x| x.departure >= now - 120.0).or(if tour.trips.is_empty() { None } else { Some(tour.trips.len() - 1) })
 }
 

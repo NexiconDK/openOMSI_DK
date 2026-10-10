@@ -1217,6 +1217,10 @@ pub struct TourInfo {
     pub days: String,
     /// It runs on the date asked for (the game's timetable has only these tours that day).
     pub runs: bool,
+    /// (the fork) Its mask has the date asked for itself: `runs` is also the day before's
+    /// night tour, whose trips past 24:00 run that morning (`yesterday_night`).
+    pub today: bool,
+    pub yesterday_night: bool,
     /// The first date from the one asked for on which it runs (`YYYY-MM-DD`): the game's
     /// timetable dialog lists only the tours of the chosen day, so a
     /// tour of another day is picked by moving the date to it.
@@ -1341,7 +1345,9 @@ fn lines_on(map_dir: &Path, date: &str) -> Result<Vec<LineInfo>> {
             };
             // (and yesterday's night tour: its trips past 24:00 run today, #1576)
             let night = t.trips.iter().any(|tt| tt.departure >= 24.0 * 60.0);
-            let runs = (mask & day_bit != 0 && mask & school_bit != 0) || (night && runs_on(day_before(code)));
+            let today = mask & day_bit != 0 && mask & school_bit != 0;
+            let yesterday_night = night && runs_on(day_before(code));
+            let runs = today || yesterday_night;
             let next_run = (0..400).map(|k| add_days(code, k)).find(|c| runs_on(*c)).map(|c| format!("{:04}-{:02}-{:02}", c / 10000, c / 100 % 100, c % 100));
             let mut trips = Vec::new();
             for tt in &t.trips {
@@ -1390,7 +1396,7 @@ fn lines_on(map_dir: &Path, date: &str) -> Result<Vec<LineInfo>> {
             }
             let first = trips.first().map(|t| t.departure).unwrap_or(0.0);
             let last = trips.last().map(|t| t.arrival).unwrap_or(0.0);
-            tours.push(TourInfo { number: t.number.clone(), ai_group: t.ai_group.clone(), first, last, days: days_of(mask), runs, next_run, trips });
+            tours.push(TourInfo { number: t.number.clone(), ai_group: t.ai_group.clone(), first, last, days: days_of(mask), runs, today, yesterday_night, next_run, trips });
         }
         tours.sort_by(|a, b| a.first.total_cmp(&b.first));
         out.push(LineInfo { name: l.name.clone(), user_allowed: l.user_allowed, termini, tours });

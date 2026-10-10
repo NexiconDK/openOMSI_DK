@@ -11,6 +11,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 ### Lister over linjer og vagter
 - En vagt vises fra **2 timer før** den starter og indtil **1 time efter** den er slut, både i spillet og i launcheren.
 - Launcheren viser kun dagens vagter.
+- Efter midnat vises kun gårsdagens natvagter, der stadig kører. Lørdagens natvagt (fx fra kl. 22:44) vises derfor ikke lørdag kl. 02:47, men først fra kl. 20:44.
 
 ### Passagerer
 - På din egen vagt sætter passagerer med en tur på **1 km eller mere** sig, hvis der er en ledig plads. Ved kortere ture står 7 ud af 10. Er den ønskede slags plads optaget, tager de den anden. Ændringen kommer fra openOMSI PR #1394.
