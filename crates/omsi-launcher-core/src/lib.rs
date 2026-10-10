@@ -2077,6 +2077,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
     // (the fork) a summary of each trip when it ends
     v["trip_summary"] = json!(false);
     v["navigator_size"] = json!(1.0);
+    v["navigator_tall"] = json!(0.0);
     v["nav_classic"] = json!(false);
     // the trees' foliage bends and sways in the weather's wind
     v["windy_trees"] = json!(true);
@@ -2215,6 +2216,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
             }
             // (the fork) the navigator's size as dragged
             "navigator_size" => v[&k] = json!(val.parse::<f64>().map(|x| x.clamp(0.6, 2.0)).unwrap_or(1.0)),
+            "navigator_tall" => v[&k] = json!(val.parse::<f64>().map(|x| if x > 0.0 { x.clamp(0.3, 3.0) } else { 0.0 }).unwrap_or(0.0)),
             "version" => version = val.parse::<i64>().unwrap_or(0),
             _ => {}
         }
@@ -2602,6 +2604,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("trip_summary={}\n", b("trip_summary", false)));
     text.push_str(&format!("nav_classic={}\n", b("nav_classic", false)));
     text.push_str(&format!("navigator_size={}\n", v.get("navigator_size").and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))).unwrap_or(1.0).clamp(0.6, 2.0)));
+    text.push_str(&format!("navigator_tall={}\n", v.get("navigator_tall").and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))).map(|x: f64| if x > 0.0 { x.clamp(0.3, 3.0) } else { 0.0 }).unwrap_or(0.0)));
     text.push_str(&format!("pedestrians={}\n", n("pedestrians", 100).clamp(0, 400)));
     text.push_str(&format!("triple_left_angle_deg={}\ntriple_right_angle_deg={}\ntriple_eye_height_mm={}\n", f("triple_left_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_right_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_eye_height_mm", 0.0).clamp(-500.0, 500.0)));
     let written: Vec<String> = text.lines().filter_map(|l| l.split_once('=')).map(|(k, _)| k.trim().to_ascii_lowercase()).collect();

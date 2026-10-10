@@ -391,6 +391,10 @@ impl App {
                             self.settings.navigator_size = n.size;
                             crate::game_lists::remember_setting("navigator_size", &format!("{:.3}", n.size));
                         }
+                        if (n.tall - self.settings.navigator_tall).abs() > 1e-3 {
+                            self.settings.navigator_tall = n.tall;
+                            crate::game_lists::remember_setting("navigator_tall", &format!("{:.3}", n.tall));
+                        }
                         return;
                     }
                     None => {}

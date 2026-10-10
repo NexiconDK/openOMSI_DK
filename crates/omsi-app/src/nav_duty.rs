@@ -523,8 +523,8 @@ impl Pen<'_> {
 
     /// A stop on the rail: its pin at `x` with the rail through it (from the row above when
     /// there is a stop there, on down when there is one below; grey where the bus has been),
-    /// its name from `name_x`, and on the right its planned time when given (and before
-    /// that when the bus will be there) and a tag on the trip's last stop.
+    /// its name from `name_x`, and on the right its time when given (when the bus will be
+    /// there, where that is off the plan) and a tag on the trip's last stop.
     #[allow(clippy::too_many_arguments)]
     fn stop(&mut self, r: Rect, x: f32, name_x: f32, name: &str, planned: Option<f64>, expected: Option<f64>, state: StopState, last: bool, above: bool, below: bool, s: f32) {
         let cy = r.center().y;
@@ -546,22 +546,21 @@ impl Pen<'_> {
                 self.p.circle(Vec2::new(x, cy), 2.5 * s, SHEET);
             }
         }
-        // the times on the right: the planned one, and before it when the bus will be there
+        // the time on the right: one only - when the bus will be there, in the colour of how
+        // late or early, where that is off the plan; else the planned one
         let tpx = 12.0 * s;
         let mut right = r.right();
         if let Some(planned) = planned {
-            let text = hhmm(planned);
-            let (weight, c) = time_style(state);
+            let (text, weight, c) = match expected.filter(|e| hhmm(*e) != hhmm(planned)) {
+                Some(e) => (hhmm(e), Weight::Bold, punctuality(e - planned).ink()),
+                None => {
+                    let (weight, c) = time_style(state);
+                    (hhmm(planned), weight, c)
+                }
+            };
             let tw = self.width(&text, tpx, weight);
             self.text_in(&text, tpx, weight, Rect::new(right - tw - 2.0 * s, r.y, tw + 2.0 * s, r.h), Align::Right, c);
             right -= tw + 8.0 * s;
-            if let Some(e) = expected.filter(|e| hhmm(*e) != hhmm(planned)) {
-                let et = hhmm(e);
-                let ew = self.width(&et, tpx, Weight::Bold);
-                let ink = punctuality(e - planned).ink();
-                self.text_in(&et, tpx, Weight::Bold, Rect::new(right - ew - 2.0 * s, r.y, ew + 2.0 * s, r.h), Align::Right, ink);
-                right -= ew + 8.0 * s;
-            }
         }
         if last {
             let px = 10.0 * s;
@@ -1185,5 +1184,35 @@ pub(crate) mod tests {
             raster(&list.verts, &atlas, &mut img, view);
         }
         img.save(format!("{dir}/sheet.png")).unwrap();
+        // (the fork) the panel dragged to other shapes (`nav_panel`): tall, and wide and low
+        // with the board beside the map
+        let unit = 1.6;
+        let shapes = [(360.0 * unit, 640.0 * unit), (720.0 * unit, 330.0 * unit)];
+        let d = state(&trips, &tours, 0, 3, false, 250.0);
+        let total_w: f32 = shapes.iter().map(|s| s.0 + 40.0).sum::<f32>() + 20.0;
+        let total_h = shapes.iter().map(|s| s.1).fold(0.0, f32::max) + 40.0;
+        let mut img = image::RgbaImage::from_pixel(total_w as u32, total_h as u32, image::Rgba([70, 84, 96, 255]));
+        let mut x = 20.0;
+        for (w, h) in shapes {
+            let (s, beside) = crate::nav_panel::scale(w, h, unit, true);
+            let rows = board_up_to(Some(&d), s, crate::nav_panel::board_room(h, s, beside), if beside { usize::MAX } else { 4 });
+            let lay = crate::nav_panel::layout(w, h, s, Some((board_height(&rows) * s).round()), beside, true);
+            let at = |r: Rect| Rect::new(r.x + x, r.y + 20.0, r.w, r.h);
+            let mut p = Painter::new();
+            p.rounded(at(Rect::new(0.0, 0.0, w, h)), 7.0 * s, Color::rgba(20, 26, 38, 0.92));
+            p.rect(at(lay.head), Color::rgba(6, 9, 16, 0.8));
+            p.rect(at(lay.map), Color::rgba(40, 48, 60, 1.0));
+            p.rect(at(lay.next), Color::rgba(6, 9, 16, 0.8));
+            p.text_in(&mut atlas, &fonts, "Kirchweg", 13.5 * s, Weight::Bold, at(Rect::new(lay.next.x + 11.0 * s, lay.next.y + 4.0 * s, lay.next.w, 20.0 * s)), Align::Left, TEXT);
+            if let Some(hd) = lay.handle {
+                p.rounded(at(hd), 5.0 * s, Color::rgba(255, 255, 255, 0.10));
+            }
+            if let Some(b) = lay.board {
+                draw_board(&mut Pen { p: &mut p, atlas: &mut atlas, fonts: &fonts }, &rows, at(b), s);
+            }
+            raster(&p.verts, &atlas, &mut img, Rect::new(0.0, 0.0, 1e5, 1e5));
+            x += w + 40.0;
+        }
+        img.save(format!("{dir}/shapes.png")).unwrap();
     }
 }

@@ -258,6 +258,9 @@ fn stop_request_icon(ui: &mut Painter, atlas: &mut Atlas, requested: bool, mut r
     row
 }
 
+/// (the fork) A press on the navigator's corner (`Navigator::panel_resize`).
+type PanelResize = ([f32; 2], f32, [f32; 2], bool, bool);
+
 /// Vertical field of view and tilt of the map camera (degrees).
 const FOV: f32 = 40.0;
 const PITCH: f64 = 52.0;
@@ -407,9 +410,13 @@ pub struct Navigator {
     pub classic: bool,
     /// (the fork) The navigator's size as the player dragged it (1: as designed).
     pub size: f32,
-    /// (the fork) A press on the navigator's corner: the cursor's x, the size and the width
-    /// then, and whether the navigator is on the right half (it grows to the left there).
-    panel_resize: Option<(f32, f32, f32, bool)>,
+    /// (the fork) Its height against its width as the player dragged it (0: as designed, the
+    /// map and the board under it). A wide, low panel has the board beside the map.
+    pub tall: f32,
+    /// (the fork) A press on the navigator's corner: the cursor then, the size, the width and
+    /// the height then, and whether the navigator is on the right half and the lower half (it
+    /// grows to the left and upwards there).
+    panel_resize: Option<PanelResize>,
     /// (the fork) The board's arrow and the resize corner (on the panel's texture, pixels),
     /// and where the last press on the panel was.
     arrow_rect: Option<Rect>,
@@ -552,6 +559,7 @@ impl Navigator {
             expanded: false,
             classic: false,
             size: 1.0,
+            tall: 0.0,
             panel_resize: None,
             arrow_rect: None,
             grip_rect: None,
@@ -1104,22 +1112,37 @@ impl Navigator {
         let base = (sh * 0.33).max(300.0);
         let base = if f.follow_window { base } else { base.min(480.0) };
         let pw = (base * f.ui_scale * self.size.clamp(0.6, 2.0)).min((sw * 0.9).max(300.0)).round();
-        let map_h = (pw * 0.62).round();
-        let s = pw / 360.0;
-        let bars = (34.0 + 46.0) * s;
         // (the fork) the duty's board under the map (`nav_duty`): the next stops, all of the
-        // trip when unfolded, as many as the window has room for
+        // trip when unfolded, as many as the window has room for; on a panel dragged wide and
+        // low, beside the map (`nav_panel`, as in Luc-nbr's beta)
         let duty = f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time));
-        let room = (sh * 0.94 - map_h - bars).max(0.0);
-        let board = if self.schedule && duty.is_some() && !self.classic { crate::nav_duty::board_up_to(duty.as_ref(), s, room, if self.expanded { usize::MAX } else { 4 }) } else { Vec::new() };
-        let sched = if self.classic {
-            if self.schedule { (f.stops.len().clamp(1, 5) as f32 * 22.0 + 12.0) * s } else { 0.0 }
-        } else if board.is_empty() {
-            0.0
+        let want_board = self.schedule && duty.is_some() && !self.classic;
+        let handle = f.duty.is_some() && !f.stops.is_empty() && !self.classic;
+        let most = if self.expanded { usize::MAX } else { 4 };
+        let (lay, board, ph) = if self.tall > 0.0 && !self.classic {
+            let unit = base * f.ui_scale / crate::nav_panel::WIDTH;
+            let ch = (pw * self.tall).clamp(crate::nav_panel::MIN_SIZE[1] * unit, (sh * 0.94).max(150.0)).round();
+            let (s, beside) = crate::nav_panel::scale(pw, ch, unit, want_board);
+            let room = crate::nav_panel::board_room(ch, s, beside);
+            let board = if want_board { crate::nav_duty::board_up_to(duty.as_ref(), s, room, if beside { usize::MAX } else { most }) } else { Vec::new() };
+            let bh = (crate::nav_duty::board_height(&board) * s).round();
+            (crate::nav_panel::layout(pw, ch, s, (!board.is_empty()).then_some(bh), beside, handle), board, ch)
         } else {
-            (crate::nav_duty::board_height(&board) * s).round()
+            let map_h = (pw * 0.62).round();
+            let s = pw / 360.0;
+            let bars = (34.0 * s).round() + (46.0 * s).round();
+            let room = (sh * 0.94 - map_h - bars).max(0.0);
+            let board = if want_board { crate::nav_duty::board_up_to(duty.as_ref(), s, room, most) } else { Vec::new() };
+            let sched = if self.classic {
+                if self.schedule { (f.stops.len().clamp(1, 5) as f32 * 22.0 + 12.0) * s } else { 0.0 }
+            } else if board.is_empty() {
+                0.0
+            } else {
+                (crate::nav_duty::board_height(&board) * s).round()
+            };
+            let ph = (map_h + bars + sched).round();
+            (crate::nav_panel::layout(pw, ph, s, (sched > 0.0).then_some(sched), false, handle), board, ph)
         };
-        let ph = (map_h + bars + sched).round();
         let (w, h) = (pw as u32, ph as u32);
         let (x0, y0) = self.panel_origin((sw, sh), (pw, ph), crate::platform::touch_controls(), f.info_rect);
 
@@ -1140,7 +1163,7 @@ impl Navigator {
         let Some(view) = renderer.texture_view(scene, tex) else { return };
         if !self.city.open && (resized || self.time - self.drawn_at >= NAV_REDRAW_S) {
             self.drawn_at = self.time;
-            self.draw(renderer, &view, (w, h), map_h, f, &board);
+            self.draw(renderer, &view, (w, h), &lay, f, &board);
         }
         // (the small navigator steps aside while the city map is open)
         if !self.city.open {
@@ -1153,15 +1176,15 @@ impl Navigator {
         }
     }
 
-    fn draw(&mut self, renderer: &Renderer, target: &wgpu::TextureView, size: (u32, u32), map_h: f32, f: &NavFrame, board: &[crate::nav_duty::Row]) {
+    fn draw(&mut self, renderer: &Renderer, target: &wgpu::TextureView, size: (u32, u32), lay: &crate::nav_panel::Layout, f: &NavFrame, board: &[crate::nav_duty::Row]) {
         let (pw, ph) = (size.0 as f32, size.1 as f32);
-        let s = pw / 360.0;
+        let s = lay.s;
         let wd = words(f.language);
         self.atlas.begin_frame();
         let panel = Rect::new(0.0, 0.0, pw, ph);
         let radius = 7.0 * s;
-        let top_h = (34.0 * s).round();
-        let map = Rect::new(0.0, top_h, pw, map_h);
+        let top_h = lay.head.h;
+        let map = lay.map;
         let vp = [map.x, map.y, map.w, map.h];
 
         // --- roads (buffer 0): rebuilt when the bus went far or tiles brought lanes
@@ -1404,27 +1427,30 @@ impl Navigator {
 
         // bottom bar: the next stop; its distance, the time to it, the planned time and
         // whether the bus is early or late
-        let bottom = Rect::new(0.0, map.bottom(), pw, 46.0 * s);
+        let bottom = lay.next;
         ui.rect(bottom, BAR);
         let stop_row = if f.stops.is_empty() {
-            Rect::new(pad, bottom.y, pw - 2.0 * pad, bottom.h)
+            Rect::new(bottom.x + pad, bottom.y, bottom.w - 2.0 * pad, bottom.h)
         } else {
-            Rect::new(pad, bottom.y + 4.0 * s, pw - 2.0 * pad, 20.0 * s)
+            Rect::new(bottom.x + pad, bottom.y + 4.0 * s, bottom.w - 2.0 * pad, 20.0 * s)
         };
-        let stop_row = stop_request_icon(&mut ui, &mut self.atlas, f.stop_requested, stop_row, s);
-        // (the fork) the arrow that folds the duty's board out and in, right of the stop
-        let stop_row = if f.duty.is_some() && !f.stops.is_empty() && !self.classic {
-            let b = 24.0 * s;
-            let r = Rect::new(pw - pad - b, bottom.y + (bottom.h - b) * 0.5, b, b);
-            ui.rounded(r, 5.0 * s, Color::rgba(255, 255, 255, 0.10));
-            let open = self.schedule && self.expanded;
-            ui.icon(&mut self.atlas, if open { "expand_less" } else { "expand_more" }, r.center(), 18.0 * s, TEXT);
-            self.arrow_rect = Some(r);
-            Rect::new(stop_row.x, stop_row.y, (stop_row.w - b - 8.0 * s).max(0.0), stop_row.h)
-        } else {
-            self.arrow_rect = None;
-            stop_row
+        // (the fork) the arrow that folds the duty's board out and in, at the bar's right end
+        // (beside the map the board is all there: no arrow); the stop request left of it
+        let stop_row = match lay.handle.filter(|_| !lay.beside) {
+            Some(r) => {
+                ui.rounded(r, 5.0 * s, Color::rgba(255, 255, 255, 0.10));
+                let open = self.schedule && self.expanded;
+                ui.icon(&mut self.atlas, if open { "expand_less" } else { "expand_more" }, r.center(), 18.0 * s, TEXT);
+                self.arrow_rect = Some(r);
+                Rect::new(stop_row.x, stop_row.y, (r.x - 8.0 * s - stop_row.x).max(0.0), stop_row.h)
+            }
+            None => {
+                self.arrow_rect = None;
+                stop_row
+            }
         };
+        let stop_row = stop_request_icon(&mut ui, &mut self.atlas, f.stop_requested, Rect::new(stop_row.x, bottom.y, stop_row.w, bottom.h), s);
+        let stop_row = if f.stops.is_empty() { stop_row } else { Rect::new(stop_row.x, bottom.y + 4.0 * s, stop_row.w, 20.0 * s) };
         let note = if self.route.note > 0.0 {
             Some((wd.recalculated, ON_TIME))
         } else if self.route.joined && !self.route.lanes.is_empty() && !self.route.on_route && self.route.off_for > OFF_ROUTE_AFTER {
@@ -1451,7 +1477,7 @@ impl Navigator {
                 }
                 parts.push(format!("{:02}:{:02}", (st.arrival / 3600.0) as i32 % 24, ((st.arrival % 3600.0) / 60.0) as i32));
                 let line2 = parts.join("  ·  ");
-                let y2 = Rect::new(pad, bottom.y + 24.0 * s, stop_row.right() - pad, 18.0 * s);
+                let y2 = Rect::new(stop_row.x, bottom.y + 24.0 * s, stop_row.w, 18.0 * s);
                 match note {
                     Some((t, c)) => {
                         ui.text_in(&mut self.atlas, &self.fonts, t, 12.5 * s, Weight::Medium, y2, Align::Left, c);
@@ -1465,7 +1491,8 @@ impl Navigator {
                         }
                     },
                 }
-                if let Some(d) = f.delay {
+                // (the board says how late or early the bus is: not twice)
+                if let Some(d) = f.delay.filter(|_| board.is_empty()) {
                     let (txt, c) = if d > 59.0 {
                         (format!("+{}:{:02}", (d / 60.0) as i32, (d % 60.0) as i32), LATE)
                     } else if d < -59.0 {
@@ -1501,7 +1528,11 @@ impl Navigator {
         // (the fork) the duty's board: the trip, the stops with their planned times and, when
         // the bus is off the timetable, when it will be there (`nav_duty`, from Luc-nbr's beta)
         if !board.is_empty() {
-            let area = Rect::new(0.0, bottom.bottom(), pw, crate::nav_duty::board_height(board) * s);
+            let area = lay.board.unwrap_or(Rect::new(0.0, bottom.bottom(), pw, crate::nav_duty::board_height(board) * s));
+            if lay.beside {
+                // (beside the map: a line between them)
+                ui.rect(Rect::new(area.x, area.y, 1.0, area.h), Color::WHITE.alpha(0.08));
+            }
             crate::nav_duty::draw_board(&mut crate::nav_duty::Pen { p: &mut ui, atlas: &mut self.atlas, fonts: &self.fonts }, board, area, s);
         }
         // (the fork) the corner it is made larger or smaller by (dragged)
@@ -2449,7 +2480,9 @@ impl Navigator {
         self.press_at = [local.x, local.y];
         if self.grip_rect.is_some_and(|g| g.pad(-4.0, -4.0).contains(local)) {
             let right_half = self.at.map(|a| a[0] > 0.5).unwrap_or(self.corner.contains("right"));
-            self.panel_resize = Some((x, self.size, (self.panel_rect[2] - self.panel_rect[0]).max(1.0), right_half));
+            let low_half = self.at.map(|a| a[1] > 0.5).unwrap_or(!self.corner.contains("top"));
+            let wh = [(self.panel_rect[2] - self.panel_rect[0]).max(1.0), (self.panel_rect[3] - self.panel_rect[1]).max(1.0)];
+            self.panel_resize = Some(([x, y], self.size, wh, right_half, low_half));
             return;
         }
         self.panel_drag = Some((
@@ -2462,9 +2495,15 @@ impl Navigator {
     /// The cursor moved with the button held on the navigator: past a few pixels it follows
     /// the cursor. True while it is being dragged.
     pub fn panel_move(&mut self, x: f32, y: f32) -> bool {
-        if let Some((x0, size0, w0, right_half)) = self.panel_resize {
-            let dx = if right_half { x0 - x } else { x - x0 };
-            self.size = (size0 * (w0 + dx) / w0).clamp(0.6, 2.0);
+        if let Some((from, size0, wh, right_half, low_half)) = self.panel_resize {
+            // (the corner follows the cursor: wider and taller, or narrower and lower - its
+            // width the size, its height against the width the shape)
+            let dx = if right_half { from[0] - x } else { x - from[0] };
+            let dy = if low_half { from[1] - y } else { y - from[1] };
+            self.size = (size0 * (wh[0] + dx) / wh[0]).clamp(0.6, 2.0);
+            let w = wh[0] * self.size / size0.max(1e-3);
+            self.tall = ((wh[1] + dy).max(100.0) / w.max(1.0)).clamp(0.3, 3.0);
+            self.drawn_at = f32::MIN;
             return true;
         }
         let Some((from, rect, moved)) = self.panel_drag.as_mut() else { return false };

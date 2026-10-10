@@ -26,7 +26,9 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 ### Navigator (minimap og bykort)
 - **Vagt-tavlen** under minimappet: turen med linjeskilt, destination og status (til tiden / forsinket / pause), stoppestederne med planlagt tid og, når du er foran eller bagud, **forventet tid** ved siden af, samt næste tur og pauser. Tavlen og vagt-panelet er taget fra Luc-nbr's openOMSI beta (MIT-licens).
 - **Pilen** til højre for næste stop folder tavlen ud, så hele turens stoppesteder vises (så mange, som der er plads til), og ind igen.
-- **Træk i hjørnet** nederst til højre på minimappet for at gøre det større eller mindre. Størrelsen huskes.
+- **Træk i hjørnet** nederst til højre på navigatoren for at ændre både bredde og højde. Trækker du den bred og lav, kommer vagt-tavlen **ved siden af** kortet i stedet for under det, og den viser så alle turens stop, der er plads til. Størrelsen og formen huskes.
+- Hvert stop på vagt-tavlen har nu **én tid**: den forventede tid i rødt/grønt, når bussen er forsinket eller foran, ellers den planlagte. Før stod begge tider ved siden af hinanden.
+- Stop-knappen (stop ønsket) ligger nu til venstre for pilen og ikke oven i den, og forsinkelsen står kun én gang (på tavlen), ikke også ved næste stop.
 - Et klik på minimappet åbner **bykortet** med et **vagt-panel** til venstre: alle ture med tider, pauser, linjeskift og den aktuelle tur med alle stop. Musehjulet ruller listen.
 - Ny indstilling **Klassisk navigator** (slået fra fra start; i launcheren under navigatorens indstillinger og i spillets menu): navigatoren og bykortet ser ud som før, uden vagt-tavlen, vagt-panelet og H-skiltene. Kan skiftes mens du kører.
 - Knappen med listen i bykortets top (grøn, når panelet vises) skjuler og viser vagt-panelet.
