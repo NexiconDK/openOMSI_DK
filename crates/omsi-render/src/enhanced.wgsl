@@ -263,7 +263,9 @@ fn lamp_light(p: vec3<f32>, n: vec3<f32>, v: vec3<f32>, sf: Surface, thin: bool,
         if (dist2 >= range * range) {
             continue;
         }
-        if (own && (l.extra.z != 0.0 || l.dir.w > -1.5) && near_player_vehicle(l.pos.xyz) < 0.5) {
+        // (every lamp of another vehicle - its headlamps, spots, the vanilla stand-ins and its
+        // plain point lights - but not a street lamp in its housing, dir.z -1)
+        if (own && (l.extra.z != 0.0 || l.dir.w > -1.5 || l.dir.z > -0.5) && near_player_vehicle(l.pos.xyz) < 0.5) {
             continue;
         }
         let dist = sqrt(dist2);

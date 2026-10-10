@@ -1153,6 +1153,10 @@ fn point_lights(p: vec3<f32>, n: vec3<f32>, map_k: f32) -> vec3<f32> {
     let f = (p.xy - camera.light_grid.xy) / cell;
     let x = i32(floor(f.x));
     let y = i32(floor(f.y));
+    // (the fork) seen from the cab, the player's own vehicle takes no light from another
+    // vehicle's lamps (nothing shadows them: the headlights of a bus behind lit the windscreen),
+    // as the enhanced shader (`lamp_light`); a street lamp in its housing (dir.z -1) still does
+    let own = inside_vehicle(camera.cam_pos.xyz) * near_player_vehicle(p) > 0.5;
     if (x >= 0 && y >= 0 && x < i32(side) && y < i32(side)) {
         let base = (u32(y) * side + u32(x)) * CELL_CAP;
         for (var j = 0u; j < CELL_CAP; j = j + 1u) {
@@ -1164,6 +1168,9 @@ fn point_lights(p: vec3<f32>, n: vec3<f32>, map_k: f32) -> vec3<f32> {
             let d = l.pos.xyz - p;
             let dist = length(d);
             if (dist >= l.pos.w) {
+                continue;
+            }
+            if (own && (l.dir.w >= -1.5 || l.dir.z > -0.5) && near_player_vehicle(l.pos.xyz) < 0.5) {
                 continue;
             }
             // full intensity within 1/8 of the range, then inverse-square, cut off at the range;
