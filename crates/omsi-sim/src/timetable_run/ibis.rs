@@ -241,6 +241,7 @@ pub fn has_roller_blind(v: &crate::VehicleInstance) -> bool {
 /// line is right-aligned to three places ("  5", " 5E"); the matrix scripts take the line
 /// as it is.
 pub(crate) fn set_line_to(v: &mut crate::VehicleInstance, line: &str) {
+    let line = display_line(line);
     let digits: String = line.trim().chars().take_while(|c| c.is_ascii_digit()).collect();
     let text = if has_roller_blind(v) {
         format!("{:>3}", line.trim())
@@ -392,6 +393,41 @@ pub(crate) fn terminus_match_score(t: &omsi_vehicle::hof::Terminus, wanted: &str
 /// is the name (Omsi.exe TRoadVehicleInst.virtual_10: that row is `AI_target_index`); else
 /// the best of the looser matches - the first of equals, not the last (a depot file whose
 /// codes are not in row order put the AI bus's matrix on another terminus's picture, #110).
+/// (the fork) Is a trip to `terminus` not in service? The depot file's `[servicetrip]`
+/// (Ahlheim's "Betriebsfahrt") and every terminus where everybody gets off (`{ALLEX}`,
+/// `addterminus_allexit`: the depots, Sonderfahrt, Fahrschule ...).
+pub fn not_in_service(hof: &omsi_vehicle::Hof, terminus: &str) -> bool {
+    let name = terminus.trim();
+    if name.is_empty() {
+        return false;
+    }
+    let service = hof.service_trip.trim();
+    if !service.is_empty() && name.eq_ignore_ascii_case(service) {
+        return true;
+    }
+    find_terminus(hof, name).and_then(|i| hof.termini.get(i)).is_some_and(|t| {
+        t.all_exit || (!service.is_empty() && t.texture_id.trim().eq_ignore_ascii_case(service))
+    })
+}
+
+/// (the fork) The line as a display shows it: a timetable named after its line with a word
+/// before the number - "Linje 133", "Linie 5", "Line 12" - shows the number ("133"): the
+/// matrices put the whole name on the sign, and their fonts, capitals only, made "LNE 133" of
+/// it. A single letter before it ("N 21") stays.
+pub fn display_line(line: &str) -> &str {
+    let line = line.trim();
+    match line.split_once(char::is_whitespace) {
+        Some((word, rest))
+            if word.chars().count() >= 4
+                && word.chars().all(char::is_alphabetic)
+                && rest.trim().chars().next().is_some_and(|c| c.is_ascii_digit()) =>
+        {
+            rest.trim()
+        }
+        _ => line,
+    }
+}
+
 pub(crate) fn find_terminus(hof: &omsi_vehicle::Hof, wanted: &str) -> Option<usize> {
     termini_named(hof, wanted).first().copied()
 }
@@ -603,6 +639,13 @@ pub(crate) fn set_destination(
     player: bool,
 ) {
     let terminus = terminus.trim();
+    // (the fork) an AI bus not in service - to the depot file's service trip or a terminus
+    // everybody leaves at (`{ALLEX}`: Betriebsfahrt, Betriebshof ...) - shows no line
+    let nis = !player && hof.is_some_and(|h| not_in_service(h, terminus));
+    if !player {
+        v.host.not_in_service = nis;
+    }
+    let line = if nis { "" } else { display_line(line) };
     // Omsi.exe's `TRoadVehicleInst.virtual_10` runs for every trip a bus starts: the line
     // goes into `SetLineTo` and the script's `ai_scheduled_settarget` trigger runs even when
     // the depot file has no such terminus (`AI_target_index` then stays as it was) and even
@@ -652,6 +695,7 @@ pub(crate) fn set_destination_at(
     player: bool,
 ) {
     let Some(term) = hof.termini.get(ti) else { return };
+    let line = display_line(line);
     let code = term.code;
     let route_index = pick_route(hof, &routes_to(hof, line, &[code]), stops);
     let line_num = line_number_digits(line).parse::<f32>().unwrap_or(0.0);
@@ -739,4 +783,40 @@ pub fn terminus_text(hof: Option<&omsi_vehicle::Hof>, terminus: &str) -> String 
         .and_then(|t| t.strings.first())
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| name.to_uppercase())
+}
+
+#[cfg(test)]
+mod fork_tests {
+    use super::*;
+    use omsi_vehicle::hof::{Hof, Terminus};
+
+    #[test]
+    fn a_word_before_the_line_number_is_not_shown() {
+        assert_eq!(display_line("Linje 133"), "133");
+        assert_eq!(display_line(" Linie 5 "), "5");
+        assert_eq!(display_line("133"), "133");
+        assert_eq!(display_line("N 21"), "N 21");
+        assert_eq!(display_line("X10"), "X10");
+        assert_eq!(display_line("Linje NE21"), "Linje NE21");
+    }
+
+    #[test]
+    fn service_trips_and_allexit_termini_are_not_in_service() {
+        let t = |code: i32, id: &str, all_exit: bool| Terminus {
+            code,
+            texture_id: id.into(),
+            terminus_stop: None,
+            all_exit,
+            strings: vec![id.to_uppercase()],
+        };
+        let hof = Hof {
+            service_trip: "Betriebsfahrt".into(),
+            termini: vec![t(1, "Betriebsfahrt", true), t(9, "Betriebshof Eichenhöhe", true), t(109, "Bortel", false)],
+            ..Default::default()
+        };
+        assert!(not_in_service(&hof, "Betriebsfahrt"));
+        assert!(not_in_service(&hof, "Betriebshof Eichenhöhe"));
+        assert!(!not_in_service(&hof, "Bortel"));
+        assert!(!not_in_service(&hof, ""));
+    }
 }

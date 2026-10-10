@@ -70,6 +70,9 @@ pub struct VehicleHost {
     /// full (`VehicleInstance::show_full`), and the terminus strings the scripts ask for
     /// are [`busy_terminus_string`]'s.
     pub terminus_busy: bool,
+    /// (the fork) An AI bus on a trip not in service (`ibis::not_in_service`): no line on
+    /// its displays, "Not In Service" beside it on the maps.
+    pub not_in_service: bool,
     /// 1 while the vehicle drives a timetable duty (`schedule_active`).
     pub schedule_active: f32,
     /// The odometer's reading when the session began (km).

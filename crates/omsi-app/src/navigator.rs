@@ -65,7 +65,9 @@ fn traffic_kind(c: &crate::traffic::AiCar) -> (Color, Option<String>) {
         .str_var("SetLineTo")
         .and_then(|i| v.state.str_vars.get(i as usize))
         .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty() && s != "0");
+        .filter(|s| !s.is_empty() && s != "0")
+        // (the fork) a bus on its way to the depot and the like
+        .or_else(|| v.host.not_in_service.then(|| omsi_ui::tr("Not In Service").into_owned()));
     let trolley = v.var("cp_SHTANGALEV").is_some() || v.var("shtanga_lev_rot").is_some();
     let color = if c.is_rail() {
         TRAM
@@ -1191,7 +1193,7 @@ impl Navigator {
         for (pos, color, l) in &lines {
             let Some(p) = project(vpm, vp, rel(*pos)).filter(|p| map.contains(*p)) else { continue };
             let px = 9.5 * s;
-            let l = self.fonts.fit(l, px, Weight::Bold, 40.0 * s);
+            let l = self.fonts.fit(l, px, Weight::Bold, 90.0 * s);
             let w = self.fonts.width(&l, px, Weight::Bold) + 8.0 * s;
             let r = Rect::new(p.x - w * 0.5, p.y - 19.0 * s, w, 13.0 * s);
             if taken.iter().any(|o| o.x < r.right() && r.x < o.right() && o.y < r.bottom() && r.y < o.bottom()) {
@@ -2517,7 +2519,7 @@ impl Navigator {
                 continue;
             }
             let px = 11.0 * s;
-            let l = self.fonts.fit(l, px, Weight::Bold, 50.0 * s);
+            let l = self.fonts.fit(l, px, Weight::Bold, 100.0 * s);
             let tw = self.fonts.width(&l, px, Weight::Bold) + 9.0 * s;
             let r = Rect::new(p.x - tw * 0.5, p.y - 22.0 * s, tw, 15.0 * s);
             if taken.iter().any(|o| o.x < r.right() && r.x < o.right() && o.y < r.bottom() && r.y < o.bottom()) {

@@ -29110,3 +29110,7 @@ _version: 2
 "With fewer than 3 free places the sign turns between the destination and OPTAGET":
   de: "Bei weniger als 3 freien Plätzen wechselt die Anzeige zwischen Ziel und OPTAGET"
   da: "Med under 3 ledige pladser skifter skiltet mellem destinationen og OPTAGET"
+
+"Not In Service":
+  de: "Betriebsfahrt"
+  da: "Ikke i rute"
