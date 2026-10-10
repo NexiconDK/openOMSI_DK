@@ -523,8 +523,16 @@ pub struct RemoteVehicle {
 /// only when the line or terminus differs from those; taken with the line and terminus
 /// they always matched, and the copy here, whose texture starts empty, never drew its
 /// destination (a friend's O530 drove with a blank sign).
+///
+/// (the fork) And the destination matrix's own variables (`Matrix_*`, `matrix_*`) and its
+/// fonts' numbers (`Font_*`), as an AI bus's: the copy here draws its sign itself from the
+/// line and terminus the other game's IBIS has (`IBIS_*`, taken). The matrices of the
+/// Urbino IV pack (`VMatrix.osc`) draw their sign pixel by pixel over many frames - where
+/// they are (`Matrix_RefreshCursor`, `Matrix_IsDrawing`, `Matrix_Timer` ...) taken from the
+/// other game, which finished long ago, the copy here never drew it, or drew dots.
 fn scripts_own(name: &str) -> bool {
-    name.to_ascii_lowercase().ends_with("_last")
+    let n = name.to_ascii_lowercase();
+    n.ends_with("_last") || n.starts_with("matrix") || n.starts_with("font_")
 }
 
 /// The callbacks whose answers are this game's own and not the other's (`scripts_own`): a
@@ -3852,6 +3860,19 @@ thread_local! {
 mod tests {
     include!("../../../tools/test-support/original_root.rs");
     use super::*;
+
+    /// (the fork) What a friend's bus here draws its destination sign with is ours: its
+    /// matrix's state and its fonts, and what it drew last; the IBIS's line and terminus
+    /// are theirs.
+    #[test]
+    fn a_remote_matrix_draws_with_its_own_state() {
+        for own in ["Matrix_RefreshCursor", "Matrix_IsDrawing", "matrix_font", "Font_5x5/12x8B", "Matrix_Nr_Last", "Matrix_TerminusIndex_Last"] {
+            assert!(scripts_own(own), "{own}");
+        }
+        for theirs in ["IBIS_TerminusIndex", "IBIS_Linie_Complex", "IBIS_Linie_Suffix", "elec_busbar_main", "lights_fern"] {
+            assert!(!scripts_own(theirs), "{theirs}");
+        }
+    }
 
     /// The natural weather and the cycle need no file: a client takes them from any host.
     #[test]

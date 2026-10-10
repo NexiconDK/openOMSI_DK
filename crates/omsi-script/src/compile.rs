@@ -155,13 +155,14 @@ impl Program {
                 if !names.iter().any(|w| self.name(*n).eq_ignore_ascii_case(w)) {
                     continue;
                 }
-                for next in b.ops.iter().skip(i + 1).take(3) {
+                // (every store of it that follows: `"churafont 5x5" (M.V.GetFontIndex)
+                // (S.L.Font_5x5/10x8B) (S.L.Font_5x5/12x8B)` keeps the number in both)
+                for next in b.ops.iter().skip(i + 1).take(8) {
                     match next {
                         Op::Store(v) => {
                             if !out.contains(v) {
                                 out.push(*v);
                             }
-                            break;
                         }
                         Op::StoreReg(_) | Op::LoadReg(_) | Op::Dup => {}
                         _ => break,
@@ -988,13 +989,13 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("omsi-script-test-fonts-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let vl = dir.join("varlist.txt");
-        std::fs::write(&vl, "Font_7x4\nFont_16x9\nMatrix_Nr_Last\n").unwrap();
+        std::fs::write(&vl, "Font_7x4\nFont_16x9\nFont_16x9B\nMatrix_Nr_Last\n").unwrap();
         let sc = dir.join("matrix.osc");
-        std::fs::write(&sc, "{init}\n\"Krueger 7x4\" (M.V.GetFontIndex) (S.L.Font_7x4)\n\"Krueger 16x9\" (M.V.GetFontIndex) s0 (S.L.Font_16x9)\n1 (S.L.Matrix_Nr_Last)\n{end}\n").unwrap();
+        std::fs::write(&sc, "{init}\n\"Krueger 7x4\" (M.V.GetFontIndex) (S.L.Font_7x4)\n\"Krueger 16x9\" (M.V.GetFontIndex) s0 (S.L.Font_16x9) (S.L.Font_16x9B)\n1 (S.L.Matrix_Nr_Last)\n{end}\n").unwrap();
         let p = compile(&CompileInput { varlists: vec![vl], scripts: vec![sc], ..Default::default() });
         std::fs::remove_dir_all(&dir).ok();
         let got = p.callback_results(&["GetFontIndex"]);
-        assert!(got.contains(&p.var("Font_7x4").unwrap()) && got.contains(&p.var("Font_16x9").unwrap()), "{got:?}");
+        assert!(got.contains(&p.var("Font_7x4").unwrap()) && got.contains(&p.var("Font_16x9").unwrap()) && got.contains(&p.var("Font_16x9B").unwrap()), "{got:?}");
         assert!(!got.contains(&p.var("Matrix_Nr_Last").unwrap()));
     }
 }
