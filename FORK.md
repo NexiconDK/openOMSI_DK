@@ -2,6 +2,9 @@
 
 Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ændringer.
 
+### Dansk
+- Spillet og launcheren findes nu på dansk: vælg **Dansk** under sprog i indstillingerne. Alle 1.610 tekster er oversat.
+
 ### Natbusser og vagter over midnat
 - Ture med tider efter midnat (fx **24:10** og **25:10**) kører nu natten efter vagtens egen dag. En fredagsvagts tur kl. 24:10 kører lørdag kl. 00:10, og lørdagsvagtens først natten til søndag.
 - AI-bussen fortsætter sin vagt hen over midnat og forsvinder ikke.
