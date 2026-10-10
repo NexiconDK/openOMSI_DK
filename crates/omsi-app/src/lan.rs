@@ -669,6 +669,8 @@ pub struct Frame<'a> {
     pub inside_of: Option<u32>,
     /// We are holding the bus radio key (map-wide GreenTeaSpeak voice).
     pub radio_keyed: bool,
+    /// (the fork) The setting `full_sign`: the others' full buses say "OPTAGET" too.
+    pub full_sign: bool,
 }
 
 pub(crate) fn data_dir() -> Option<PathBuf> {
@@ -2914,7 +2916,7 @@ fn glide(cur: &mut Vec<f32>, want: &[f32], k: f32) {
 /// One frame of another player's bus: the pose glides towards the latest state, the AI
 /// scripts run with that state as their inputs, the table's variables are pinned to the
 /// sender's values, and the horn is pressed and let go as theirs is.
-fn drive_remote(rv: &mut RemoteVehicle, pose: &Pose, dt: f32, exact: bool, time_of_day: f64) {
+fn drive_remote(rv: &mut RemoteVehicle, pose: &Pose, dt: f32, exact: bool, time_of_day: f64, full_sign: bool) {
     rv.name = pose.name.clone();
     rv.vehicle.pitch = pose.pitch;
     rv.vehicle.bank = pose.bank;
@@ -3050,7 +3052,7 @@ fn drive_remote(rv: &mut RemoteVehicle, pose: &Pose, dt: f32, exact: bool, time_
     // and every other variable of theirs, as their scripts have it (`omsi_net::vars`)
     pinned.extend(rv.synced.iter().filter(|(id, _)| !rv.smooth.contains(*id)).map(|(id, v)| (*id as VarId, *v)));
     // (the fork) their "OPTAGET" as their game shows it: by their passengers and the clock
-    let free = crate::app_events::passenger_capacity(&rv.vehicle).map(|c| c.saturating_sub(pose.passengers as usize));
+    let free = crate::app_events::passenger_capacity(&rv.vehicle).filter(|_| full_sign).map(|c| c.saturating_sub(pose.passengers as usize));
     rv.vehicle.show_full(free, time_of_day);
     rv.vehicle.update_ai_with(dt, &frame, &inputs, &pinned);
     for (id, text) in &rv.synced_strings {
@@ -3488,9 +3490,9 @@ pub fn tick(
                 ip.destination = pose.destination.clone();
                 ip.texts = pose.texts.clone();
                 ip.freetex = pose.freetex.clone();
-                drive_remote(rv, &ip, dt, true, frame.clock.map_or(0.0, |c| c.time));
+                drive_remote(rv, &ip, dt, true, frame.clock.map_or(0.0, |c| c.time), frame.full_sign);
             }
-            None => drive_remote(rv, &pose, dt, false, frame.clock.map_or(0.0, |c| c.time)),
+            None => drive_remote(rv, &pose, dt, false, frame.clock.map_or(0.0, |c| c.time), frame.full_sign),
         }
         show_display_texts(&mut rv.vehicle, &pose.texts);
         show_freetex(&mut rv.vehicle, &pose.freetex);

@@ -165,11 +165,11 @@ pub(crate) fn people_in_career(career: &mut career::Career, h: &mut humans::Huma
 /// The bus's own variables of the people aboard and the duty, the personnel file's step
 /// (`tick`: unless paused or the session was written) and a crash in it: its energy (J,
 /// 0: none).
-pub(crate) fn career_step(career: &mut career::Career, p: &mut Player, riders: usize, on_duty: bool, dt: f32, tick: bool) -> f32 {
+pub(crate) fn career_step(career: &mut career::Career, p: &mut Player, riders: usize, on_duty: bool, dt: f32, tick: bool, full_sign: bool) -> f32 {
     // the engine's own variables of the bus (see `update_engine_vars`)
     p.vehicle.host.humans_count = riders as f32;
     // (the fork) "OPTAGET" on the destination display while it is (almost) full
-    let free = crate::app_events::passenger_capacity(&p.vehicle).map(|c| c.saturating_sub(riders));
+    let free = crate::app_events::passenger_capacity(&p.vehicle).filter(|_| full_sign).map(|c| c.saturating_sub(riders));
     let time = p.vehicle.host.clock.time;
     p.vehicle.show_full(free, time);
     p.vehicle.host.schedule_active = if on_duty { 1.0 } else { 0.0 };

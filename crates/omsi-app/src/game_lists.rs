@@ -1595,6 +1595,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "info_bar" => app.menus.info_bar,
         "nav_arrows" => app.menus.navigator.as_ref().map_or(s.nav_arrows, |n| n.arrows),
         "exact_fare" => s.exact_fare,
+        "full_sign" => s.full_sign,
         "collision_pedestrians" => s.collision_pedestrians,
         "ssao" => s.ssao,
         "detail_textures" => s.detail_textures,
@@ -1805,6 +1806,10 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
         "nav_arrows" => {
             app.settings.nav_arrows = on;
             Some(("nav_arrows", bit))
+        }
+        "full_sign" => {
+            app.settings.full_sign = on;
+            Some(("full_sign", bit))
         }
         "exact_fare" => {
             app.settings.exact_fare = on;
@@ -2353,6 +2358,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "timetable_win", "Timetable window (Insert)", "Displays a list of all stops (only when a tour is active)"),
         switch_row(app, "info_bar", "Information bar (Shift+Y)", "Displays information such as the time, speed, and other details at the top of the screen"),
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
+        switch_row(app, "full_sign", "OPTAGET on the destination display when the bus is full", "With fewer than 3 free places the sign turns between the destination and OPTAGET"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),

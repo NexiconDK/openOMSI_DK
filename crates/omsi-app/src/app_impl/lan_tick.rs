@@ -28,6 +28,7 @@ impl App {
             walker,
             inside_of: self.net.inside_remote,
             radio_keyed,
+            full_sign: self.settings.full_sign,
         };
         let updates = lan::tick(
             lan,

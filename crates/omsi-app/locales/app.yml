@@ -29102,3 +29102,11 @@ _version: 2
 "the host's season ({}) differs from the one loaded here ({}) - start the game again to see it":
   fr: "la saison de l'hôte ({}) diffère de celle chargée ici ({}) - relancez le jeu pour la voir"
   da: "værtens årstid ({}) afviger fra den, der er indlæst her ({}) - start spillet igen for at se den"
+
+"OPTAGET on the destination display when the bus is full":
+  de: "OPTAGET auf der Zielanzeige, wenn der Bus voll ist"
+  da: "OPTAGET på destinationsskiltet, når bussen er fuld"
+
+"With fewer than 3 free places the sign turns between the destination and OPTAGET":
+  de: "Bei weniger als 3 freien Plätzen wechselt die Anzeige zwischen Ziel und OPTAGET"
+  da: "Med under 3 ledige pladser skifter skiltet mellem destinationen og OPTAGET"
