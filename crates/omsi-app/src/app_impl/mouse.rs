@@ -386,6 +386,11 @@ impl App {
                         let at = n.placement();
                         self.settings.navigator_corner = at.clone();
                         crate::game_lists::remember_setting("navigator_corner", &at);
+                        // (the fork) and its size, when its corner was dragged
+                        if (n.size - self.settings.navigator_size).abs() > 1e-3 {
+                            self.settings.navigator_size = n.size;
+                            crate::game_lists::remember_setting("navigator_size", &format!("{:.3}", n.size));
+                        }
                         return;
                     }
                     None => {}

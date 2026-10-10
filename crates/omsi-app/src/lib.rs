@@ -52,6 +52,7 @@ mod lights;
 mod launcher;
 mod menu;
 mod mirror_hud;
+mod nav_duty;
 mod navigator;
 mod vr_navigator;
 mod money;

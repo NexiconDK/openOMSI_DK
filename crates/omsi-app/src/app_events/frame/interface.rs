@@ -208,6 +208,7 @@ impl App {
                 terminus,
                 stops,
                 delay: self.session.duty.as_ref().map(|_| p.vehicle.host.tt_delay as f64),
+                duty: self.session.duty.as_ref(),
                 passengers: self.session.humans.as_ref().map(|h| h.riding()),
                 stop_requested: navigator::stop_requested(&p.vehicle),
                 time: self.clock.time,

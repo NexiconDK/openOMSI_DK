@@ -29274,3 +29274,192 @@ _version: 2
 "When the bus is as full as chosen, the sign turns between the destination and OPTAGET":
   de: "Ist der Bus so voll wie gewählt, wechselt die Anzeige zwischen Ziel und OPTAGET"
   da: "Når bussen er så fuld som valgt, skifter skiltet mellem destinationen og OPTAGET"
+
+"No duty running":
+  nl: "Er loopt geen dienst."
+  de: "Kein Dienst aktiv."
+  fr: "Aucun service en cours."
+  ru: "Смена не идёт."
+  uk: "Наряд не виконується."
+  pl: "Brak aktywnej służby."
+  da: "Ingen vagt i gang"
+
+"Empty run":
+  nl: "Leegrit"
+  de: "Betriebsfahrt"
+  fr: "Haut-le-pied"
+  ru: "Служебный рейс"
+  uk: "Службовий рейс"
+  pl: "Przejazd techniczny"
+  da: "Tomkørsel"
+
+"trip %{k} of %{n}":
+  nl: "rit %{k} van %{n}"
+  de: "Fahrt %{k} von %{n}"
+  fr: "course %{k} sur %{n}"
+  ru: "рейс %{k} из %{n}"
+  uk: "рейс %{k} з %{n}"
+  pl: "kurs %{k} z %{n}"
+  da: "tur %{k} af %{n}"
+
+"arrives %{time}":
+  nl: "aankomst %{time}"
+  de: "Ankunft %{time}"
+  fr: "arrivée %{time}"
+  ru: "прибытие %{time}"
+  uk: "прибуття %{time}"
+  pl: "przyjazd %{time}"
+  da: "ankommer %{time}"
+
+"leaves %{time}":
+  nl: "vertrek %{time}"
+  de: "Abfahrt %{time}"
+  fr: "départ %{time}"
+  ru: "отправление %{time}"
+  uk: "відправлення %{time}"
+  pl: "odjazd %{time}"
+  da: "afgår %{time}"
+
+"leaves in %{m} min":
+  nl: "vertrek over %{m} min"
+  de: "Abfahrt in %{m} Min"
+  fr: "départ dans %{m} min"
+  ru: "отправление через %{m} мин"
+  uk: "відправлення через %{m} хв"
+  pl: "odjazd za %{m} min"
+  da: "afgår om %{m} min"
+
+"break, %{m} min left":
+  nl: "pauze, nog %{m} min"
+  de: "Pause, noch %{m} Min"
+  fr: "pause, encore %{m} min"
+  ru: "перерыв, ещё %{m} мин"
+  uk: "перерва, ще %{m} хв"
+  pl: "przerwa, jeszcze %{m} min"
+  da: "pause, %{m} min tilbage"
+
+"%{m} min over":
+  nl: "%{m} min over tijd"
+  de: "%{m} Min drüber"
+  fr: "%{m} min de trop"
+  ru: "на %{m} мин дольше"
+  uk: "на %{m} хв довше"
+  pl: "%{m} min za długo"
+  da: "%{m} min over tid"
+
+"Duty finished":
+  nl: "Dienst uitgereden"
+  de: "Dienst gefahren"
+  fr: "Service terminé"
+  ru: "Смена завершена"
+  uk: "Наряд завершено"
+  pl: "Służba zakończona"
+  da: "Vagt afsluttet"
+
+"and %{n} more to %{terminus}":
+  nl: "en nog %{n} verder naar %{terminus}"
+  de: "und noch %{n} bis %{terminus}"
+  fr: "et encore %{n} jusqu'à %{terminus}"
+  ru: "и ещё %{n} до %{terminus}"
+  uk: "і ще %{n} до %{terminus}"
+  pl: "i jeszcze %{n} do %{terminus}"
+  da: "og %{n} mere mod %{terminus}"
+
+"terminus":
+  nl: "eindpunt"
+  de: "Endhalt"
+  fr: "terminus"
+  ru: "конечная"
+  uk: "кінцева"
+  pl: "pętla"
+  da: "endestation"
+
+"Next %{time}":
+  nl: "Daarna %{time}"
+  de: "Danach %{time}"
+  fr: "Ensuite %{time}"
+  ru: "Далее %{time}"
+  uk: "Далі %{time}"
+  pl: "Potem %{time}"
+  da: "Næste %{time}"
+
+"%{m} min break":
+  nl: "%{m} min pauze"
+  de: "%{m} Min Pause"
+  fr: "%{m} min de pause"
+  ru: "перерыв %{m} мин"
+  uk: "перерва %{m} хв"
+  pl: "%{m} min przerwy"
+  da: "%{m} min pause"
+
+"Continue on line %{line}, tour %{tour}":
+  nl: "Verder met lijn %{line}, omloop %{tour}"
+  de: "Weiter mit Linie %{line}, Umlauf %{tour}"
+  fr: "Ensuite ligne %{line}, service %{tour}"
+  ru: "Далее маршрут %{line}, выход %{tour}"
+  uk: "Далі маршрут %{line}, випуск %{tour}"
+  pl: "Dalej linia %{line}, brygada %{tour}"
+  da: "Fortsæt på linje %{line}, tur %{tour}"
+
+"In the game":
+  nl: "In het spel"
+  de: "Im Spiel"
+  fr: "Dans le jeu"
+  ru: "В игре"
+  uk: "У грі"
+  pl: "W grze"
+  da: "I spillet"
+
+"Delay":
+  nl: "Vertraging"
+  de: "Verspätung"
+  fr: "Retard"
+  ru: "Опоздание"
+  uk: "Запізнення"
+  pl: "Opóźnienie"
+  da: "Forsinkelse"
+
+"line %{line}":
+  nl: "lijn %{line}"
+  de: "Linie %{line}"
+  fr: "ligne %{line}"
+  ru: "линия %{line}"
+  uk: "лінія %{line}"
+  pl: "linia %{line}"
+  da: "linje %{line}"
+
+"1 stop":
+  nl: "1 halte"
+  de: "1 Haltestelle"
+  fr: "1 arrêt"
+  ru: "1 остановка"
+  uk: "1 зупинка"
+  pl: "1 przystanek"
+  da: "1 stop"
+
+"%{n} stops":
+  nl: "%{n} haltes"
+  de: "%{n} Haltestellen"
+  fr: "%{n} arrêts"
+  ru: "остановок: %{n}"
+  uk: "зупинок: %{n}"
+  pl: "przystanki: %{n}"
+  da: "%{n} stop"
+
+"%{n} trip":
+  nl: "%{n} rit"
+  de: "%{n} Fahrt"
+  fr: "%{n} trajet"
+  ru: "рейсов: %{n}"
+  uk: "рейсів: %{n}"
+  pl: "kursy: %{n}"
+  da: "%{n} tur"
+
+"%{n} trips":
+  nl: "%{n} ritten"
+  de: "%{n} Fahrten"
+  fr: "%{n} trajets"
+  ru: "рейсов: %{n}"
+  uk: "рейсів: %{n}"
+  pl: "kursy: %{n}"
+  da: "%{n} ture"

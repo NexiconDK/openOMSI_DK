@@ -205,6 +205,9 @@ pub struct NavFrame<'a> {
     pub stops: Vec<NavStop>,
     /// How late the bus is (s, negative early), when on a duty.
     pub delay: Option<f64>,
+    /// (the fork) The duty itself: the board under the map and the sheet beside the city
+    /// map (`nav_duty`).
+    pub duty: Option<&'a crate::schedule::PlayerDuty>,
     pub passengers: Option<usize>,
     /// The vehicle script's latched stop request or illuminated request lamp.
     pub stop_requested: bool,
@@ -294,6 +297,19 @@ pub struct Navigator {
     /// The next stops with their times under the map (Shift+N cycles map, map and
     /// schedule, off).
     pub schedule: bool,
+    /// (the fork) The board unfolded (its arrow): every stop of the trip ahead, as many as
+    /// the window has room for.
+    pub expanded: bool,
+    /// (the fork) The navigator's size as the player dragged it (1: as designed).
+    pub size: f32,
+    /// (the fork) A press on the navigator's corner: the cursor's x, the size and the width
+    /// then, and whether the navigator is on the right half (it grows to the left there).
+    panel_resize: Option<(f32, f32, f32, bool)>,
+    /// (the fork) The board's arrow and the resize corner (on the panel's texture, pixels),
+    /// and where the last press on the panel was.
+    arrow_rect: Option<Rect>,
+    grip_rect: Option<Rect>,
+    press_at: [f32; 2],
     /// Smoothed speed (m/s) for the time to the next stop.
     speed_avg: f32,
     pub opacity: f32,
@@ -428,6 +444,12 @@ impl Navigator {
             drawn_at: f32::MIN,
             enabled,
             schedule: false,
+            expanded: false,
+            size: 1.0,
+            panel_resize: None,
+            arrow_rect: None,
+            grip_rect: None,
+            press_at: [0.0; 2],
             speed_avg: 8.0,
             opacity: opacity.clamp(0.2, 1.0),
             corner: corner.to_string(),
@@ -975,11 +997,16 @@ impl Navigator {
         // schedule)
         let base = (sh * 0.33).max(300.0);
         let base = if f.follow_window { base } else { base.min(480.0) };
-        let pw = (base * f.ui_scale).min((sh * 0.7).max(300.0)).round();
+        let pw = (base * f.ui_scale * self.size.clamp(0.6, 2.0)).min((sw * 0.9).max(300.0)).round();
         let map_h = (pw * 0.62).round();
         let s = pw / 360.0;
         let bars = (34.0 + 46.0) * s;
-        let sched = if self.schedule { (f.stops.len().clamp(1, 5) as f32 * 22.0 + 12.0) * s } else { 0.0 };
+        // (the fork) the duty's board under the map (`nav_duty`): the next stops, all of the
+        // trip when unfolded, as many as the window has room for
+        let duty = f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time));
+        let room = (sh * 0.94 - map_h - bars).max(0.0);
+        let board = if self.schedule && duty.is_some() { crate::nav_duty::board_up_to(duty.as_ref(), s, room, if self.expanded { usize::MAX } else { 4 }) } else { Vec::new() };
+        let sched = if board.is_empty() { 0.0 } else { (crate::nav_duty::board_height(&board) * s).round() };
         let ph = (map_h + bars + sched).round();
         let (w, h) = (pw as u32, ph as u32);
         let (x0, y0) = self.panel_origin((sw, sh), (pw, ph), crate::platform::touch_controls(), f.info_rect);
@@ -1001,7 +1028,7 @@ impl Navigator {
         let Some(view) = renderer.texture_view(scene, tex) else { return };
         if !self.city.open && (resized || self.time - self.drawn_at >= NAV_REDRAW_S) {
             self.drawn_at = self.time;
-            self.draw(renderer, &view, (w, h), map_h, f);
+            self.draw(renderer, &view, (w, h), map_h, f, &board);
         }
         // (the small navigator steps aside while the city map is open)
         if !self.city.open {
@@ -1014,7 +1041,7 @@ impl Navigator {
         }
     }
 
-    fn draw(&mut self, renderer: &Renderer, target: &wgpu::TextureView, size: (u32, u32), map_h: f32, f: &NavFrame) {
+    fn draw(&mut self, renderer: &Renderer, target: &wgpu::TextureView, size: (u32, u32), map_h: f32, f: &NavFrame, board: &[crate::nav_duty::Row]) {
         let (pw, ph) = (size.0 as f32, size.1 as f32);
         let s = pw / 360.0;
         let wd = words(f.language);
@@ -1273,6 +1300,19 @@ impl Navigator {
             Rect::new(pad, bottom.y + 4.0 * s, pw - 2.0 * pad, 20.0 * s)
         };
         let stop_row = stop_request_icon(&mut ui, &mut self.atlas, f.stop_requested, stop_row, s);
+        // (the fork) the arrow that folds the duty's board out and in, right of the stop
+        let stop_row = if f.duty.is_some() && !f.stops.is_empty() {
+            let b = 24.0 * s;
+            let r = Rect::new(pw - pad - b, bottom.y + (bottom.h - b) * 0.5, b, b);
+            ui.rounded(r, 5.0 * s, Color::rgba(255, 255, 255, 0.10));
+            let open = self.schedule && self.expanded;
+            ui.icon(&mut self.atlas, if open { "expand_less" } else { "expand_more" }, r.center(), 18.0 * s, TEXT);
+            self.arrow_rect = Some(r);
+            Rect::new(stop_row.x, stop_row.y, (stop_row.w - b - 8.0 * s).max(0.0), stop_row.h)
+        } else {
+            self.arrow_rect = None;
+            stop_row
+        };
         let note = if self.route.note > 0.0 {
             Some((wd.recalculated, ON_TIME))
         } else if self.route.joined && !self.route.lanes.is_empty() && !self.route.on_route && self.route.off_for > OFF_ROUTE_AFTER {
@@ -1299,7 +1339,7 @@ impl Navigator {
                 }
                 parts.push(format!("{:02}:{:02}", (st.arrival / 3600.0) as i32 % 24, ((st.arrival % 3600.0) / 60.0) as i32));
                 let line2 = parts.join("  ·  ");
-                let y2 = Rect::new(pad, bottom.y + 24.0 * s, pw - 2.0 * pad, 18.0 * s);
+                let y2 = Rect::new(pad, bottom.y + 24.0 * s, stop_row.right() - pad, 18.0 * s);
                 match note {
                     Some((t, c)) => {
                         ui.text_in(&mut self.atlas, &self.fonts, t, 12.5 * s, Weight::Medium, y2, Align::Left, c);
@@ -1329,23 +1369,20 @@ impl Navigator {
                 ui.text_in(&mut self.atlas, &self.fonts, &t, 13.0 * s, Weight::Medium, stop_row, Align::Left, TEXT_DIM);
             }
         }
-        // the schedule: the next stops with their planned times
-        if self.schedule && !f.stops.is_empty() {
-            let mut y = bottom.bottom() + 6.0 * s;
-            ui.rect(Rect::new(pad, bottom.bottom(), pw - 2.0 * pad, 1.0), Color::WHITE.alpha(0.06));
-            let late = f.delay.unwrap_or(0.0);
-            for st in f.stops.iter().take(5) {
-                let r = Rect::new(pad, y, pw - 2.0 * pad, 22.0 * s);
-                let planned = format!("{:02}:{:02}", (st.arrival / 3600.0) as i32 % 24, ((st.arrival % 3600.0) / 60.0) as i32);
-                ui.text_in(&mut self.atlas, &self.fonts, &planned, 12.5 * s, Weight::Bold, r, Align::Left, TEXT_DIM);
-                ui.text_in(&mut self.atlas, &self.fonts, st.name.trim(), 13.0 * s, Weight::Medium, Rect::new(r.x + 46.0 * s, r.y, r.w - 100.0 * s, r.h), Align::Left, TEXT);
-                // when the bus will be there at this lateness
-                let exp = st.arrival + late;
-                let e = format!("{:02}:{:02}", (exp / 3600.0).rem_euclid(24.0) as i32, ((exp.rem_euclid(3600.0)) / 60.0) as i32);
-                ui.text_in(&mut self.atlas, &self.fonts, &e, 12.5 * s, Weight::Medium, r, Align::Right, if late > 59.0 { LATE } else if late < -59.0 { EARLY } else { TEXT_DIM });
-                y += 22.0 * s;
-            }
+        // (the fork) the duty's board: the trip, the stops with their planned times and, when
+        // the bus is off the timetable, when it will be there (`nav_duty`, from Luc-nbr's beta)
+        if !board.is_empty() {
+            let area = Rect::new(0.0, bottom.bottom(), pw, crate::nav_duty::board_height(board) * s);
+            crate::nav_duty::draw_board(&mut crate::nav_duty::Pen { p: &mut ui, atlas: &mut self.atlas, fonts: &self.fonts }, board, area, s);
         }
+        // (the fork) the corner it is made larger or smaller by (dragged)
+        let g = 16.0 * s;
+        let grip = Rect::new(pw - g, ph - g, g, g);
+        for k in 1..=3 {
+            let d = k as f32 * 4.0 * s;
+            ui.line(Vec2::new(pw - 3.0 * s - d, ph - 3.0 * s), Vec2::new(pw - 3.0 * s, ph - 3.0 * s - d), 1.2 * s, Color::WHITE.alpha(0.35));
+        }
+        self.grip_rect = Some(grip);
 
         // --- to the GPU
         let (Some(gpu), device, queue) = (self.gpu.as_mut(), &renderer.device, &renderer.queue) else { return };
@@ -1405,7 +1442,7 @@ fn congestion_on(net: &Network, traffic: &Network, c: &HashMap<usize, f32>) -> H
 
 impl<'a> NavFrame<'a> {
     fn clone_ref(&self) -> NavFrame<'a> {
-        NavFrame { traffic: self.traffic, players: self.players.clone(), bus: self.bus, heading: self.heading, speed_kmh: self.speed_kmh, outside_temp: self.outside_temp, inside_temp: self.inside_temp, line: self.line.clone(), terminus: self.terminus.clone(), stops: self.stops.clone(), delay: self.delay, passengers: self.passengers, time: self.time, weekday: self.weekday, language: self.language, screen: self.screen, ui_scale: self.ui_scale, follow_window: self.follow_window, dt: self.dt, stop_requested: self.stop_requested, info_rect: self.info_rect }
+        NavFrame { traffic: self.traffic, players: self.players.clone(), bus: self.bus, heading: self.heading, speed_kmh: self.speed_kmh, outside_temp: self.outside_temp, inside_temp: self.inside_temp, line: self.line.clone(), terminus: self.terminus.clone(), stops: self.stops.clone(), delay: self.delay, duty: self.duty, passengers: self.passengers, time: self.time, weekday: self.weekday, language: self.language, screen: self.screen, ui_scale: self.ui_scale, follow_window: self.follow_window, dt: self.dt, stop_requested: self.stop_requested, info_rect: self.info_rect }
     }
 }
 
@@ -2145,6 +2182,12 @@ pub struct CityMap {
     extent: (DVec2, DVec2),
     /// "Centre on the bus" and zoom buttons (window pixels).
     buttons: Vec<(Rect, u8)>,
+    /// (the fork) The duty sheet on the left (window pixels), how far its list is scrolled,
+    /// and how long ago the wheel scrolled it (it keeps the stop the bus heads for in view
+    /// otherwise).
+    sheet: Option<Rect>,
+    sheet_scroll: f32,
+    sheet_wheel: Option<f32>,
 }
 
 impl Navigator {
@@ -2270,6 +2313,14 @@ impl Navigator {
     /// The mouse button went down on the small navigator: a click opens the city map, a
     /// drag moves the navigator (see [`Navigator::panel_move`]).
     pub fn panel_press(&mut self, x: f32, y: f32) {
+        // (the fork) on its corner: made larger or smaller
+        let local = Vec2::new(x - self.panel_rect[0], y - self.panel_rect[1]);
+        self.press_at = [local.x, local.y];
+        if self.grip_rect.is_some_and(|g| g.pad(-4.0, -4.0).contains(local)) {
+            let right_half = self.at.map(|a| a[0] > 0.5).unwrap_or(self.corner.contains("right"));
+            self.panel_resize = Some((x, self.size, (self.panel_rect[2] - self.panel_rect[0]).max(1.0), right_half));
+            return;
+        }
         self.panel_drag = Some((
             [x, y],
             [self.panel_rect[0] - self.origin_x, self.panel_rect[1]],
@@ -2280,6 +2331,11 @@ impl Navigator {
     /// The cursor moved with the button held on the navigator: past a few pixels it follows
     /// the cursor. True while it is being dragged.
     pub fn panel_move(&mut self, x: f32, y: f32) -> bool {
+        if let Some((x0, size0, w0, right_half)) = self.panel_resize {
+            let dx = if right_half { x0 - x } else { x - x0 };
+            self.size = (size0 * (w0 + dx) / w0).clamp(0.6, 2.0);
+            return true;
+        }
         let Some((from, rect, moved)) = self.panel_drag.as_mut() else { return false };
         let (dx, dy) = (x - from[0], y - from[1]);
         if !*moved && dx.hypot(dy) < 6.0 {
@@ -2295,7 +2351,23 @@ impl Navigator {
     /// The button came up after a press on the navigator: Some(true) when it was dragged
     /// (the place is then the setting's, [`Navigator::placement`]), Some(false) for a click.
     pub fn panel_release(&mut self) -> Option<bool> {
-        self.panel_drag.take().map(|d| d.2)
+        if self.panel_resize.take().is_some() {
+            return Some(true);
+        }
+        let moved = self.panel_drag.take().map(|d| d.2)?;
+        // (the fork) a click on the board's arrow folds the board out or in (and shows it
+        // when it was not): it does not open the city map
+        if !moved && self.arrow_rect.is_some_and(|r| r.pad(-3.0, -3.0).contains(Vec2::new(self.press_at[0], self.press_at[1]))) {
+            if self.schedule {
+                self.expanded = !self.expanded;
+            } else {
+                self.schedule = true;
+                self.expanded = true;
+            }
+            self.drawn_at = f32::MIN;
+            return Some(true);
+        }
+        Some(moved)
     }
 
     /// The setting `navigator_corner` for where the navigator is now.
@@ -2318,6 +2390,10 @@ impl Navigator {
             return;
         }
         let local = Vec2::new(x - self.city.rect[0], y - self.city.rect[1]);
+        // (the fork) the duty sheet is not the map: no drag from it
+        if self.city.sheet.is_some_and(|sh| sh.contains(local)) {
+            return;
+        }
         let hit = self.city.buttons.iter().find(|(r, _)| r.contains(local)).map(|b| b.1);
         match hit {
             Some(0) => self.city.follow = true,
@@ -2359,6 +2435,12 @@ impl Navigator {
     /// The wheel over the map: zoom, keeping the point under the cursor where it is.
     pub fn map_wheel(&mut self, amount: f32, x: f32, y: f32) {
         let r = self.city.rect;
+        // (the fork) over the duty sheet: its list scrolls
+        if self.city.sheet.is_some_and(|sh| sh.contains(Vec2::new(x - r[0], y - r[1]))) {
+            self.city.sheet_scroll -= amount * 60.0;
+            self.city.sheet_wheel = Some(0.0);
+            return;
+        }
         let (w, h) = ((r[2] - r[0]) as f64, (r[3] - r[1]) as f64);
         let (lx, ly) = ((x - r[0]) as f64 - w * 0.5, (y - r[1]) as f64 - h * 0.5);
         let before = self.city.center + DVec2::new(lx, -ly) * self.city.mpp;
@@ -2630,13 +2712,36 @@ impl Navigator {
             self.city.buttons.push((r, id));
             bx -= bs + 8.0 * s;
         }
+        // (the fork) the duty sheet on the left: every trip, the breaks, the trip under way
+        // with all its stops (`nav_duty`, from Luc-nbr's beta)
+        self.city.sheet = None;
+        let mut list = Painter::new();
+        let mut list_clip = [0.0f32; 4];
+        let mut scale_x = pad;
+        if let Some(d) = f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time)) {
+            let r = Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s));
+            let view = crate::nav_duty::draw_sheet_head(&mut crate::nav_duty::Pen { p: &mut ui, atlas: &mut self.atlas, fonts: &self.fonts }, &d, r, f.time, s);
+            let rows = crate::nav_duty::sheet(&d);
+            let content = (crate::nav_duty::sheet_height(&rows) + 12.0) * s;
+            // (the wheel scrolls it; a few seconds later it keeps the stop ahead in view again)
+            self.city.sheet_wheel = self.city.sheet_wheel.map(|t| t + f.dt).filter(|t| *t < 8.0);
+            if self.city.sheet_wheel.is_none() {
+                self.city.sheet_scroll = crate::nav_duty::sheet_focus(&rows) * s - view.h * 0.3;
+            }
+            self.city.sheet_scroll = self.city.sheet_scroll.clamp(0.0, (content - view.h).max(0.0));
+            crate::nav_duty::draw_sheet_list(&mut crate::nav_duty::Pen { p: &mut list, atlas: &mut self.atlas, fonts: &self.fonts }, &rows, view, self.city.sheet_scroll, s);
+            list_clip = [view.x, view.y, view.right(), view.bottom()];
+            self.city.sheet = Some(r);
+            scale_x = r.right() + pad;
+        }
         // a scale bar, bottom left
+        let pad_scale = scale_x;
         let nice = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0];
         let metres = nice.iter().copied().find(|m| m / self.city.mpp > 70.0 * s as f64).unwrap_or(5000.0);
         let len = (metres / self.city.mpp) as f32;
         let by = h - 22.0 * s;
-        ui.rect(Rect::new(pad, by, len, 2.0 * s), TEXT_DIM);
-        ui.text(&mut self.atlas, &self.fonts, &if metres >= 1000.0 { format!("{:.0} km", metres / 1000.0) } else { format!("{metres:.0} m") }, 12.0 * s, Weight::Medium, Vec2::new(pad + len + 8.0 * s, by + 4.0 * s), Align::Left, TEXT_DIM);
+        ui.rect(Rect::new(pad_scale, by, len, 2.0 * s), TEXT_DIM);
+        ui.text(&mut self.atlas, &self.fonts, &if metres >= 1000.0 { format!("{:.0} km", metres / 1000.0) } else { format!("{metres:.0} m") }, 12.0 * s, Weight::Medium, Vec2::new(pad_scale + len + 8.0 * s, by + 4.0 * s), Align::Left, TEXT_DIM);
         ui.rounded_border(win, 10.0 * s, 1.0, Color::WHITE.alpha(0.08));
 
         // --- to the GPU
@@ -2653,17 +2758,20 @@ impl Navigator {
         all.extend(dots.verts);
         let n_ui = all.len() as u32;
         all.extend(ui.verts);
+        let n_list = all.len() as u32;
+        all.extend(list.verts);
         gpu.upload(device, queue, 5, &all);
         gpu.upload_atlas(queue, &mut self.atlas);
         let flat = Layer::flat([0.0, 0.0, w, h], 10.0 * s, 1.0);
-        let layers = [flat, world];
+        let layers = [flat, world, Layer::flat(list_clip, 0.0, 1.0)];
         let roads_n = self.city.roads.map(|r| r.1).unwrap_or(0);
         let draws = [
             Draw { buffer: 5, range: 0..n_bg, layer: 0, texture: 0 },
             Draw { buffer: 3, range: 0..roads_n, layer: 1, texture: 0 },
             Draw { buffer: 4, range: 0..self.city.route.1, layer: 1, texture: 0 },
             Draw { buffer: 5, range: n_bg..n_bg + n_dots, layer: 1, texture: 0 },
-            Draw { buffer: 5, range: n_ui..all.len() as u32, layer: 0, texture: 0 },
+            Draw { buffer: 5, range: n_ui..n_list, layer: 0, texture: 0 },
+            Draw { buffer: 5, range: n_list..all.len() as u32, layer: 2, texture: 0 },
         ];
         let mut enc = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("city map") });
         gpu.render(device, queue, &mut enc, &view, (tw, th), Some(wgpu::Color::TRANSPARENT), &layers, &draws);
@@ -2693,6 +2801,31 @@ mod tests {
         assert_eq!(n.map_point(2900.0, 500.0), Some(n.city.center));
         assert_eq!(n.map_point(1000.0, 500.0), None);
     }
+    /// (the fork) A click on the board's arrow unfolds the board instead of opening the
+    /// city map; the corner drags the navigator larger.
+    #[test]
+    fn the_arrow_unfolds_the_board_and_the_corner_sizes_the_navigator() {
+        let mut n = Navigator::new(true, 0.85, "bottom-left");
+        n.panel_rect = [10.0, 600.0, 370.0, 890.0];
+        n.panel_room = [1240.0, 610.0];
+        n.arrow_rect = Some(Rect::new(320.0, 230.0, 24.0, 24.0));
+        n.grip_rect = Some(Rect::new(344.0, 274.0, 16.0, 16.0));
+        n.panel_press(10.0 + 330.0, 600.0 + 240.0);
+        assert_eq!(n.panel_release(), Some(true));
+        assert!(n.schedule && n.expanded);
+        n.panel_press(10.0 + 330.0, 600.0 + 240.0);
+        n.panel_release();
+        assert!(n.schedule && !n.expanded);
+        // the corner: 180 px to the right on a 360 px wide navigator, half again as large
+        n.panel_press(10.0 + 352.0, 600.0 + 282.0);
+        assert!(n.panel_move(10.0 + 352.0 + 180.0, 600.0 + 282.0));
+        assert!((n.size - 1.5).abs() < 1e-3, "{}", n.size);
+        assert_eq!(n.panel_release(), Some(true));
+        // elsewhere a click is still the city map's
+        n.panel_press(100.0, 700.0);
+        assert_eq!(n.panel_release(), Some(false));
+    }
+
     /// A press and a small wobble is a click (the city map), a longer move drags the
     /// navigator, and the place reads back from the setting it is saved as (#940).
     #[test]
