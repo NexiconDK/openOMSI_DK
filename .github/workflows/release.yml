@@ -334,8 +334,17 @@ jobs:
           if ! grep -q '[^[:space:]]' changes.md; then
             echo "Small changes and fixes." > changes.md
           fi
-          # (the fork: its own notes, in Danish, FORK.md)
-          if [ -f FORK.md ]; then cp FORK.md changes.md; fi
+          # (the fork: its own notes, in Danish - what FORK.md says now that it did not at the
+          # fork's previous release, under its headings; all of it in FORK.md itself)
+          if [ -f FORK.md ]; then
+            prev_fork=$(git tag -l 'v*-dk' 'v*-fork' --sort=-v:refname | grep -vx "v$VERSION" | head -1)
+            : > fork_old.md
+            if [ -n "$prev_fork" ]; then git show "$prev_fork:FORK.md" > fork_old.md 2>/dev/null || : > fork_old.md; fi
+            python3 scripts/fork_notes.py fork_old.md FORK.md > changes.md
+            if [ -n "$prev_fork" ]; then
+              printf '\n\n*Ændringer siden %s. Alle ændringer i openOMSI DK står i [FORK.md](https://github.com/%s/blob/main/FORK.md).*\n' "${prev_fork#v}" "$GITHUB_REPOSITORY" >> changes.md
+            fi
+          fi
           cat > notes.md <<NOTES
           **openOMSI DK ${VERSION%-dk}**
 
