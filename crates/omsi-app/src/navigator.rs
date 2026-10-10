@@ -85,6 +85,108 @@ fn traffic_kind(c: &crate::traffic::AiCar) -> (Color, Option<String>) {
     };
     (color, line)
 }
+// (the fork) the other vehicles on the city map at their size, from Luc-nbr's openOMSI beta (MIT)
+/// Another vehicle as the maps draw it: the middle of its body (world), its heading, its
+/// length and width (m), its colour (cars blue, the public transport by kind), whether it is
+/// public transport (drawn as a bus) and the line it shows.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MapVehicle {
+    pub at: DVec3,
+    pub heading: f64,
+    pub len: f32,
+    pub width: f32,
+    pub color: Color,
+    pub bus: bool,
+    pub line: Option<String>,
+}
+
+/// The traffic's vehicles within `reach` metres of `bus`, as the maps draw them.
+fn map_vehicles(traffic: Option<&Traffic>, bus: DVec3, reach: f64) -> Vec<MapVehicle> {
+    let Some(t) = traffic else { return Vec::new() };
+    t.cars
+        .iter()
+        .filter(|c| !c.gone && (c.vehicle.position - bus).truncate().length() <= reach)
+        .map(|c| {
+            let (color, line) = traffic_kind(c);
+            let h = c.vehicle.heading.to_radians();
+            let (front, rear) = (c.state.front.max(0.5), c.state.rear.max(0.5));
+            // (the body's middle: its origin is where its front and rear are measured from)
+            let mid = c.vehicle.position.truncate() + DVec2::new(h.sin(), h.cos()) * ((front - rear) * 0.5) as f64;
+            MapVehicle { at: mid.extend(c.vehicle.position.z), heading: c.vehicle.heading, len: front + rear, width: (c.half_width * 2.0).max(1.2), color, bus: color != DOT, line }
+        })
+        .collect()
+}
+
+/// The other vehicles onto the map `p` (its world, `rel` giving a world point relative to its
+/// anchor), at `mpp` metres a pixel where they stand and scale `s`: each turned as it heads, at
+/// its own size or - when that is small - a little larger, with a dark outline; a dot with a tip
+/// where even that would be too small.
+fn paint_vehicles(p: &mut Painter, vehicles: &[MapVehicle], rel: &dyn Fn(DVec3) -> Vec3, mpp: f32, s: f32) {
+    use crate::nav_panel::{self as np, Tone};
+    let outline = Color::rgba(8, 8, 8, 0.9);
+    // (the cars first: the buses over them)
+    for pass in [false, true] {
+        for v in vehicles.iter().filter(|v| v.bus == pass) {
+            let at = rel(v.at);
+            match vehicle_size(v, mpp, s) {
+                Some((_, width)) => {
+                    // (metres, but at least `min_px` long: a scale of at least that a metre;
+                    // wide enough to make out as a bus or a car)
+                    let px_m = min_len(v, s) / v.len.max(1.0);
+                    let parts = np::vehicle_shape(v.len, width, v.bus);
+                    let edge = (1.1 * mpp).clamp(0.25, 0.9);
+                    p.world_shape(at, &np::turned(&np::grown(&parts[0].1, edge), v.heading as f32), 1.0, px_m, outline);
+                    for (tone, pts) in &parts {
+                        let c = match tone {
+                            Tone::Body => v.color,
+                            Tone::Glass => Color::rgba(18, 24, 34, 0.9),
+                            Tone::Roof => v.color.lighten(0.28),
+                            Tone::Joint => v.color.darken(0.45),
+                        };
+                        p.world_shape(at, &np::turned(pts, v.heading as f32), 1.0, px_m, c);
+                    }
+                }
+                None => {
+                    let (disc, tip) = np::dot_shape();
+                    let r = if v.bus { 3.4 } else { 2.6 } * s;
+                    let turn = |pts: &[Vec2]| np::turned(pts, v.heading as f32);
+                    p.world_shape(at, &turn(&np::grown(&tip, 0.3)), 0.0, r, outline);
+                    p.world_shape(at, &turn(&disc), 0.0, r + 1.2 * s, outline);
+                    p.world_shape(at, &turn(&disc), 0.0, r, v.color);
+                    p.world_shape(at, &turn(&tip), 0.0, r, v.color);
+                }
+            }
+        }
+    }
+}
+
+/// The least length a vehicle is drawn at as its shape (pixels at scale `s`).
+fn min_len(v: &MapVehicle, s: f32) -> f32 {
+    (if v.bus { 15.0 } else { 9.0 }) * s
+}
+
+/// How a vehicle is drawn at `mpp` metres a pixel and scale `s`: as its shape - how many
+/// times its own size, and its width (m) as drawn - or None: as a dot.
+fn vehicle_size(v: &MapVehicle, mpp: f32, s: f32) -> Option<(f32, f32)> {
+    let min_px = min_len(v, s);
+    (crate::nav_panel::glyph(v.len, mpp, min_px) == crate::nav_panel::Glyph::Shape).then(|| {
+        let k = (min_px / v.len.max(1.0) * mpp).max(1.0);
+        let min_w = if v.bus { 6.0 } else { 5.0 } * s;
+        (k, v.width.max(min_w * mpp / k))
+    })
+}
+
+impl MapVehicle {
+    /// Its front and its back as drawn at `mpp` metres a pixel and scale `s` (a dot: its
+    /// middle), for the line's tag to stand above.
+    fn drawn_ends(&self, mpp: f32, s: f32) -> [DVec3; 2] {
+        let half = vehicle_size(self, mpp, s).map(|(k, _)| self.len * k * 0.5).unwrap_or(0.0) as f64;
+        let h = self.heading.to_radians();
+        let ahead = DVec3::new(h.sin(), h.cos(), 0.0) * half;
+        [self.at + ahead, self.at - ahead]
+    }
+}
+
 /// A bus, trolleybus or tram on the map as a pictogram, not a dot: a body with a cut front and
 /// a windscreen, turned to the way it heads (`heading`: degrees clockwise from north), a dark
 /// edge round it. `min_px` keeps it readable from far away; the line number is drawn beside it.
@@ -2480,10 +2582,14 @@ impl Navigator {
             scene.premultiplied.insert(t);
             self.city.target = Some((t, tw, th));
         }
-        if self.city.follow {
-            self.city.center = f.bus.truncate();
-        }
         let s = (h / 760.0).clamp(0.95, 2.0) * f.ui_scale;
+        // (the fork) the duty sheet's place on the left, when there is a duty
+        let sheet_rect = f.duty.is_some().then(|| Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s)));
+        if self.city.follow {
+            // (the bus in the middle of what the sheet leaves of the map)
+            let side = sheet_rect.map(|r| r.right()).unwrap_or(0.0);
+            self.city.center = f.bus.truncate() - DVec2::new(side as f64 * 0.5 * self.city.mpp, 0.0);
+        }
         let global = self.global.clone();
         let net = global.as_deref().or(f.traffic.map(|t| &t.net));
         // roads of the whole map (buffer 3), once per map version
@@ -2563,21 +2669,10 @@ impl Navigator {
         // traffic: blue dots, the public transport in its colours with its line (as on the
         // small map)
         let mut dots = Painter::new();
-        let mut lines: Vec<(DVec3, Color, String)> = Vec::new();
-        if let Some(t) = f.traffic.filter(|_| self.show_ai) {
-            for car in t.cars.iter().filter(|c| !c.gone) {
-                let (color, line) = traffic_kind(car);
-                if color == DOT {
-                    dots.world_disc(rel(car.vehicle.position), 2.2, 3.4, Color::rgba(8, 8, 8, 0.9));
-                    dots.world_disc(rel(car.vehicle.position), 1.5, 2.3, color);
-                } else {
-                    vehicle_icon(&mut dots, rel(car.vehicle.position), car.vehicle.heading, color, car.is_rail(), 7.5);
-                }
-                if let Some(l) = line {
-                    lines.push((car.vehicle.position, color, l));
-                }
-            }
-        }
+        // (the fork) at their own size and shape (Luc-nbr's), the line tag over each bus
+        let vehicles = map_vehicles(f.traffic.filter(|_| self.show_ai), f.bus, f64::INFINITY);
+        paint_vehicles(&mut dots, &vehicles, &rel, self.city.mpp as f32, s);
+        let lines: Vec<(DVec3, Color, String, [DVec3; 2])> = vehicles.iter().filter_map(|v| v.line.clone().map(|l| (v.at, v.color, l, v.drawn_ends(self.city.mpp as f32, s)))).collect();
         let n_dots = dots.len();
         // stops with their names, the bus, the frame and the header
         let mut ui = Painter::new();
@@ -2586,6 +2681,9 @@ impl Navigator {
         let markers = spaced_markers(f.stops.iter().enumerate().map(|(k, st)| (k, to_screen(st.position))).filter(|(_, p)| win.contains(*p) && p.y > 50.0 * s), 20.0 * s);
         let mut taken: Vec<Rect> = markers.iter().map(|(_, p)| Rect::new(p.x - 9.0 * s, p.y - 9.0 * s, 18.0 * s, 18.0 * s)).collect();
         taken.push(Rect::new(0.0, 0.0, w, 50.0 * s));
+        if let Some(r) = sheet_rect {
+            taken.push(r.inset(-6.0 * s));
+        }
         let mut stop_labels = Vec::new();
         for &(k, p) in &markers {
             if self.city.mpp >= 4.0 && k != 0 && k + 1 != n_stops { continue; }
@@ -2600,22 +2698,23 @@ impl Navigator {
             }
         }
         // the public transport's line tags, above their dots, where there is room
-        for (pos, color, l) in &lines {
+        for (pos, color, l, ends) in &lines {
             let p = to_screen(*pos);
             if !win.contains(p) {
                 continue;
             }
             let px = 11.0 * s;
+            let own = f.line.as_deref().is_some_and(|o| o.trim().eq_ignore_ascii_case(l.trim()));
             let l = self.fonts.fit(l, px, Weight::Bold, 100.0 * s);
-            let tw = self.fonts.width(&l, px, Weight::Bold) + 9.0 * s;
-            let r = Rect::new(p.x - tw * 0.5, p.y - 22.0 * s, tw, 15.0 * s);
+            let tw = self.fonts.width(&l, px, Weight::Bold) + crate::stop_signs::CHIP_PAD * s;
+            // (above the bus's higher end, not over the bus)
+            let top = ends.iter().map(|e| to_screen(*e).y).fold(p.y, f32::min);
+            let r = Rect::new(p.x - tw * 0.5, top.min(p.y - 7.0 * s) - 17.0 * s, tw, 15.0 * s);
             if taken.iter().any(|o| o.x < r.right() && r.x < o.right() && o.y < r.bottom() && r.y < o.bottom()) {
                 continue;
             }
             taken.push(r);
-            ui.rounded(Rect::new(r.x - 1.0 * s, r.y - 1.0 * s, r.w + 2.0 * s, r.h + 2.0 * s), 4.5 * s, Color::rgba(10, 10, 10, 0.9));
-            ui.rounded(r, 4.0 * s, *color);
-            ui.text_in(&mut self.atlas, &self.fonts, &l, px, Weight::Bold, r, Align::Center, LINE_TEXT);
+            crate::stop_signs::draw_chip(&mut ui, &mut self.atlas, &self.fonts, r, &l, px, *color, own, s);
         }
         if let (Some(st), true) = (self.streets.clone(), self.city.mpp < 3.2 && self.global.is_some()) {
             let px = 12.0 * s;
@@ -2649,22 +2748,20 @@ impl Navigator {
                 ui.text_rotated(&mut self.atlas, &self.fonts, name, px, Weight::Medium, c, ang, STREET);
             }
         }
-        for (k, p) in markers.into_iter().rev() {
-            let next = k == 0;
-            if self.city.mpp < 4.0 || next || k + 1 == n_stops {
-                let badge = if next { 7.0 } else { 5.5 } * s;
-                ui.circle(p, badge + 1.5 * s, Color::rgba(8, 8, 8, 0.95));
-                let fill = if next { Color::rgba(45, 116, 205, 1.0) } else if k + 1 == n_stops { ROUTE } else { Color::rgba(76, 91, 112, 0.98) };
-                ui.circle(p, badge, fill);
-                ui.icon(&mut self.atlas, "directions_bus", p, if next { 11.5 } else { 9.5 } * s, TEXT);
-            } else {
-                ui.circle(p, 5.0 * s, Color::rgba(12, 12, 12, 0.95));
-                ui.circle(p, 3.2 * s, TEXT_DIM);
-            }
+        // (the fork) the stops as signs (Luc-nbr's `stop_signs`): those served faded under
+        // everything, those ahead over their names; far out the ones between as dots
+        let signs = crate::stop_signs::style();
+        let far = self.city.mpp >= 4.0;
+        for q in crate::stop_signs::served(f.duty, &self.stop_pos).into_iter().map(&to_screen).filter(|q| win.contains(*q) && q.y > 50.0 * s && markers.iter().all(|(_, m)| m.distance(*q) >= 14.0 * s)) {
+            crate::stop_signs::draw(&mut ui, signs, crate::stop_signs::Kind::Passed, q, if far { 6.0 } else { 13.0 } * s);
         }
         for (k, name, r) in stop_labels {
-            ui.rounded(r, 4.0 * s, Color::rgba(12, 12, 12, 0.85));
-            ui.text_in(&mut self.atlas, &self.fonts, &name, 12.5 * s, if k == 0 { Weight::Bold } else { Weight::Medium }, r.pad(6.0 * s, 0.0), Align::Left, if k == 0 { TEXT } else { TEXT_DIM });
+            crate::stop_signs::draw_label(&mut ui, &mut self.atlas, &self.fonts, r, &name, 12.5 * s, signs, k == 0, s);
+        }
+        for (k, p) in markers.into_iter().rev() {
+            let kind = crate::stop_signs::Kind::ahead(k, n_stops);
+            let dot = far && kind == crate::stop_signs::Kind::Ahead;
+            crate::stop_signs::draw(&mut ui, signs, kind, p, if dot { 6.0 } else { 13.0 } * s);
         }
         // the other players: an arrow the way they face and their name (as on the small map)
         for pl in &f.players {
@@ -2718,8 +2815,7 @@ impl Navigator {
         let mut list = Painter::new();
         let mut list_clip = [0.0f32; 4];
         let mut scale_x = pad;
-        if let Some(d) = f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time)) {
-            let r = Rect::new(14.0 * s, 56.0 * s, (340.0 * s).min(w * 0.34), (h - 70.0 * s).max(200.0 * s));
+        if let (Some(d), Some(r)) = (f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time)), sheet_rect) {
             let view = crate::nav_duty::draw_sheet_head(&mut crate::nav_duty::Pen { p: &mut ui, atlas: &mut self.atlas, fonts: &self.fonts }, &d, r, f.time, s);
             let rows = crate::nav_duty::sheet(&d);
             let content = (crate::nav_duty::sheet_height(&rows) + 12.0) * s;

@@ -53,6 +53,9 @@ mod launcher;
 mod menu;
 mod mirror_hud;
 mod nav_duty;
+mod nav_panel;
+#[allow(dead_code)]
+mod stop_signs;
 mod navigator;
 mod vr_navigator;
 mod money;
