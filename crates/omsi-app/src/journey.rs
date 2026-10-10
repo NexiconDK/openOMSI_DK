@@ -57,7 +57,7 @@ pub(crate) struct Journey {
     /// (the fork) The row of the stop the bus stood at last, and the people who had got
     /// into the bus and the riders when last looked (`count_people`).
     at_row: Option<usize>,
-    people: Option<(u32, usize)>,
+    people: Option<Vec<u32>>,
 }
 
 impl Journey {
@@ -115,18 +115,24 @@ impl Journey {
         }
     }
 
-    /// (the fork) `stepped_in`: everybody who got into the bus so far; `riders`: those in it
-    /// now. Who got on since the last look, and who got off (those in it before and since
-    /// got on, less those in it now), are the stop's where the bus stood last (nobody gets
-    /// on or off between stops).
-    fn count_people(&mut self, stepped_in: u32, riders: usize) {
-        if let (Some((was_in, was_riding)), Some(i)) = (self.people, self.at_row) {
-            let on = stepped_in.saturating_sub(was_in);
-            let off = (was_riding + on as usize).saturating_sub(riders) as u32;
-            self.rows[i].on += on;
+    /// (the fork) `riders`: who is in the bus now (their ids, in order). Those who were not
+    /// at the last look got on, those who are no longer got off - at the stop where the bus
+    /// stood last (nobody gets on or off between stops). (Counted from what was asked of the
+    /// greeting at the front door, the people who came in by the other doors were never on
+    /// and still got off.) At a trip's last stop the people getting on are the next trip's,
+    /// at its first: they ride that one.
+    fn count_people(&mut self, riders: &[u32]) {
+        if let (Some(was), Some(i)) = (self.people.as_deref(), self.at_row) {
+            let on = riders.iter().filter(|id| was.binary_search(id).is_err()).count() as u32;
+            let off = was.iter().filter(|id| riders.binary_search(id).is_err()).count() as u32;
+            let on_row = match self.rows.get(i + 1) {
+                Some(next) if self.rows[i].last && next.first && next.trip == self.rows[i].trip + 1 => i + 1,
+                _ => i,
+            };
+            self.rows[on_row].on += on;
             self.rows[i].off += off;
         }
-        self.people = Some((stepped_in, riders));
+        self.people = Some(riders.to_vec());
     }
 
     /// (the fork) Trip `t` of the duty (its index in the duty's trips) as the summary
@@ -159,7 +165,7 @@ impl Journey {
             } else {
                 ("", 3)
             };
-            let count = |n: u32, seen: bool| if seen { n.to_string() } else { String::new() };
+            let count = |n: u32, seen: bool| if seen || n > 0 { n.to_string() } else { String::new() };
             let seen = r.arrived.is_some() || r.left.is_some();
             let [a0, a1, a2] = arr;
             let [d0, d1, d2] = dep;
@@ -295,7 +301,7 @@ impl Journey {
 /// arrived at the one it is due at now (`PlayerDuty::arrived`). `head` (driver, map, bus,
 /// date) is asked for when a log begins.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn note(slot: &mut Option<Journey>, duty: &PlayerDuty, due: (usize, usize), served: Option<(f64, f64)>, root: &std::path::Path, people: (u32, usize), odo: Option<f64>, head: impl FnOnce() -> String) {
+pub(crate) fn note(slot: &mut Option<Journey>, duty: &PlayerDuty, due: (usize, usize), served: Option<(f64, f64)>, root: &std::path::Path, riders: &[u32], odo: Option<f64>, head: impl FnOnce() -> String) {
     // (every frame: the key is compared, not made)
     if slot.as_ref().is_none_or(|j| (j.key.0.as_str(), j.key.1.as_str(), j.key.2) != (duty.line.as_str(), duty.tour.as_str(), duty.first_trip)) {
         let dir = crate::startup::content_dir().unwrap_or_else(|| root.to_path_buf()).join("Journeys");
@@ -303,7 +309,7 @@ pub(crate) fn note(slot: &mut Option<Journey>, duty: &PlayerDuty, due: (usize, u
     }
     let Some(j) = slot.as_mut() else { return };
     // (the fork) who got on and off, at the stop the bus stands at
-    j.count_people(people.0, people.1);
+    j.count_people(riders);
     if duty.arrived().is_some() {
         j.standing_at((duty.trip_index, duty.next_stop), odo);
     } else if served.is_some() {
@@ -412,22 +418,22 @@ mod tests {
         let trips = [trip(&[("A", t0), ("B", t0 + 300.0), ("C", t0 + 600.0)])];
         let dir = std::env::temp_dir().join(format!("omsi-summary-test-{}", std::process::id()));
         let mut j = Journey::new(("5".into(), "1".into(), 0), &trips, "Grundorf", dir.clone());
-        j.count_people(10, 0);
+        j.count_people(&[]);
         // at A: three get on
         j.standing_at((0, 0), Some(100.0));
-        j.count_people(13, 3);
+        j.count_people(&[1, 2, 3]);
         j.left((0, 0), (0.0, 10.0));
         // driving: nobody
-        j.count_people(13, 3);
+        j.count_people(&[1, 2, 3]);
         // at B: one off, two on
         j.arrived((0, 1), 0.0);
         j.standing_at((0, 1), Some(101.5));
-        j.count_people(15, 4);
+        j.count_people(&[1, 3, 4, 5]);
         j.left((0, 1), (0.0, 0.0));
         // at C: everybody off
         j.arrived((0, 2), 0.0);
         j.standing_at((0, 2), Some(103.0));
-        j.count_people(15, 0);
+        j.count_people(&[]);
         let s = j.summary(0).expect("a summary");
         let cells = |name: &str| s.rows.iter().find(|r| r.0[0] == name).map(|r| (r.0[7].clone(), r.0[8].clone(), r.0[9].clone())).unwrap();
         assert_eq!(cells("A"), ("3".into(), "0".into(), "100.0".into()));
@@ -437,6 +443,36 @@ mod tests {
         assert!(s.text.contains("Trip 1") && s.text.contains("B"), "{}", s.text);
         let saved = j.save_summary(0).expect("saved");
         assert!(std::fs::read_to_string(&saved).unwrap().contains("103.0"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// (the fork) At a trip's last stop the people getting on ride the next trip: they are
+    /// its first stop's, and no trip has more people off than on.
+    #[test]
+    fn who_gets_on_at_the_terminus_rides_the_next_trip() {
+        let t0 = 8.0 * 3600.0;
+        let trips = [trip(&[("A", t0), ("B", t0 + 300.0)]), trip(&[("B", t0 + 900.0), ("A", t0 + 1200.0)])];
+        let dir = std::env::temp_dir().join(format!("omsi-summary-terminus-{}", std::process::id()));
+        let mut j = Journey::new(("5".into(), "1".into(), 0), &trips, "Grundorf", dir.clone());
+        j.count_people(&[]);
+        j.standing_at((0, 0), None);
+        j.count_people(&[1, 2]);
+        j.left((0, 0), (0.0, 0.0));
+        j.arrived((0, 1), 0.0);
+        j.standing_at((0, 1), None);
+        // at the terminus: both off, three on for the way back
+        j.count_people(&[]);
+        j.count_people(&[3, 4, 5]);
+        j.left((0, 1), (0.0, 0.0));
+        j.arrived((1, 1), 0.0);
+        j.standing_at((1, 1), None);
+        j.count_people(&[]);
+        let totals = |t: usize| {
+            let s = j.summary(t).unwrap();
+            (s.rows.iter().map(|r| r.0[7].parse::<u32>().unwrap_or(0)).sum::<u32>(), s.rows.iter().map(|r| r.0[8].parse::<u32>().unwrap_or(0)).sum::<u32>())
+        };
+        assert_eq!(totals(0), (2, 2));
+        assert_eq!(totals(1), (3, 3));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

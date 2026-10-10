@@ -288,7 +288,7 @@ pub(crate) fn duty_step(
     game_clock: Option<&omsi_sim::SimClock>,
     learn_loaded: bool,
     plugin_events: Option<&mut Vec<omsi_plugin::GameEvent>>,
-    riders: usize,
+    riders: &[u32],
 ) -> Option<usize> {
     if let Some(stop) = p.html_next_stop.take() {
         if d.skip_to(stop) {
@@ -321,8 +321,7 @@ pub(crate) fn duty_step(
             .filter(|v| v.is_finite())
             .map(|km| km as f64 + p.vehicle.var("kmcounter_m").unwrap_or(0.0) as f64 / 1000.0)
             .or(Some(career.metres / 1000.0));
-        let people = (career.stepped_in.max(0) as u32, riders);
-        crate::journey::note(journey, d, due, served, root, people, odo, || crate::journey::head(career, &world.global.name, &p.vehicle, clock));
+        crate::journey::note(journey, d, due, served, root, riders, odo, || crate::journey::head(career, &world.global.name, &p.vehicle, clock));
     }
     if let Some(events) = plugin_events {
         use omsi_plugin::InfoValue::{Num, Text};

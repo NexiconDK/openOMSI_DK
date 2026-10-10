@@ -44,6 +44,14 @@ impl PeopleSim {
         (walking, waiting, aboard)
     }
 
+    /// (the fork) Who is in the player's bus now (their ids, in order): who got on and off
+    /// is told by who came and went, whatever door they took.
+    pub fn riding_ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self.people.iter().filter(|p| p.inside(BusId::Player)).map(|p| p.id).collect();
+        ids.sort_unstable();
+        ids
+    }
+
     /// People currently in the player's bus.
     pub fn riding(&self) -> usize {
         self.people

@@ -130,7 +130,7 @@ impl App {
             self.world.as_ref(),
             self.paused,
         ) {
-            let riders = self.session.humans.as_ref().map(|h| h.riding()).unwrap_or(0);
+            let riders = self.session.humans.as_ref().map(|h| h.riding_ids()).unwrap_or_default();
             let ended = steps::duty_step(
                 d,
                 p,
@@ -142,7 +142,7 @@ impl App {
                 Some(&self.clock),
                 true,
                 Some(&mut self.integrations.plugin_events),
-                riders,
+                &riders,
             );
             // (the fork) the summary of the trip just driven, when it is wanted: only once the
             // bus stands quite still at its terminus (the trip counts as
