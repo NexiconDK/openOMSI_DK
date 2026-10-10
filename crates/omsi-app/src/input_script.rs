@@ -302,6 +302,11 @@ impl App {
         if pressed && self.menus.editor.is_some() && self.editor_key(code) {
             return true;
         }
+        // (the fork) Escape closes the trip summary first
+        if pressed && !repeat && code == KeyCode::Escape && self.session.trip_summary.is_some() {
+            self.session.trip_summary = None;
+            return true;
+        }
         if pressed && !repeat && code == KeyCode::Escape {
             self.open_game_menu();
             return true;

@@ -432,6 +432,8 @@ pub(crate) struct SessionState {
     pub(crate) career: career::Career,
     /// The duty's stops with their times as driven, kept in a file (`journey`).
     pub(crate) journey: Option<crate::journey::Journey>,
+    /// (the fork) The trip whose summary is shown (its index in the duty), until closed.
+    pub(crate) trip_summary: Option<usize>,
     /// How wet the roads are (0..1), built up by rain and dried by the sun.
     pub(crate) wetness: f32,
     /// How far the cloud cover has drifted with the wind (fractions of its tiling), summed

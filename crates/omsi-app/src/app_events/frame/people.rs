@@ -130,7 +130,8 @@ impl App {
             self.world.as_ref(),
             self.paused,
         ) {
-            steps::duty_step(
+            let riders = self.session.humans.as_ref().map(|h| h.riding()).unwrap_or(0);
+            let ended = steps::duty_step(
                 d,
                 p,
                 w,
@@ -141,7 +142,12 @@ impl App {
                 Some(&self.clock),
                 true,
                 Some(&mut self.integrations.plugin_events),
+                riders,
             );
+            // (the fork) the summary of the trip just driven, when it is wanted
+            if let Some(t) = ended.filter(|_| self.settings.trip_summary) {
+                self.session.trip_summary = Some(t);
+            }
         }
         if let Some(p) = self.player.as_mut() {
             let riders = self.session.humans.as_ref().map(|h| h.riding()).unwrap_or(0);

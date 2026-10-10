@@ -19,6 +19,25 @@ struct Row {
     /// The trip begins here (no arrival to tell) / ends here (no departure).
     first: bool,
     last: bool,
+    /// (the fork) The passengers who got on and off here, and the odometer (km) when the
+    /// bus stood here (`trip_summary`).
+    on: u32,
+    off: u32,
+    odo: Option<f64>,
+}
+
+/// (the fork) One trip as the summary after it shows it (`Journey::summary`).
+pub(crate) struct TripSummary {
+    /// The lines above (driver, map, bus, date; line and tour) and the trip's title.
+    pub head: String,
+    pub title: String,
+    /// Per stop: name, arrival planned, real, difference, departure planned, real,
+    /// difference, got on, got off, odometer; then the status and how it is coloured
+    /// (0 OK, 1 late or early, 2 missed, 3 not yet).
+    pub rows: Vec<([String; 10], String, u8)>,
+    pub footer: String,
+    /// All of it as text (copied, saved).
+    pub text: String,
 }
 
 pub(crate) struct Journey {
@@ -28,10 +47,17 @@ pub(crate) struct Journey {
     head: String,
     /// Each trip's title.
     trips: Vec<String>,
+    /// (the fork) The same in parts: number, line, terminus, departure (the summary's own
+    /// title in the interface's language).
+    titles: Vec<(usize, String, String, String)>,
     rows: Vec<Row>,
     dir: PathBuf,
     /// The file, chosen when there is first something to write.
     path: Option<PathBuf>,
+    /// (the fork) The row of the stop the bus stood at last, and the people who had got
+    /// into the bus and the riders when last looked (`count_people`).
+    at_row: Option<usize>,
+    people: Option<(u32, usize)>,
 }
 
 impl Journey {
@@ -39,18 +65,20 @@ impl Journey {
     /// driven yet; `head` comes first in it.
     fn new(key: (String, String, usize), trips_planned: &[PlannedTrip], head: &str, dir: PathBuf) -> Journey {
         let mut trips = Vec::new();
+        let mut titles = Vec::new();
         let mut rows = Vec::new();
         for (t, trip) in trips_planned.iter().enumerate() {
             let line = if trip.line.trim().is_empty() { key.0.trim() } else { trip.line.trim() };
             trips.push(format!("Trip {}  ·  {} to {}  ·  {}", key.2 + t + 1, line, trip.terminus.trim(), hms(trip.departure)));
+            titles.push((key.2 + t + 1, omsi_sim::timetable_run::display_line(line).to_string(), trip.terminus.trim().to_string(), hms(trip.departure)));
             let n = trip.stops.len();
             // (the stations a depot run passes are not stops)
             for (k, s) in trip.stops.iter().enumerate().filter(|(_, s)| s.stops) {
-                rows.push(Row { trip: t, stop: k, name: s.name.trim().to_string(), plan: (s.arr, s.dep), arrived: None, left: None, first: k == 0, last: k + 1 == n });
+                rows.push(Row { trip: t, stop: k, name: s.name.trim().to_string(), plan: (s.arr, s.dep), arrived: None, left: None, first: k == 0, last: k + 1 == n, on: 0, off: 0, odo: None });
             }
         }
         let head = format!("{}\nLine {}, tour {}", head.trim_end(), key.0.trim(), key.1.trim());
-        Journey { key, head, trips, rows, dir, path: None }
+        Journey { key, head, trips, titles, rows, dir, path: None, at_row: None, people: None }
     }
 
     /// The bus arrived at stop `at` (trip, stop) `late` s after its time (negative: early).
@@ -75,6 +103,125 @@ impl Journey {
 
     fn row(&mut self, (trip, stop): (usize, usize)) -> Option<&mut Row> {
         self.rows.iter_mut().find(|r| r.trip == trip && r.stop == stop)
+    }
+
+    /// (the fork) The bus stands at stop `at` (trip, stop), the odometer at `odo` km: the
+    /// people who get on and off from now on are its.
+    fn standing_at(&mut self, at: (usize, usize), odo: Option<f64>) {
+        let Some(i) = self.rows.iter().position(|r| r.trip == at.0 && r.stop == at.1) else { return };
+        self.at_row = Some(i);
+        if self.rows[i].odo.is_none() {
+            self.rows[i].odo = odo;
+        }
+    }
+
+    /// (the fork) `stepped_in`: everybody who got into the bus so far; `riders`: those in it
+    /// now. Who got on since the last look, and who got off (those in it before and since
+    /// got on, less those in it now), are the stop's where the bus stood last (nobody gets
+    /// on or off between stops).
+    fn count_people(&mut self, stepped_in: u32, riders: usize) {
+        if let (Some((was_in, was_riding)), Some(i)) = (self.people, self.at_row) {
+            let on = stepped_in.saturating_sub(was_in);
+            let off = (was_riding + on as usize).saturating_sub(riders) as u32;
+            self.rows[i].on += on;
+            self.rows[i].off += off;
+        }
+        self.people = Some((stepped_in, riders));
+    }
+
+    /// (the fork) Trip `t` of the duty (its index in the duty's trips) as the summary
+    /// after it shows it; None for a trip not in this log.
+    pub(crate) fn summary(&self, t: usize) -> Option<TripSummary> {
+        let t = t.checked_sub(self.key.2).filter(|t| *t < self.trips.len())?;
+        let rows: Vec<&Row> = self.rows.iter().filter(|r| r.trip == t).collect();
+        let tr = |s: &str| omsi_ui::tr(s).into_owned();
+        let (mut served, mut late, mut early, mut on, mut off) = (0, 0, 0, 0, 0);
+        let mut out = Vec::new();
+        for (i, r) in rows.iter().enumerate() {
+            let arr = if r.first { Default::default() } else { times(r.plan.0, r.arrived) };
+            let dep = if r.last { Default::default() } else { times(r.plan.1, r.left) };
+            let is_late = !r.first && r.arrived.is_some_and(|a| (a - r.plan.0).round() > LATE_ARRIVAL);
+            let is_early = !r.last && r.left.is_some_and(|l| (l - r.plan.1).round() < EARLY_DEPARTURE);
+            on += r.on;
+            off += r.off;
+            let (status, colour) = if r.arrived.is_some() || r.left.is_some() {
+                served += 1;
+                late += is_late as usize;
+                early += is_early as usize;
+                match (is_late, is_early) {
+                    (true, true) => ("late, left early", 1),
+                    (true, false) => ("late", 1),
+                    (false, true) => ("left early", 1),
+                    _ => ("OK", 0),
+                }
+            } else if rows[i + 1..].iter().any(|x| x.arrived.is_some() || x.left.is_some()) {
+                ("missed", 2)
+            } else {
+                ("", 3)
+            };
+            let count = |n: u32, seen: bool| if seen { n.to_string() } else { String::new() };
+            let seen = r.arrived.is_some() || r.left.is_some();
+            let [a0, a1, a2] = arr;
+            let [d0, d1, d2] = dep;
+            out.push(([r.name.clone(), a0, a1, a2, d0, d1, d2, count(r.on, seen), count(r.off, seen), r.odo.map(|k| format!("{k:.1}")).unwrap_or_default()], tr(status), colour));
+        }
+        let odo: Vec<f64> = rows.iter().filter_map(|r| r.odo).collect();
+        let km = match (odo.first(), odo.last()) {
+            (Some(a), Some(b)) => format!(", {}: {:.1} km", tr("distance"), (b - a).max(0.0)),
+            _ => String::new(),
+        };
+        let footer = format!(
+            "{}: {served} {} {}, {}: {late}, {}: {early}, {}: {on}, {}: {off}{km}",
+            tr("Stops served"),
+            tr("of"),
+            rows.len(),
+            tr("late"),
+            tr("left early"),
+            tr("got on"),
+            tr("got off")
+        );
+        let (n, line, terminus, dep) = &self.titles[t];
+        let title = format!("{} {n}  ·  {line} {} {terminus}  ·  {dep}", tr("Trip"), tr("to"));
+        // as text: the columns lined up
+        let heads = ["Stop", "Arr. plan", "Arr. real", "Diff", "Dep. plan", "Dep. real", "Diff", "Pax in", "Pax out", "Odo km"].map(tr);
+        let widths = [30usize, 9, 9, 10, 9, 9, 10, 4, 4, 10];
+        let line = |cells: &[String], status: &str| {
+            let mut l = String::new();
+            for (k, c) in cells.iter().enumerate() {
+                let c: String = c.chars().take(widths[k]).collect();
+                if k == 0 {
+                    l.push_str(&format!("{c:<w$}", w = widths[k]));
+                } else {
+                    l.push_str(&format!("  {c:>w$}", w = widths[k]));
+                }
+            }
+            format!("{}   {status}", l).trim_end().to_string()
+        };
+        let rule = "-".repeat(widths.iter().sum::<usize>() + 2 * (widths.len() - 1) + 12);
+        let mut text = format!("{}\n\n{title}\n{rule}\n{}\n{rule}\n", self.head, line(&heads, &tr("Status")));
+        for (cells, status, _) in &out {
+            text.push_str(&line(cells, status));
+            text.push('\n');
+        }
+        text.push_str(&format!("{rule}\n{footer}\n"));
+        Some(TripSummary { head: self.head.clone(), title, rows: out, footer, text })
+    }
+
+    /// (the fork) The summary of trip `t` written beside the log; the file it went to.
+    pub(crate) fn save_summary(&self, t: usize) -> Option<PathBuf> {
+        let s = self.summary(t)?;
+        let (y, mo, d, h, mi) = omsi_launcher_lib::local_now().unwrap_or((1970, 1, 1, 0, 0));
+        let clean = |s: &str| s.trim().chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect::<String>();
+        let stem = format!("{y:04}-{mo:02}-{d:02} {h:02}-{mi:02} line {} tour {} trip {}", clean(&self.key.0), clean(&self.key.1), t + 1);
+        std::fs::create_dir_all(&self.dir).ok()?;
+        let path = (1..100).map(|n| self.dir.join(if n == 1 { format!("{stem}.txt") } else { format!("{stem} ({n}).txt") })).find(|p| !p.exists())?;
+        match std::fs::write(&path, s.text) {
+            Ok(()) => Some(path),
+            Err(e) => {
+                log::warn!("trip summary: {}: {e}", path.display());
+                None
+            }
+        }
     }
 
     /// The log as it is written.
@@ -147,13 +294,24 @@ impl Journey {
 /// `served` seconds late (arrival, departure: what `PlayerDuty::update` returned), and
 /// arrived at the one it is due at now (`PlayerDuty::arrived`). `head` (driver, map, bus,
 /// date) is asked for when a log begins.
-pub(crate) fn note(slot: &mut Option<Journey>, duty: &PlayerDuty, due: (usize, usize), served: Option<(f64, f64)>, root: &std::path::Path, head: impl FnOnce() -> String) {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn note(slot: &mut Option<Journey>, duty: &PlayerDuty, due: (usize, usize), served: Option<(f64, f64)>, root: &std::path::Path, people: (u32, usize), odo: Option<f64>, head: impl FnOnce() -> String) {
     // (every frame: the key is compared, not made)
     if slot.as_ref().is_none_or(|j| (j.key.0.as_str(), j.key.1.as_str(), j.key.2) != (duty.line.as_str(), duty.tour.as_str(), duty.first_trip)) {
         let dir = crate::startup::content_dir().unwrap_or_else(|| root.to_path_buf()).join("Journeys");
         *slot = Some(Journey::new((duty.line.clone(), duty.tour.clone(), duty.first_trip), &duty.trips, &head(), dir));
     }
     let Some(j) = slot.as_mut() else { return };
+    // (the fork) who got on and off, at the stop the bus stands at
+    j.count_people(people.0, people.1);
+    if duty.arrived().is_some() {
+        j.standing_at((duty.trip_index, duty.next_stop), odo);
+    } else if served.is_some() {
+        // (left without having been seen standing there: the first stop of a duty)
+        if j.at_row.is_none_or(|i| (j.rows[i].trip, j.rows[i].stop) != due) {
+            j.standing_at(due, odo);
+        }
+    }
     let left = served.is_some_and(|s| j.left(due, s));
     let arrived = duty.arrived().is_some_and(|late| j.arrived((duty.trip_index, duty.next_stop), late));
     if left || arrived {
@@ -244,5 +402,41 @@ mod tests {
         assert!(j.arrived((1, 0), -60.0));
         let text = j.text();
         assert!(text.contains("Trip 2  ·  5 to Muzealna  ·  08:20:00") && !text.contains("Trip 1"), "{text}");
+    }
+
+    /// (the fork) The summary of a trip: who got on and off where (the people who got in
+    /// and those riding, as the frames go), the odometer and the distance.
+    #[test]
+    fn the_summary_counts_who_got_on_and_off_at_each_stop() {
+        let t0 = 8.0 * 3600.0;
+        let trips = [trip(&[("A", t0), ("B", t0 + 300.0), ("C", t0 + 600.0)])];
+        let dir = std::env::temp_dir().join(format!("omsi-summary-test-{}", std::process::id()));
+        let mut j = Journey::new(("5".into(), "1".into(), 0), &trips, "Grundorf", dir.clone());
+        j.count_people(10, 0);
+        // at A: three get on
+        j.standing_at((0, 0), Some(100.0));
+        j.count_people(13, 3);
+        j.left((0, 0), (0.0, 10.0));
+        // driving: nobody
+        j.count_people(13, 3);
+        // at B: one off, two on
+        j.arrived((0, 1), 0.0);
+        j.standing_at((0, 1), Some(101.5));
+        j.count_people(15, 4);
+        j.left((0, 1), (0.0, 0.0));
+        // at C: everybody off
+        j.arrived((0, 2), 0.0);
+        j.standing_at((0, 2), Some(103.0));
+        j.count_people(15, 0);
+        let s = j.summary(0).expect("a summary");
+        let cells = |name: &str| s.rows.iter().find(|r| r.0[0] == name).map(|r| (r.0[7].clone(), r.0[8].clone(), r.0[9].clone())).unwrap();
+        assert_eq!(cells("A"), ("3".into(), "0".into(), "100.0".into()));
+        assert_eq!(cells("B"), ("2".into(), "1".into(), "101.5".into()));
+        assert_eq!(cells("C"), ("0".into(), "4".into(), "103.0".into()));
+        assert!(s.footer.contains(": 5") && s.footer.contains("3.0 km"), "{}", s.footer);
+        assert!(s.text.contains("Trip 1") && s.text.contains("B"), "{}", s.text);
+        let saved = j.save_summary(0).expect("saved");
+        assert!(std::fs::read_to_string(&saved).unwrap().contains("103.0"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

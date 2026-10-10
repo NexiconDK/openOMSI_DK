@@ -596,6 +596,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
             pumping: None,
             career: Default::default(),
             journey: None,
+            trip_summary: None,
             wetness: 0.0,
             cloud_drift: [0.0; 4],
             weather_blend: None,

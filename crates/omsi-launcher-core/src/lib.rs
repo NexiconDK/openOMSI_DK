@@ -2073,6 +2073,8 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
     v["full_sign"] = json!(true);
     // (the fork) how many people walk the streets, in per cent of the map's own
     v["pedestrians"] = json!(100);
+    // (the fork) a summary of each trip when it ends
+    v["trip_summary"] = json!(false);
     // the trees' foliage bends and sways in the weather's wind
     v["windy_trees"] = json!(true);
     // an early timetable bus waits only at the stops the timetable times (off: at every
@@ -2190,7 +2192,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
             "head_tracking_yaw_sens" | "head_tracking_pitch_sens" | "head_tracking_roll_sens" | "head_tracking_x_sens" | "head_tracking_y_sens" | "head_tracking_z_sens" => v[&k] = json!(val.parse::<f64>().ok().filter(|x| x.is_finite()).map(|x| x.clamp(0.0, 100.0)).unwrap_or(100.0)),
             "nav_arrows" | "nav_ai" | "get_up" | "time_sync" | "metar_sync" | "ui_scale_window" | "notes" | "machine_translation" | "update_check" | "update_auto" | "update_notify" | "presence" | "reflections" | "steering_linear" | "old_steering" | "red_steer_spd" | "ff_invert" | "ff_enabled" | "brake_hold" | "auto_clutch" | "momentary_gears" | "auto_shift" | "mouse_steering" | "mouse_right_off" | "mouse_smooth" | "mouse_hold" | "blinker_cancel" => v[&k] = json!(b(val)),
             "info_bar" => v[&k] = json!(b(val)),
-            "windy_trees" | "ai_wait_timed_stops_only" | "full_sign" => v[&k] = json!(b(val)),
+            "windy_trees" | "ai_wait_timed_stops_only" | "full_sign" | "trip_summary" => v[&k] = json!(b(val)),
             "time_speed" => v[&k] = json!(val.trim_start_matches(['x', 'X']).parse::<f64>().map(|x| x.clamp(1.0, 30.0)).map(|x| if x.fract() == 0.0 { format!("{}", x as i64) } else { x.to_string() }).unwrap_or_else(|_| "1".into())),
             "language" => v[&k] = json!(language_code(val)),
             "graphics" | "renderer" => graphics = Some(graphics_mode(val)),
@@ -2591,6 +2593,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("windy_trees={}\n", b("windy_trees", true)));
     text.push_str(&format!("ai_wait_timed_stops_only={}\n", b("ai_wait_timed_stops_only", false)));
     text.push_str(&format!("full_sign={}\n", b("full_sign", true)));
+    text.push_str(&format!("trip_summary={}\n", b("trip_summary", false)));
     text.push_str(&format!("pedestrians={}\n", n("pedestrians", 100).clamp(0, 400)));
     text.push_str(&format!("triple_left_angle_deg={}\ntriple_right_angle_deg={}\ntriple_eye_height_mm={}\n", f("triple_left_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_right_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_eye_height_mm", 0.0).clamp(-500.0, 500.0)));
     let written: Vec<String> = text.lines().filter_map(|l| l.split_once('=')).map(|(k, _)| k.trim().to_ascii_lowercase()).collect();

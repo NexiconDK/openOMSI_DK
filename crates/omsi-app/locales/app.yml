@@ -29134,3 +29134,115 @@ _version: 2
 "How many people walk the pavements":
   de: "Wie viele Menschen auf den Gehwegen gehen"
   da: "Hvor mange mennesker der går på fortovene"
+
+"Trip summary":
+  de: "Fahrtübersicht"
+  da: "Turoversigt"
+
+"Arr. plan":
+  de: "Ank. Plan"
+  da: "Ank. plan"
+
+"Arr. real":
+  de: "Ank. Ist"
+  da: "Ank. faktisk"
+
+"Diff":
+  de: "Diff."
+  da: "Afv."
+
+"Dep. plan":
+  de: "Abf. Plan"
+  da: "Afg. plan"
+
+"Dep. real":
+  de: "Abf. Ist"
+  da: "Afg. faktisk"
+
+"Pax in":
+  de: "Ein"
+  da: "Ind"
+
+"Pax out":
+  de: "Aus"
+  da: "Ud"
+
+"Odo km":
+  de: "km-Stand"
+  da: "Km-tæller"
+
+"Status":
+  de: "Status"
+  da: "Status"
+
+"Copy":
+  de: "Kopieren"
+  da: "Kopiér"
+
+"Save to file":
+  de: "In Datei speichern"
+  da: "Gem som fil"
+
+"Copied":
+  de: "Kopiert"
+  da: "Kopieret"
+
+"Could not copy":
+  de: "Kopieren fehlgeschlagen"
+  da: "Kunne ikke kopiere"
+
+"Could not save":
+  de: "Speichern fehlgeschlagen"
+  da: "Kunne ikke gemme"
+
+"Stops served":
+  de: "Haltestellen bedient"
+  da: "Stoppesteder betjent"
+
+"of":
+  de: "von"
+  da: "af"
+
+"late":
+  de: "zu spät"
+  da: "forsinket"
+
+"left early":
+  de: "zu früh abgefahren"
+  da: "kørt for tidligt"
+
+"late, left early":
+  de: "zu spät, zu früh abgefahren"
+  da: "forsinket, kørt for tidligt"
+
+"got on":
+  de: "eingestiegen"
+  da: "steget på"
+
+"got off":
+  de: "ausgestiegen"
+  da: "steget af"
+
+"distance":
+  de: "Strecke"
+  da: "distance"
+
+"OK":
+  de: "OK"
+  da: "OK"
+
+"missed":
+  de: "ausgelassen"
+  da: "sprunget over"
+
+"to":
+  de: "nach"
+  da: "mod"
+
+"Trip summary after each trip":
+  de: "Fahrtübersicht nach jeder Fahrt"
+  da: "Turoversigt efter hver tur"
+
+"When a trip ends: its stops with the times planned and driven and the passengers who got on and off":
+  de: "Am Ende einer Fahrt: ihre Haltestellen mit geplanten und gefahrenen Zeiten und den Ein- und Aussteigern"
+  da: "Når en tur slutter: stoppestederne med planlagte og kørte tider og hvor mange der steg på og af"

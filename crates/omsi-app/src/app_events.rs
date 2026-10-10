@@ -522,6 +522,32 @@ impl App {
         }
     }
 
+    /// (the fork) A button of the trip summary: 0 copy it, 1 save it beside the journey's
+    /// log, 2 close it.
+    pub(crate) fn trip_summary_button(&mut self, k: usize) {
+        let Some(t) = self.session.trip_summary else { return };
+        match k {
+            0 => {
+                let text = self.session.journey.as_ref().and_then(|j| j.summary(t)).map(|s| s.text);
+                #[cfg(not(target_os = "android"))]
+                if let Some(text) = text {
+                    let done = arboard::Clipboard::new().and_then(|mut c| c.set_text(text)).is_ok();
+                    self.service_msg = Some((omsi_ui::tr(if done { "Copied" } else { "Could not copy" }).into_owned(), 3.0));
+                }
+                #[cfg(target_os = "android")]
+                let _ = text;
+            }
+            1 => {
+                let saved = self.session.journey.as_ref().and_then(|j| j.save_summary(t));
+                self.service_msg = Some(match saved {
+                    Some(p) => (format!("{}: {}", omsi_ui::tr("Saved"), p.display()), 6.0),
+                    None => (omsi_ui::tr("Could not save").into_owned(), 4.0),
+                });
+            }
+            _ => self.session.trip_summary = None,
+        }
+    }
+
     /// The left mouse button (or a finger's tap) where the cursor is.
     pub(crate) fn left_button(&mut self, event_loop: &ActiveEventLoop, pressed: bool) {
         if let Some(edit) = self.xr.vr_nav_edit.as_mut() { edit.moving = pressed; return; }
@@ -541,6 +567,18 @@ impl App {
                 self.placing_click();
             }
             return;
+        }
+        // (the fork) the trip summary takes the clicks on it: its buttons
+        if self.session.trip_summary.is_some() && self.menus.game_menu.is_none() {
+            let (x, y) = self.input.cursor;
+            let inside = |r: &[f32; 4]| x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3];
+            let (hit, on_it) = self.ui.as_ref().map(|u| (u.summary_buttons.iter().position(inside), u.summary_box.as_ref().is_some_and(inside))).unwrap_or((None, false));
+            if let (true, Some(k)) = (pressed, hit) {
+                self.trip_summary_button(k);
+            }
+            if on_it {
+                return;
+            }
         }
         // the game menu takes the clicks while it is open
         if self.menus.game_menu.is_some() {

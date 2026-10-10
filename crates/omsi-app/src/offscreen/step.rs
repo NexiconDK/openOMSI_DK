@@ -324,6 +324,7 @@ impl Offscreen<'_> {
                 Some(run_clock),
                 true,
                 Some(&mut events),
+                humans_off.as_ref().map(|h| h.riding()).unwrap_or(0),
             );
             for e in events {
                 log::info!("plugin event: {e:?}");

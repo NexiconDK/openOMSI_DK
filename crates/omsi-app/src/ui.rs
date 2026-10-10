@@ -449,6 +449,8 @@ pub struct Frame<'a> {
     /// The room the information bar has along the top: from x to x, from y down (on a
     /// touch screen the gap between its buttons); none: the window's width.
     pub info_room: Option<[f32; 3]>,
+    /// (the fork) The summary of the trip just driven, until it is closed.
+    pub trip_summary: Option<&'a crate::journey::TripSummary>,
     /// A tutorial page: title, text, picture, page number and count.
     pub tutorial: Option<(&'a str, &'a str, Option<&'a std::path::Path>, usize, usize)>,
     /// Name tags: a screen position (the point above a bus), the name and a second line.
@@ -498,6 +500,9 @@ pub struct Ui {
     pub menu_pane: Vec<[f32; 4]>,
     pub menu_pane_start: usize,
     pub menu_pane_go: Option<[f32; 4]>,
+    /// (the fork) The trip summary's buttons (copy, save, close) and the whole window.
+    pub summary_buttons: Vec<[f32; 4]>,
+    pub summary_box: Option<[f32; 4]>,
     /// The whole timetable pane beside the tours: the wheel over it scrolls its stops.
     pub menu_pane_box: Option<[f32; 4]>,
     /// Its scroll bar when it has more stops than it shows: the track, the thumb (widened
@@ -588,6 +593,8 @@ impl Ui {
             .chain(self.menu_scroll_track.iter_mut())
             .chain(self.menu_pane_go.iter_mut())
             .chain(self.menu_pane_box.iter_mut())
+            .chain(self.summary_buttons.iter_mut())
+            .chain(self.summary_box.iter_mut())
         {
             rect[0] += x;
             rect[2] += x;
@@ -613,7 +620,7 @@ impl Ui {
         self.chat.rect[2] += x;
     }
     pub fn new() -> Option<Ui> {
-        Some(Ui { origin_x: 0.0, text: TextCache::new()?, chat: ChatWidget::default(), menu_rects: Vec::new(), menu_arrows: Vec::new(), menu_scroll_thumb: None, menu_scroll_track: None, menu_ctl: Vec::new(), dd_rects: Vec::new(), dd_top: 0, dd_rows: 8, dd_scroll: None, menu_side: Vec::new(), menu_pane: Vec::new(), menu_pane_start: 0, menu_pane_go: None, menu_pane_box: None, menu_pane_scroll: None, menu_time: Vec::new(), anim: Default::default(), anim_dt: 0.0, menu_overlay_range: 0..0, vr_cursor_overlay: None, vr_tooltip_overlay: None, menu_start: 0, menu_rows: 0, menu_row_h: 1.0, images: Default::default(), info_rect: None })
+        Some(Ui { origin_x: 0.0, text: TextCache::new()?, chat: ChatWidget::default(), menu_rects: Vec::new(), menu_arrows: Vec::new(), menu_scroll_thumb: None, menu_scroll_track: None, menu_ctl: Vec::new(), dd_rects: Vec::new(), dd_top: 0, dd_rows: 8, dd_scroll: None, menu_side: Vec::new(), menu_pane: Vec::new(), menu_pane_start: 0, menu_pane_go: None, summary_buttons: Vec::new(), summary_box: None, menu_pane_box: None, menu_pane_scroll: None, menu_time: Vec::new(), anim: Default::default(), anim_dt: 0.0, menu_overlay_range: 0..0, vr_cursor_overlay: None, vr_tooltip_overlay: None, menu_start: 0, menu_rows: 0, menu_row_h: 1.0, images: Default::default(), info_rect: None })
     }
 
     /// Draw the frame's interface: its overlays go after the HUD's in `scene.overlays`.
@@ -926,8 +933,16 @@ impl Ui {
             scene.overlays.push((plate, [x, top, x + w, y]));
             scene.overlays.extend(items);
         }
-        // --- the game menu and its lists, in the middle over a dimmed picture
+        // --- (the fork) the summary of the trip just driven, in the middle
         self.anim_dt = dt.clamp(0.0, 0.1);
+        self.summary_buttons.clear();
+        self.summary_box = None;
+        if let Some(t) = f.trip_summary.filter(|_| f.menu.is_none()) {
+            self.text.flat = true;
+            self.draw_trip_summary(r, scene, f, t);
+            self.text.flat = false;
+        }
+        // --- the game menu and its lists, in the middle over a dimmed picture
         self.text.flat = true;
         self.draw_menu(r, scene, f);
         self.text.flat = false;
@@ -1506,6 +1521,152 @@ impl Ui {
     /// The game menu and its lists (options, lines, tours ...): a card in the middle of a
     /// dimmed picture. Options are settings lines with switches and values; lines and tours
     /// are bigger lines with the timetable of the chosen one beside them.
+    /// (the fork) The summary of a trip (`journey::TripSummary`): a window in the middle with
+    /// a row per stop, the totals, and buttons to copy it, save it and close it.
+    fn draw_trip_summary(&mut self, r: &Renderer, scene: &mut Scene, f: &Frame, t: &crate::journey::TripSummary) {
+        let s = f.scale * f.ui_scale;
+        let pad = 22.0 * s;
+        let heads = ["Stop", "Arr. plan", "Arr. real", "Diff", "Dep. plan", "Dep. real", "Diff", "Pax in", "Pax out", "Odo km", "Status"];
+        let max_w = (f.width - 32.0 * s).max(200.0);
+        let max_h = (f.height - 32.0 * s).max(200.0);
+        // the size of the text: as large as fits (13 px down to 8)
+        let mut px = 13.0 * s;
+        let (widths, row_h) = loop {
+            let gap = px * 1.4;
+            let mut w = [0.0f32; 11];
+            for (k, h) in heads.iter().enumerate() {
+                w[k] = self.text.width(h, px);
+            }
+            for (cells, status, _) in &t.rows {
+                for (k, c) in cells.iter().enumerate() {
+                    w[k] = w[k].max(self.text.width(c, px));
+                }
+                w[10] = w[10].max(self.text.width(status, px));
+            }
+            w[0] = w[0].min(260.0 * s);
+            let total: f32 = w.iter().sum::<f32>() + gap * 10.0 + pad * 2.0;
+            let row_h = px * 2.0;
+            let height = pad * 2.0 + px * 6.5 + row_h * (t.rows.len() as f32 + 1.0) + px * 2.0 + 44.0 * s;
+            if (total <= max_w && height <= max_h) || px <= 8.0 * s {
+                break (w, row_h);
+            }
+            px -= 0.5 * s;
+        };
+        let gap = px * 1.4;
+        let inner: f32 = widths.iter().sum::<f32>() + gap * 10.0;
+        let w = (inner + pad * 2.0).max(560.0 * s).min(max_w);
+        let h = (pad * 2.0 + px * 6.5 + row_h * (t.rows.len() as f32 + 1.0) + px * 2.0 + 44.0 * s).min(max_h);
+        let x0 = ((f.width - w) * 0.5).round();
+        let y0 = ((f.height - h) * 0.5).round();
+        let panel = [x0, y0, x0 + w, y0 + h];
+        self.text.shadow(r, scene, panel, 14.0 * s, 18.0 * s, 4.0 * s, 120);
+        self.text.rounded(r, scene, [x0 - 2.0 * s, y0 - 2.0 * s, x0 + w + 2.0 * s, y0 + h + 2.0 * s], 14.0 * s, ACCENT);
+        self.text.rounded(r, scene, panel, 12.0 * s, PANEL);
+        self.summary_box = Some(panel);
+        let ipx = px as u32;
+        let left = x0 + pad;
+        let mut y = y0 + pad;
+        // the title, the lines above, the trip
+        let tp = (19.0 * s) as u32 | BOLD;
+        let l = self.text.label(r, scene, "Trip summary", tp, WHITE);
+        scene.overlays.push((l.tex, [left, y, left + l.w as f32, y + l.h as f32]));
+        y += l.h as f32 + 6.0 * s;
+        for line in t.head.lines() {
+            let line = clip_to(&self.text, line, px, w - pad * 2.0);
+            y += px * 0.7;
+            self.put(r, scene, &line, ipx, SOFT, left, y);
+            y += px * 0.7;
+        }
+        y += px * 0.6;
+        let title = clip_to(&self.text, &t.title, px * 1.08, w - pad * 2.0);
+        y += px * 0.75;
+        self.put(r, scene, &title, (px * 1.08) as u32 | BOLD, WHITE, left, y);
+        y += px * 0.75 + px * 0.5;
+        // the columns: the stop's name on the left, the rest right-aligned, the status left
+        let mut col_x = [0.0f32; 11];
+        let mut cx = left;
+        for k in 0..11 {
+            col_x[k] = cx;
+            cx += widths[k] + gap;
+        }
+        let place = |k: usize| if k == 0 || k == 10 { (col_x[k], false) } else { (col_x[k] + widths[k], true) };
+        let cy = y + row_h * 0.5;
+        for (k, head) in heads.iter().enumerate() {
+            let (x, right) = place(k);
+            if right {
+                self.put_right(r, scene, head, ipx | BOLD, MUTED, x, cy);
+            } else {
+                self.put(r, scene, head, ipx | BOLD, MUTED, x, cy);
+            }
+        }
+        y += row_h;
+        let rule = self.text.solid(r, scene, [255, 255, 255, 40]);
+        scene.overlays.push((rule, [left, y - 1.0 * s, x0 + w - pad, y]));
+        let bottom = y0 + h - pad - 44.0 * s - px * 2.4;
+        for (i, (cells, status, colour)) in t.rows.iter().enumerate() {
+            if y + row_h > bottom {
+                break;
+            }
+            if i % 2 == 1 {
+                let band = self.text.solid(r, scene, [255, 255, 255, 10]);
+                scene.overlays.push((band, [left - 6.0 * s, y, x0 + w - pad + 6.0 * s, y + row_h]));
+            }
+            let cy = y + row_h * 0.5;
+            for (k, c) in cells.iter().enumerate() {
+                if c.is_empty() {
+                    continue;
+                }
+                let (x, right) = place(k);
+                // the differences: late or early in amber
+                let ink = match k {
+                    0 => WHITE,
+                    3 | 6 if c.trim_start_matches(['+', '-', '0', ':']).is_empty() => SOFT,
+                    3 if c.starts_with('+') && *colour == 1 => AMBER,
+                    6 if c.starts_with('-') && *colour == 1 => AMBER,
+                    _ => SOFT,
+                };
+                let c = if k == 0 { clip_to(&self.text, c, px, widths[0]) } else { c.clone() };
+                if right {
+                    self.put_right(r, scene, &c, ipx, ink, x, cy);
+                } else {
+                    self.put(r, scene, &c, ipx, ink, x, cy);
+                }
+            }
+            let ink = match colour {
+                0 => [120, 210, 120, 0],
+                1 => AMBER,
+                2 => [235, 110, 100, 0],
+                _ => MUTED,
+            };
+            self.put(r, scene, status, ipx, ink, col_x[10], cy);
+            y += row_h;
+        }
+        // the totals
+        let fy = y0 + h - pad - 44.0 * s - px * 1.2;
+        let footer = clip_to(&self.text, &t.footer, px, w - pad * 2.0);
+        self.put(r, scene, &footer, ipx, SOFT, left, fy);
+        // the buttons: copy, save, close (the primary one)
+        let bh = 44.0 * s;
+        let bw = 190.0 * s;
+        let by = y0 + h - pad - bh;
+        let labels = ["Copy", "Save to file", "Close"];
+        for (k, label) in labels.iter().enumerate() {
+            let bx = x0 + w - pad - (3 - k) as f32 * bw - (2 - k) as f32 * 14.0 * s;
+            let rect = [bx, by, bx + bw, by + bh];
+            let over = f.cursor.0 >= rect[0] && f.cursor.0 <= rect[2] && f.cursor.1 >= rect[1] && f.cursor.1 <= rect[3];
+            let (fill, ink) = if k == 2 {
+                (if over { ACCENT_HOT } else { ACCENT }, ON_ACCENT)
+            } else {
+                (if over { [52, 56, 64, 255] } else { [40, 43, 50, 255] }, WHITE)
+            };
+            self.text.rounded(r, scene, rect, 10.0 * s, fill);
+            let l = self.text.label(r, scene, label, (15.0 * s) as u32 | BOLD, ink);
+            let (lx, ly) = (bx + (bw - l.w as f32) * 0.5, by + (bh - l.h as f32) * 0.5);
+            scene.overlays.push((l.tex, [lx, ly, lx + l.w as f32, ly + l.h as f32]));
+            self.summary_buttons.push(rect);
+        }
+    }
+
     fn draw_menu(&mut self, r: &Renderer, scene: &mut Scene, f: &Frame) {
         self.menu_rects.clear();
         self.menu_ctl.clear();

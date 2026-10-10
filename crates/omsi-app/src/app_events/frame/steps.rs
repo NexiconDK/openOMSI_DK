@@ -288,7 +288,8 @@ pub(crate) fn duty_step(
     game_clock: Option<&omsi_sim::SimClock>,
     learn_loaded: bool,
     plugin_events: Option<&mut Vec<omsi_plugin::GameEvent>>,
-) {
+    riders: usize,
+) -> Option<usize> {
     if let Some(stop) = p.html_next_stop.take() {
         if d.skip_to(stop) {
             let (trip, k) = d.trip_for_ibis();
@@ -306,13 +307,22 @@ pub(crate) fn duty_step(
         career.trip_reopened(run);
     }
     let ended = d.take_finished();
+    let ended_trip = ended.as_ref().map(|f| f.index);
     if let Some((arrival, departure)) = served {
         career.stop_served(arrival, departure);
     }
     {
         let clock = game_clock.unwrap_or(&p.vehicle.host.clock);
         let career = &*career;
-        crate::journey::note(journey, d, due, served, root, || crate::journey::head(career, &world.global.name, &p.vehicle, clock));
+        // (the fork) the bus's odometer, else the kilometres driven this session
+        let odo = p
+            .vehicle
+            .var("kmcounter_km")
+            .filter(|v| v.is_finite())
+            .map(|km| km as f64 + p.vehicle.var("kmcounter_m").unwrap_or(0.0) as f64 / 1000.0)
+            .or(Some(career.metres / 1000.0));
+        let people = (career.stepped_in.max(0) as u32, riders);
+        crate::journey::note(journey, d, due, served, root, people, odo, || crate::journey::head(career, &world.global.name, &p.vehicle, clock));
     }
     if let Some(events) = plugin_events {
         use omsi_plugin::InfoValue::{Num, Text};
@@ -340,6 +350,7 @@ pub(crate) fn duty_step(
     ) {
         log::warn!("driver timetable paper: {e:#}");
     }
+    ended_trip
 }
 
 /// The tyres' spray (see `puddles`): what every vehicle's tyres throw up from the water on
