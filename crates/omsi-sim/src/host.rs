@@ -15,6 +15,30 @@ pub const MAX_HTML_DEPARTURE_STOPS: usize = 8;
 /// player's with the maintenance option "infinite").
 pub const AI_WEAR_LIFESPAN: f32 = 1.5e6;
 
+/// What a full bus's destination display shows (the fork): "OPTAGET".
+pub const BUSY_TEXT: &str = "OPTAGET";
+
+/// Terminus string `n` while the display says the bus is full: the texts are
+/// [`BUSY_TEXT`] - on one line: the second line of the matrices (string 2, as the stock
+/// depot files and matrix scripts have it) empty, the first carrying it even where only the
+/// second had a name - and the pictures (a roller blind's, a matrix's bitmap) as they were.
+pub fn busy_terminus_string(strings: &[String], n: i32) -> String {
+    let get = |k: usize| strings.get(k).map(|s| s.trim()).unwrap_or("");
+    let Ok(k) = usize::try_from(n) else { return String::new() };
+    let s = get(k);
+    let picture = {
+        let l = s.to_ascii_lowercase();
+        [".tga", ".bmp", ".png", ".dds", ".jpg"].iter().any(|e| l.ends_with(e))
+    };
+    match k {
+        _ if picture => strings[k].clone(),
+        2 => String::new(),
+        1 if !get(1).is_empty() || !get(2).is_empty() => BUSY_TEXT.to_string(),
+        _ if s.is_empty() => String::new(),
+        _ => BUSY_TEXT.to_string(),
+    }
+}
+
 #[derive(Default)]
 pub struct VehicleHost {
     /// The paint scheme the vehicle is made with (`Some(None)`: the model's own textures),
@@ -42,6 +66,10 @@ pub struct VehicleHost {
     pub street_cond: f32,
     /// People aboard (`humans_count`), set by whoever carries them.
     pub humans_count: f32,
+    /// (the fork) The destination display says "OPTAGET" just now: the bus is (almost)
+    /// full (`VehicleInstance::show_full`), and the terminus strings the scripts ask for
+    /// are [`busy_terminus_string`]'s.
+    pub terminus_busy: bool,
     /// 1 while the vehicle drives a timetable duty (`schedule_active`).
     pub schedule_active: f32,
     /// The odometer's reading when the session began (km).
@@ -580,7 +608,10 @@ impl Host for VehicleHost {
             "getterminusstring" => {
                 let n = arg_i32(stacks.pop());
                 let idx = arg_i32(stacks.pop());
-                let s = self.terminus(idx).and_then(|t| t.strings.get(usize::try_from(n).ok()?)).cloned().unwrap_or_default();
+                let s = match self.terminus(idx) {
+                    Some(t) if self.terminus_busy => busy_terminus_string(&t.strings, n),
+                    t => t.and_then(|t| t.strings.get(usize::try_from(n).ok()?)).cloned().unwrap_or_default(),
+                };
                 stacks.push_str(s);
             }
             "getbusstopcount" => {
@@ -742,6 +773,20 @@ mod tests {
     use super::*;
     use crate::scripttex::ScriptTexture;
     use omsi_script::{compile, CompileInput, Vm};
+
+    #[test]
+    fn a_full_bus_says_optaget_on_one_line_and_keeps_its_pictures() {
+        // Ahlheim 5's rows: IBIS text, the matrix's two lines, -, the roller blind, ...
+        let row = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let bortel = row(&["SIEDL HOHN", "Bortel", "Siedlung Hohn", "", "Bortel.tga", "Siedl. Hohn"]);
+        let got: Vec<String> = (0..7).map(|n| busy_terminus_string(&bortel, n)).collect();
+        assert_eq!(got, ["OPTAGET", "OPTAGET", "", "", "Bortel.tga", "OPTAGET", ""]);
+        // only the second line named: the first says it
+        let second = row(&["X", "", "Hohn"]);
+        assert_eq!(busy_terminus_string(&second, 1), "OPTAGET");
+        assert_eq!(busy_terminus_string(&second, 2), "");
+        assert_eq!(busy_terminus_string(&second, -1), "");
+    }
 
     #[test]
     fn departure_wants_keep_the_stops_asked_most_recently() {

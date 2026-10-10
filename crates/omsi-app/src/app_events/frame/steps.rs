@@ -168,6 +168,10 @@ pub(crate) fn people_in_career(career: &mut career::Career, h: &mut humans::Huma
 pub(crate) fn career_step(career: &mut career::Career, p: &mut Player, riders: usize, on_duty: bool, dt: f32, tick: bool) -> f32 {
     // the engine's own variables of the bus (see `update_engine_vars`)
     p.vehicle.host.humans_count = riders as f32;
+    // (the fork) "OPTAGET" on the destination display while it is (almost) full
+    let free = crate::app_events::passenger_capacity(&p.vehicle).map(|c| c.saturating_sub(riders));
+    let time = p.vehicle.host.clock.time;
+    p.vehicle.show_full(free, time);
     p.vehicle.host.schedule_active = if on_duty { 1.0 } else { 0.0 };
     let crash = std::mem::take(&mut p.vehicle.last_crash);
     if tick {

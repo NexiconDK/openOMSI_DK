@@ -17,6 +17,11 @@ use std::sync::Arc;
 mod damage;
 pub use damage::{BrokenGlass, DynamicImpact, VehicleDent};
 
+/// The fork's "OPTAGET": fewer free places than this.
+pub const FULL_FREE_PLACES: usize = 3;
+/// ... and this long each, the destination and "OPTAGET" (s).
+pub const FULL_PHASE_S: f64 = 3.0;
+
 /// Scripts often test a stopped bus with `!Velocity_Ground`, so do not expose tiny solver drift.
 fn script_speed(speed_kmh: f32) -> f32 {
     if speed_kmh.abs() < 0.01 { 0.0 } else { speed_kmh }
@@ -1395,6 +1400,36 @@ impl VehicleInstance {
             .text_texture_var(field)
             .map(|i| self.state.str_vars[i as usize].clone())
             .unwrap_or_default()
+    }
+
+    /// (the fork) A bus with fewer than [`FULL_FREE_PLACES`] free places says so on its
+    /// destination display: every [`FULL_PHASE_S`] seconds of the time of day it turns
+    /// between its destination and [`crate::host::BUSY_TEXT`] (by the clock, so that every
+    /// LAN game shows the same at the same time). The bus's own scripts draw it from the
+    /// terminus strings (`GetTerminusString`, see `busy_terminus_string`); at each turn
+    /// their memory of the terminus they drew (`Matrix_TerminusIndex_Last` and the like) is
+    /// cleared, so that they draw again.
+    pub fn show_full(&mut self, free_places: Option<usize>, time_of_day: f64) {
+        let full = free_places.is_some_and(|f| f < FULL_FREE_PLACES);
+        let busy = full && (time_of_day / FULL_PHASE_S).floor() as i64 % 2 == 1;
+        if busy == self.host.terminus_busy {
+            return;
+        }
+        self.host.terminus_busy = busy;
+        let names: Vec<String> = self
+            .ty
+            .program
+            .var_names
+            .iter()
+            .filter(|n| {
+                let l = n.to_ascii_lowercase();
+                l.ends_with("_last") && l.contains("terminus")
+            })
+            .cloned()
+            .collect();
+        for n in names {
+            self.set_var(&n, -1.0);
+        }
     }
 
     /// Re-render changed text textures; returns the indices with a pending image.
