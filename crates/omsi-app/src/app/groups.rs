@@ -434,6 +434,9 @@ pub(crate) struct SessionState {
     pub(crate) journey: Option<crate::journey::Journey>,
     /// (the fork) The trip whose summary is shown (its index in the duty), until closed.
     pub(crate) trip_summary: Option<usize>,
+    /// (the fork) A trip just ended whose summary waits for the doors to open at its
+    /// terminus.
+    pub(crate) trip_summary_due: Option<usize>,
     /// How wet the roads are (0..1), built up by rain and dried by the sun.
     pub(crate) wetness: f32,
     /// How far the cloud cover has drifted with the wind (fractions of its tiling), summed

@@ -601,6 +601,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
             career: Default::default(),
             journey: None,
             trip_summary: None,
+            trip_summary_due: None,
             wetness: 0.0,
             cloud_drift: [0.0; 4],
             weather_blend: None,

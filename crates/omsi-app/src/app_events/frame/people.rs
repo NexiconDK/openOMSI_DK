@@ -144,9 +144,18 @@ impl App {
                 Some(&mut self.integrations.plugin_events),
                 riders,
             );
-            // (the fork) the summary of the trip just driven, when it is wanted
+            // (the fork) the summary of the trip just driven, when it is wanted: once the
+            // bus stands at its terminus with a door open (the trip counts as ended a little
+            // before it, as it reaches the last stop)
             if let Some(t) = ended.filter(|_| self.settings.trip_summary) {
-                self.session.trip_summary = Some(t);
+                self.session.trip_summary_due = Some(t);
+            }
+            if self.session.trip_summary_due.is_some()
+                && self.settings.trip_summary
+                && p.vehicle.physics.velocity_kmh().abs() < 1.0
+                && omsi_sim::timetable_run::PlayerDuty::doors_open(&p.vehicle)
+            {
+                self.session.trip_summary = self.session.trip_summary_due.take();
             }
         }
         if let Some(p) = self.player.as_mut() {
