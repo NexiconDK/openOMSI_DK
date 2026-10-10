@@ -351,13 +351,20 @@ fn duty_panel(l: &mut Launcher, body: Rect) {
     let mut ended_count = 0;
     let mut tours: Vec<(&omsi_launcher_lib::TourInfo, bool, Option<usize>)> = Vec::new();
     for t in &line.tours {
+        // (the fork: only the tours of the chosen day that start within two hours of the
+        // chosen time or ended within the hour before it, as the game's own list)
+        if !t.runs || ![now, now + 86400.0].iter().any(|n| *n >= t.first - crate::game_lists::LIST_AHEAD && *n <= t.last + crate::game_lists::LIST_BEHIND) {
+            continue;
+        }
         let (ended, trip) = tour_trip(t, now, &q);
         if trip.is_none() && !t.trips.is_empty() {
             continue;
         }
+        // (an ended tour is listed for the hour after it, see above; the switch shows them
+        // as before only for the hour itself)
         if ended {
             ended_count += 1;
-            if !l.drive.show_ended {
+            if !l.drive.show_ended && t.last + crate::game_lists::LIST_BEHIND < now {
                 continue;
             }
         }

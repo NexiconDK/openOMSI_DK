@@ -2786,7 +2786,8 @@ pub(crate) fn tour_start(tour: &omsi_timetable::Tour) -> Option<f64> {
 }
 
 /// Whether a tour is listed now: it runs on this day and is current at `now` (seconds of the
-/// day) - under way, or leaving within half an hour; one that has finished is not.
+/// day) - under way, or leaving within the next two hours, or ended within the last hour
+/// (the fork: `LIST_AHEAD`, `LIST_BEHIND`).
 fn tour_listed(sch: &crate::schedule::Schedule, line: &str, tour: &omsi_timetable::Tour, now: f64) -> bool {
     if !sch.tour_available(tour) {
         return false;
@@ -2794,8 +2795,13 @@ fn tour_listed(sch: &crate::schedule::Schedule, line: &str, tour: &omsi_timetabl
     let start = tour_start(tour).unwrap_or(0.0);
     let end = sch.tour_stops(line, &tour.number).iter().map(|s| s.3).fold(start, f64::max);
     // (a night tour's times go on past 24:00: the early hours of the next day count too)
-    [now, now + 86400.0].iter().any(|n| *n >= start - 1800.0 && *n <= end + 60.0)
+    [now, now + 86400.0].iter().any(|n| *n >= start - LIST_AHEAD && *n <= end + LIST_BEHIND)
 }
+
+/// The fork: tours are listed from two hours before they start (s)...
+pub(crate) const LIST_AHEAD: f64 = 2.0 * 3600.0;
+/// ... until an hour after their last trip has arrived (s).
+pub(crate) const LIST_BEHIND: f64 = 3600.0;
 
 /// The line number a line's trips carry (`.ttp` line), else the name of the line's file.
 fn line_sign(schedule: Option<&crate::schedule::Schedule>, line: &omsi_timetable::Line) -> String {
