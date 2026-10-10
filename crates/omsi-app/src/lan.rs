@@ -527,6 +527,11 @@ fn scripts_own(name: &str) -> bool {
     name.to_ascii_lowercase().ends_with("_last")
 }
 
+/// The callbacks whose answers are this game's own and not the other's (`scripts_own`): a
+/// font's number is its place in the fonts this game loaded. Taken from the other game, the
+/// matrix of a friend's Solaris wrote its destination in another font - in symbols.
+const OWN_CALLBACKS: &[&str] = &["GetFontIndex"];
+
 impl RemoteVehicle {
     /// The LAN player's vehicle as it is drawn here.
     pub fn vehicle(&self) -> &omsi_sim::VehicleInstance {
@@ -3109,7 +3114,10 @@ fn sync_vars(lan: &mut LanSession, game: &mut LanGame, player: Option<&Player>, 
             rv.smooth = tbl.lamps.iter().chain(&tbl.switches).chain(&tbl.values).map(|(_, id)| *id as u16).chain(tbl.doors.iter().map(|id| *id as u16)).chain(tbl.engine_n.map(|id| id as u16)).collect();
             let p = &rv.vehicle.ty.program;
             rv.own = (
-                t.floats.iter().copied().filter(|id| p.var_names.get(*id as usize).is_some_and(|n| scripts_own(n))).collect(),
+                {
+                    let fonts = p.callback_results(OWN_CALLBACKS);
+                    t.floats.iter().copied().filter(|id| p.var_names.get(*id as usize).is_some_and(|n| scripts_own(n)) || fonts.contains(&(*id as omsi_script::VarId))).collect()
+                },
                 t.strings.iter().copied().filter(|id| p.str_var_names.get(*id as usize).is_some_and(|n| scripts_own(n))).collect(),
             );
             // (and drawn once now, whatever the line and terminus)

@@ -143,6 +143,35 @@ impl Program {
         self.blocks.iter().any(|b| b.ops.iter().any(|op| matches!(op, Op::Store(v) if *v == var)))
     }
 
+    /// (the fork) The variables the scripts store what one of the callbacks `names` (lower
+    /// case) gives straight into: `"Krueger 7x4" (M.V.GetFontIndex) (S.L.Font_7x4)` - with a
+    /// register or a copy of the stack between them. What such a callback gives is this game's
+    /// own (a font's place in its list), not another game's.
+    pub fn callback_results(&self, names: &[&str]) -> Vec<VarId> {
+        let mut out = Vec::new();
+        for b in &self.blocks {
+            for (i, op) in b.ops.iter().enumerate() {
+                let Op::Callback(n) = op else { continue };
+                if !names.iter().any(|w| self.name(*n).eq_ignore_ascii_case(w)) {
+                    continue;
+                }
+                for next in b.ops.iter().skip(i + 1).take(3) {
+                    match next {
+                        Op::Store(v) => {
+                            if !out.contains(v) {
+                                out.push(*v);
+                            }
+                            break;
+                        }
+                        Op::StoreReg(_) | Op::LoadReg(_) | Op::Dup => {}
+                        _ => break,
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Whether any block of the program reads variable `var` (`(L.L.name)`).
     pub fn reads(&self, var: VarId) -> bool {
         self.blocks.iter().any(|b| b.ops.iter().any(|op| matches!(op, Op::Load(v) if *v == var)))
@@ -951,6 +980,22 @@ mod tests {
         assert!(!p.has_script_var("PAX_Exit0_Open"));
         assert!(!p.has_script_var("Velocity"));
         assert!(p.var("PAX_Exit0_Open").is_some());
+    }
+
+    /// (the fork) The variables a callback's answer goes straight into (the matrix's fonts).
+    #[test]
+    fn a_font_index_is_found_where_it_is_stored() {
+        let dir = std::env::temp_dir().join(format!("omsi-script-test-fonts-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let vl = dir.join("varlist.txt");
+        std::fs::write(&vl, "Font_7x4\nFont_16x9\nMatrix_Nr_Last\n").unwrap();
+        let sc = dir.join("matrix.osc");
+        std::fs::write(&sc, "{init}\n\"Krueger 7x4\" (M.V.GetFontIndex) (S.L.Font_7x4)\n\"Krueger 16x9\" (M.V.GetFontIndex) s0 (S.L.Font_16x9)\n1 (S.L.Matrix_Nr_Last)\n{end}\n").unwrap();
+        let p = compile(&CompileInput { varlists: vec![vl], scripts: vec![sc], ..Default::default() });
+        std::fs::remove_dir_all(&dir).ok();
+        let got = p.callback_results(&["GetFontIndex"]);
+        assert!(got.contains(&p.var("Font_7x4").unwrap()) && got.contains(&p.var("Font_16x9").unwrap()), "{got:?}");
+        assert!(!got.contains(&p.var("Matrix_Nr_Last").unwrap()));
     }
 }
 
