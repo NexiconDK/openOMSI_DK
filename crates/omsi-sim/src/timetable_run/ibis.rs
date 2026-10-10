@@ -643,7 +643,7 @@ pub(crate) fn set_destination(
     // everybody leaves at (`{ALLEX}`: Betriebsfahrt, Betriebshof ...) - shows no line
     let nis = !player && hof.is_some_and(|h| not_in_service(h, terminus));
     if !player {
-        v.host.not_in_service = nis;
+        v.host.not_in_service = nis.then(|| display_line(line).to_string());
     }
     let line = if nis { "" } else { display_line(line) };
     // Omsi.exe's `TRoadVehicleInst.virtual_10` runs for every trip a bus starts: the line

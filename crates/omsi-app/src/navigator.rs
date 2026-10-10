@@ -67,7 +67,12 @@ fn traffic_kind(c: &crate::traffic::AiCar) -> (Color, Option<String>) {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty() && s != "0")
         // (the fork) a bus on its way to the depot and the like
-        .or_else(|| v.host.not_in_service.then(|| omsi_ui::tr("Not In Service").into_owned()));
+        .or_else(|| {
+            v.host.not_in_service.as_deref().map(|l| {
+                let nis = omsi_ui::tr("Not In Service");
+                if l.is_empty() { nis.into_owned() } else { format!("{l} {nis}") }
+            })
+        });
     let trolley = v.var("cp_SHTANGALEV").is_some() || v.var("shtanga_lev_rot").is_some();
     let color = if c.is_rail() {
         TRAM
