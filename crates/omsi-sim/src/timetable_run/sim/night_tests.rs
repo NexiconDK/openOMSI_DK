@@ -117,3 +117,16 @@ fn a_night_tour_runs_on_its_own_day_and_on_past_midnight() {
     assert!(!s.tour_available(tour(&s, "TEST-TOR")));
     std::fs::remove_dir_all(dir).ok();
 }
+
+/// The trip a night tour's list shows at 2:18: the 2:50 one, not the evening's first.
+#[test]
+fn a_night_tours_trip_now_is_the_one_after_midnight() {
+    let h = |h: f64, m: f64| (h * 60.0 + m) * 60.0;
+    // 19:29, 21:00, 25:10 (1:10), 26:50 (2:50)
+    let order = [(0, h(19.0, 29.0), h(20.0, 10.0)), (1, h(21.0, 0.0), h(21.0, 40.0)), (2, h(25.0, 10.0), h(25.0, 50.0)), (3, h(26.0, 50.0), h(27.0, 30.0))];
+    assert_eq!(super::tours::trip_at(&order, h(2.0, 18.0)), 3);
+    assert_eq!(super::tours::trip_at(&order, h(1.0, 20.0)), 2);
+    assert_eq!(super::tours::trip_at(&order, h(20.0, 30.0)), 1);
+    // the afternoon before it starts: its first trip
+    assert_eq!(super::tours::trip_at(&order, h(15.0, 0.0)), 0);
+}
