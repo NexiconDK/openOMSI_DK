@@ -217,7 +217,18 @@ impl FontAtlas {
         if text.contains('@') {
             let glyph_h = self.font.height.max(1) as u32;
             let mut out = vec![0u8; (w * h * 4) as usize];
-            let lines: Vec<&str> = text.split('@').collect();
+            let mut lines: Vec<&str> = text.split('@').collect();
+            // (the fork) an empty line above and below the text, "@131  @": Omsi.exe centres
+            // the three lines, which puts the middle one where a single line goes. The DFI
+            // boards of Ahlheim write every cell so, in 50 px under a 44 px font; laid out
+            // from the top the text came out 32 px down, its lower part cut off.
+            while lines.len() >= 3 && lines[0].is_empty() && lines[lines.len() - 1].is_empty() {
+                lines.remove(0);
+                lines.pop();
+            }
+            if lines.len() == 1 {
+                return self.render_unscaled(lines[0], w, h, full_color, rgb, align);
+            }
             let natural_extent = glyph_h.saturating_mul(lines.len() as u32);
             let pitch = if natural_extent > h {
                 let visible = self.visible_glyph_height().max(1);
@@ -374,5 +385,25 @@ mod tests {
         let atlas = FontAtlas::new(font, 6, 6, alpha.clone(), alpha);
         let image = atlas.render("A@A@A", 1, 12, false, [255, 255, 255]);
         assert!(image[(10 * 4) + 3] != 0, "last line must not be pushed below the texture");
+    }
+
+    /// (the fork) "@131  @" in a texture one line high (Ahlheim's DFI boards: 50 px, a 44 px
+    /// font) is drawn where "131" alone is - Omsi.exe centres the three lines - not on a
+    /// second line that runs off the bottom.
+    #[test]
+    fn a_text_between_two_empty_lines_sits_where_it_would_alone() {
+        let font = Font { path: PathBuf::new(), name: "dfi-test".into(), height: 44, gap: 0, chars: vec![FontChar { ch: 'A', x0: 0, x1: 2, y: 0 }], ..Default::default() };
+        // the glyph's dots in rows 8..36 of its 44, as AL-DFI's
+        let mut alpha = vec![0u8; 2 * 44 * 4];
+        for y in 8..36 {
+            alpha[(y * 2 * 4 + 3) as usize] = 255;
+            alpha[(y * 2 * 4) as usize] = 255;
+        }
+        let atlas = FontAtlas::new(font, 2, 44, alpha.clone(), alpha);
+        let rows = |img: &[u8]| (0..50).filter(|y| img[(y * 4 * 4 + 3) as usize] != 0).collect::<Vec<u32>>();
+        let alone = atlas.render_aligned("A", 4, 50, false, [255, 255, 255], TextAlign { orientation: 1, grid: 1 });
+        let framed = atlas.render_aligned("@A@", 4, 50, false, [255, 255, 255], TextAlign { orientation: 1, grid: 1 });
+        assert_eq!(rows(&alone), (11..39).collect::<Vec<u32>>());
+        assert_eq!(rows(&framed), rows(&alone));
     }
 }
