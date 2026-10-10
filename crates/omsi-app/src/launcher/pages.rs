@@ -1136,6 +1136,7 @@ fn gameplay_tab(ui: &mut Ui, s: &mut Value, dirty: &mut f32, cols: [Rect; 2]) ->
     sel_setting(ui, s, dirty, "s-peds", c.row(), "People on the streets", "pedestrians", &[("0", "None"), ("50", "Few"), ("100", "Normal"), ("200", "Many"), ("400", "Very many")]);
     toggle_setting(ui, s, dirty, c.row(), "Ability to get up (Ctrl+Shift+G)", "get_up");
     toggle_setting(ui, s, dirty, c.row(), "OPTAGET on the destination display when the bus is full", "full_sign");
+    sel_setting(ui, s, dirty, "s-fullat", c.row(), "OPTAGET from", "full_sign_at", &[("80", "80% full"), ("90", "90% full"), ("95", "95% full"), ("100", "100% full")]);
     toggle_setting(ui, s, dirty, c.row(), "Trip summary after each trip", "trip_summary");
     c.section(ui, "Traffic");
     sel_setting(ui, s, dirty, "s-unsched", c.row(), "Random traffic", "ai_unsched_factor", &[("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%"), ("150", "150%"), ("200", "200%")]);
@@ -2999,7 +3000,7 @@ mod settings_tests {
         // (the radio stations: one, see `frame`)
         let sound = vec!["s-vol", "s-volai", "s-volsc", "set-doppler", "s-voices", "radio-name-0", "radio-url-0", "radio-del-0", "radio-add"];
         let gameplay = vec![
-            "s-board", "set-exact_fare", "s-pax", "s-peds", "set-get_up", "set-full_sign", "set-trip_summary", "s-unsched", "s-maxsched", "s-maxpark", "set-ai_wait_timed_stops_only",
+            "s-board", "set-exact_fare", "s-pax", "s-peds", "set-get_up", "set-full_sign", "s-fullat", "set-trip_summary", "s-unsched", "s-maxsched", "s-maxpark", "set-ai_wait_timed_stops_only",
             "s-maint", "set-collision_vehicles", "set-collision_objects", "set-collision_pedestrians", "set-use_real_time", "set-use_real_date", "set-time_sync", "set-metar_sync", "s-timespeed",
         ];
         let general = vec![

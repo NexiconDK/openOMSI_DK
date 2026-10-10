@@ -29246,3 +29246,31 @@ _version: 2
 "When a trip ends: its stops with the times planned and driven and the passengers who got on and off":
   de: "Am Ende einer Fahrt: ihre Haltestellen mit geplanten und gefahrenen Zeiten und den Ein- und Aussteigern"
   da: "Når en tur slutter: stoppestederne med planlagte og kørte tider og hvor mange der steg på og af"
+
+"OPTAGET from":
+  de: "OPTAGET ab"
+  da: "OPTAGET fra"
+
+"80% full":
+  de: "80 % voll"
+  da: "80 % fuld"
+
+"90% full":
+  de: "90 % voll"
+  da: "90 % fuld"
+
+"95% full":
+  de: "95 % voll"
+  da: "95 % fuld"
+
+"100% full":
+  de: "100 % voll"
+  da: "100 % fuld"
+
+"How full the bus is before its sign says OPTAGET":
+  de: "Wie voll der Bus ist, bevor die Anzeige OPTAGET zeigt"
+  da: "Hvor fuld bussen skal være, før skiltet viser OPTAGET"
+
+"When the bus is as full as chosen, the sign turns between the destination and OPTAGET":
+  de: "Ist der Bus so voll wie gewählt, wechselt die Anzeige zwischen Ziel und OPTAGET"
+  da: "Når bussen er så fuld som valgt, skifter skiltet mellem destinationen og OPTAGET"

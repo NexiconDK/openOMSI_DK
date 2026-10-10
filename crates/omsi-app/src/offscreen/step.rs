@@ -331,7 +331,7 @@ impl Offscreen<'_> {
             }
         }
         let riders = humans_off.as_ref().map(|h| h.riding()).unwrap_or(0);
-        let crash = steps::career_step(career, player, riders, duty.is_some(), dt, true, true);
+        let crash = steps::career_step(career, player, riders, duty.is_some(), dt, true, Some(omsi_sim::vehicle::FULL_AT_PERCENT));
         if crash > 0.0 {
             log::warn!("crash: {:.0} kJ", crash / 1000.0);
         }
@@ -784,7 +784,7 @@ impl Offscreen<'_> {
                 walker: None,
                 inside_of: None,
                 radio_keyed: false,
-                full_sign: true,
+                full_sign: Some(omsi_sim::vehicle::FULL_AT_PERCENT),
             };
             let updates = lan::tick(
                 l,

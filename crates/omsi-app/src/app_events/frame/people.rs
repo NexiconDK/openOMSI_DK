@@ -153,7 +153,7 @@ impl App {
             let riders = self.session.humans.as_ref().map(|h| h.riding()).unwrap_or(0);
             // (a frame after the session was written must not start another one)
             let tick = !self.exiting && !self.paused;
-            let crash = steps::career_step(&mut self.session.career, p, riders, self.session.duty.is_some(), dt, tick, self.settings.full_sign);
+            let crash = steps::career_step(&mut self.session.career, p, riders, self.session.duty.is_some(), dt, tick, self.settings.full_sign.then_some(self.settings.full_sign_at));
             if crash > 0.0 {
                 self.service_msg = Some((format!("Crash: {:.0} kJ", crash / 1000.0), 6.0));
                 use omsi_plugin::InfoValue::Num;

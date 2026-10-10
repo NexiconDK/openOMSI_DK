@@ -2071,6 +2071,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
     v["info_bar"] = json!(false);
     // (the fork) "OPTAGET" on the destination display of a full bus
     v["full_sign"] = json!(true);
+    v["full_sign_at"] = json!(95);
     // (the fork) how many people walk the streets, in per cent of the map's own
     v["pedestrians"] = json!(100);
     // (the fork) a summary of each trip when it ends
@@ -2141,7 +2142,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
             "max_fps" => v[&k] = json!(val.parse::<f64>().map(|x| x as i64).unwrap_or(0)),
             "max_obj_dist" => v[&k] = if val.eq_ignore_ascii_case("auto") { json!("auto") } else { json!(val.parse::<f64>().map(|m| (m.round() as i64).to_string()).unwrap_or_else(|_| "auto".into())) },
             "ssao" | "shadows" | "shadow_blobs" | "navigator" | "enhanced" | "triple_screen" | "triple_span" | "triple_hud_center" | "vr" | "vr_desktop_mirror" | "fullscreen" | "vsync" | "exact_fare" | "detail_textures" | "texture_compression" | "chat" | "tooltips" | "name_tags" | "show_fps" | "clouds" | "doppler" | "driver" | "use_real_time" | "use_real_date" | "use_real_year" | "collision_vehicles" | "collision_objects" | "collision_pedestrians" | "head_movement" | "driverview_smooth" | "hands_in_cab" | "alt_view" | "precision_zoom" => v[&k] = json!(b(val)),
-            "maintenance" | "ai_unsched_factor" | "ai_max_scheduled" | "pedestrians" => v[&k] = json!(val.trim_end_matches('%').parse::<f64>().map(|x| x.max(0.0) as i64).unwrap_or(0)),
+            "maintenance" | "ai_unsched_factor" | "ai_max_scheduled" | "pedestrians" | "full_sign_at" => v[&k] = json!(val.trim_end_matches('%').parse::<f64>().map(|x| x.max(0.0) as i64).unwrap_or(0)),
             // (-1: no parked cars at all, #864)
             "ai_max_parked" => v[&k] = json!(val.parse::<f64>().map(|x| x.max(-1.0) as i64).unwrap_or(0)),
             "ai_max_humans" => v[&k] = json!(val.parse::<f64>().map(|x| x.max(1.0) as i64).unwrap_or(200)),
@@ -2593,6 +2594,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("windy_trees={}\n", b("windy_trees", true)));
     text.push_str(&format!("ai_wait_timed_stops_only={}\n", b("ai_wait_timed_stops_only", false)));
     text.push_str(&format!("full_sign={}\n", b("full_sign", true)));
+    text.push_str(&format!("full_sign_at={}\n", n("full_sign_at", 95).clamp(50, 100)));
     text.push_str(&format!("trip_summary={}\n", b("trip_summary", false)));
     text.push_str(&format!("pedestrians={}\n", n("pedestrians", 100).clamp(0, 400)));
     text.push_str(&format!("triple_left_angle_deg={}\ntriple_right_angle_deg={}\ntriple_eye_height_mm={}\n", f("triple_left_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_right_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_eye_height_mm", 0.0).clamp(-500.0, 500.0)));

@@ -17,8 +17,8 @@ use std::sync::Arc;
 mod damage;
 pub use damage::{BrokenGlass, DynamicImpact, VehicleDent};
 
-/// The fork's "OPTAGET": fewer free places than this.
-pub const FULL_FREE_PLACES: usize = 3;
+/// The fork's "OPTAGET": by default from this share of the places taken (per cent).
+pub const FULL_AT_PERCENT: f32 = 95.0;
 /// ... and this long each, the destination and "OPTAGET" (s).
 pub const FULL_PHASE_S: f64 = 3.0;
 
@@ -1402,15 +1402,15 @@ impl VehicleInstance {
             .unwrap_or_default()
     }
 
-    /// (the fork) A bus with fewer than [`FULL_FREE_PLACES`] free places says so on its
-    /// destination display: every [`FULL_PHASE_S`] seconds of the time of day it turns
+    /// (the fork) A bus with `at_percent` of its places taken or more (`occupancy`: the
+    /// riders and the places; none: not shown) says so on its destination display: every [`FULL_PHASE_S`] seconds of the time of day it turns
     /// between its destination and [`crate::host::BUSY_TEXT`] (by the clock, so that every
     /// LAN game shows the same at the same time). The bus's own scripts draw it from the
     /// terminus strings (`GetTerminusString`, see `busy_terminus_string`); at each turn
     /// their memory of the terminus they drew (`Matrix_TerminusIndex_Last` and the like) is
     /// cleared, so that they draw again.
-    pub fn show_full(&mut self, free_places: Option<usize>, time_of_day: f64) {
-        let full = free_places.is_some_and(|f| f < FULL_FREE_PLACES);
+    pub fn show_full(&mut self, occupancy: Option<(usize, usize)>, at_percent: f32, time_of_day: f64) {
+        let full = occupancy.is_some_and(|(riders, places)| places > 0 && riders as f32 >= places as f32 * at_percent.clamp(1.0, 100.0) / 100.0 - 1e-3);
         let busy = full && (time_of_day / FULL_PHASE_S).floor() as i64 % 2 == 1;
         if busy == self.host.terminus_busy {
             return;
