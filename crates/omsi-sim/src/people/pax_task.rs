@@ -300,15 +300,20 @@ impl PeopleSim {
                 let Some(stop) = p.stop else { return };
                 if let Some(bn) = bn {
                     if bn.speed.abs() < 3.0 && self.in_stop_box(stop, bn.id) {
-                        // (the fork, PR #1394: on the player's duty a ride of 1 km and more
-                        // takes a seat while one is free, a shorter one stands 7 times in 10;
-                        // the timetable's buses take any place, as Omsi.exe)
-                        let prefer_seat = match (bn.id, self.duty.as_ref(), p.dest.as_deref()) {
-                            (BusId::Player, Some((trip, _, false)), Some(dest)) => {
-                                let short = super::pax_stops::duty_ride_m(trip, &self.stops, stop, dest).is_some_and(|m| m < 1000.0);
-                                Some(!short || self.rand_f() < 0.3)
-                            }
-                            _ => None,
+                        // (the fork, PR #1394: in the player's bus a seat while one is free -
+                        // but a ride of under 1 km on its duty stands 7 times in 10; the
+                        // timetable's buses take any place, as Omsi.exe. Riders without a
+                        // destination on the trip, or in free drive, sit: most buses have
+                        // far more standing places than seats, and any place left 9 in 10
+                        // standing)
+                        let prefer_seat = if bn.id == BusId::Player {
+                            let short = match (self.duty.as_ref(), p.dest.as_deref()) {
+                                (Some((trip, _, false)), Some(dest)) => super::pax_stops::duty_ride_m(trip, &self.stops, stop, dest).is_some_and(|m| m < 1000.0),
+                                _ => false,
+                            };
+                            Some(!short || self.rand_f() < 0.3)
+                        } else {
+                            None
                         };
                         if let Some(k) = self.reserve_place(bn.id, &bn.cabin.seats, &bn.places_off, prefer_seat) {
                             let (tk, id) = self.decide_pax_ticket(i, bn);

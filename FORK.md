@@ -14,7 +14,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Efter midnat vises kun gårsdagens natvagter, der stadig kører. Lørdagens natvagt (fx fra kl. 22:44) vises derfor ikke lørdag kl. 02:47, men først fra kl. 20:44.
 
 ### Passagerer
-- På din egen vagt sætter passagerer med en tur på **1 km eller mere** sig, hvis der er en ledig plads. Ved kortere ture står 7 ud af 10. Er den ønskede slags plads optaget, tager de den anden. Ændringen kommer fra openOMSI PR #1394.
+- I din egen bus sætter passagererne sig, hvis der er en ledig plads. På din vagt står 7 ud af 10 dog op, hvis de kun skal under **1 km**. Er den ønskede slags plads optaget, tager de den anden. Ændringen kommer fra openOMSI PR #1394.
 - AI-bussernes passagerer tager stadig en tilfældig plads, som i OMSI 2.
 
 ### Opdateringer
