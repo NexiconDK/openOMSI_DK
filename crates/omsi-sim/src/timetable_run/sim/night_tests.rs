@@ -173,9 +173,13 @@ fn the_boards_show_the_other_players_buses_where_they_are() {
     // the timetable alone: 23:00 (23:10 at the stop) and 24:10 (0:20); 22:00's has gone by
     assert_eq!(times(&s), vec![at(1390.0), at(1460.0)]);
     let bus = |p: &str| LanBus::parse("TEST/test-fre", p).unwrap();
-    // one on the 23:00 trip before the stop, 2 min late; one past it, 5 min late
+    // one on the 23:00 trip before the stop, 2 min late; one past it, 5 min late: the 23:00
+    // trip once (the other bus is gone by), the tour's next trip once, not once a bus
     s.set_lan_buses(vec![bus("82800,0,120,0"), bus("82800,2,300,0")]);
-    assert_eq!(times(&s), vec![at(1390.0) + 120.0, at(1460.0) + 120.0, at(1460.0) + 300.0]);
+    assert_eq!(times(&s), vec![at(1390.0) + 120.0, at(1460.0) + 120.0]);
+    // one on the 23:00 trip, one already on the 24:10 trip: each where it is, nothing twice
+    s.set_lan_buses(vec![bus("82800,0,120,0"), bus("87000,0,60,0")]);
+    assert_eq!(times(&s), vec![at(1390.0) + 120.0, at(1460.0) + 60.0]);
     // standing at the stop: due now
     s.set_lan_buses(vec![bus("82800,1,60,1")]);
     let list = s.stop_list(77, now, &HashMap::new(), None, None);

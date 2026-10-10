@@ -86,30 +86,46 @@ impl ScheduleSim {
                         .get(&d.ai_group.to_ascii_lowercase())
                         .and_then(|v| v.iter().find_map(|x| x.2.as_deref()));
                     let line = self.display_line(i);
+                    let same_trip = |dep: f64| {
+                        let ahead = (start - dep).rem_euclid(DAY);
+                        !(30.0..=DAY - 30.0).contains(&ahead)
+                    };
+                    // our own duty on this tour shows its later trips itself
+                    let own_tour = duty.is_some_and(|du| du.line.eq_ignore_ascii_case(&d.line) && du.tour.eq_ignore_ascii_case(&d.tour));
+                    let own_on_it = own_tour && duty.is_some_and(|du| same_trip(du.trip().departure));
+                    let last_trip = last_of_line.get(&line).is_some_and(|&l| leave >= l - 0.5);
+                    let terminus = terminus_text(hof, terminus);
+                    // a later trip of the tour is one departure, whichever bus will drive it
+                    let mut later: Option<f64> = None;
+                    let mut on_it = own_on_it;
                     for b in lan {
-                        // this trip against the one the bus is on: the same, later or done
                         let ahead = (start - b.departure).rem_euclid(DAY);
-                        let mut extra = StopExtra::default();
-                        let expected = if !(30.0..=DAY - 30.0).contains(&ahead) {
-                            if k < b.next_stop {
-                                continue;
+                        if !same_trip(b.departure) {
+                            if ahead < DAY / 2.0 {
+                                let at = (arrive + b.late.max(0.0)).max(now);
+                                later = Some(later.map_or(at, |l| l.min(at)));
                             }
-                            extra.delay = Some(b.late);
-                            let from = if b.at_stop { b.next_stop + 1 } else { b.next_stop };
-                            if b.at_stop && k == b.next_stop {
-                                extra.stops_away = Some(0);
-                                now
-                            } else {
-                                extra.stops_away = Some((from..=k).filter(|&x| tt.stops.get(x).copied().unwrap_or(false)).count() as u32);
-                                (arrive + b.late).max(now)
-                            }
-                        } else if ahead < DAY / 2.0 {
-                            (arrive + b.late.max(0.0)).max(now)
-                        } else {
                             continue;
+                        }
+                        // the bus on this very trip, where it is
+                        on_it = true;
+                        if k < b.next_stop {
+                            continue;
+                        }
+                        let mut extra = StopExtra { delay: Some(b.late), last_trip, ..Default::default() };
+                        let from = if b.at_stop { b.next_stop + 1 } else { b.next_stop };
+                        let expected = if b.at_stop && k == b.next_stop {
+                            extra.stops_away = Some(0);
+                            now
+                        } else {
+                            extra.stops_away = Some((from..=k).filter(|&x| tt.stops.get(x).copied().unwrap_or(false)).count() as u32);
+                            (arrive + b.late).max(now)
                         };
-                        extra.last_trip = last_of_line.get(&line).is_some_and(|&l| leave >= l - 0.5);
-                        list.push((expected, line.clone(), terminus_text(hof, terminus), (leave - arrive).max(0.0), extra));
+                        list.push((expected, line.clone(), terminus.clone(), (leave - arrive).max(0.0), extra));
+                    }
+                    if let (Some(at), false, false) = (later, on_it, own_tour) {
+                        let extra = StopExtra { last_trip, ..Default::default() };
+                        list.push((at, line.clone(), terminus, (leave - arrive).max(0.0), extra));
                     }
                     continue;
                 }
@@ -189,6 +205,16 @@ impl ScheduleSim {
                     .filter(|(_, s)| s.object_id == stop && s.stops)
                 {
                     let current = ti == duty.trip_index;
+                    // (a later trip another player on our tour is driving already: theirs)
+                    if !current
+                        && self.lan_buses.iter().any(|b| {
+                            b.line.eq_ignore_ascii_case(&duty.line)
+                                && b.tour.eq_ignore_ascii_case(&duty.tour)
+                                && !(30.0..=DAY - 30.0).contains(&(trip.departure - b.departure).rem_euclid(DAY))
+                        })
+                    {
+                        continue;
+                    }
                     let expected = if current
                         && (k < duty.next_stop || duty.trip_done() && k + 1 < trip.stops.len())
                     {
