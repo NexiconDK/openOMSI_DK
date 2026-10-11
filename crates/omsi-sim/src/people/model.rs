@@ -385,6 +385,11 @@ pub struct PeopleSim {
     pub pedestrians: usize,
     /// (the fork) The `pedestrians` setting: a factor on how many walk the pavements.
     pub pedestrian_factor: f32,
+    /// (the fork) The `pax_seating` setting: passengers choose their seat as people do
+    /// (`seating`) instead of at random.
+    pub seating: bool,
+    /// (the fork) Seconds to the next look for a seat to change to (`reseat_player_bus`).
+    pub reseat_t: f32,
     /// Omsi.exe's people (`[AIMaxCountRandom]`'s second line, the `ai_max_humans` setting):
     /// it makes that many at the start (0x709274) and draws everybody waiting at a stop,
     /// walking the pavements or riding from them - never more; at most half of them walk

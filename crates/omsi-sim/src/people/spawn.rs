@@ -143,6 +143,8 @@ impl PeopleSim {
             stamped: Vec::new(),
             pedestrians: 14,
             pedestrian_factor: 1.0,
+            seating: true,
+            reseat_t: 0.0,
             max_people: people_limit,
             stroll_timer: 0.0,
             exact_fare: true,

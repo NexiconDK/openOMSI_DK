@@ -424,6 +424,7 @@ impl App {
                     h.exact_fare = self.settings.exact_fare;
                     h.boarding = self.settings.boarding.clone();
                     h.pedestrian_factor = self.settings.pedestrians;
+                    h.seating = self.settings.pax_seating;
                     h.voices = match self.settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
                     if let Some(p) = self.player.as_mut() {
                         h.set_cabin(&mut p.vehicle);

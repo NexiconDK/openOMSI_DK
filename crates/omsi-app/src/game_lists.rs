@@ -1598,6 +1598,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "exact_fare" => s.exact_fare,
         "full_sign" => s.full_sign,
         "trip_summary" => s.trip_summary,
+        "pax_seating" => s.pax_seating,
         "collision_pedestrians" => s.collision_pedestrians,
         "ssao" => s.ssao,
         "detail_textures" => s.detail_textures,
@@ -1823,6 +1824,13 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
         "trip_summary" => {
             app.settings.trip_summary = on;
             Some(("trip_summary", bit))
+        }
+        "pax_seating" => {
+            app.settings.pax_seating = on;
+            if let Some(h) = app.session.humans.as_mut() {
+                h.seating = on;
+            }
+            Some(("pax_seating", bit))
         }
         "exact_fare" => {
             app.settings.exact_fare = on;
@@ -2347,6 +2355,7 @@ fn sync_live(app: &mut App) {
         h.exact_fare = s.exact_fare;
         h.boarding = s.boarding.clone();
         h.pedestrian_factor = s.pedestrians;
+        h.seating = s.pax_seating;
         h.voices = match s.pax_voices.as_str() {
             "off" => 2,
             "tickets" => 1,
@@ -2376,6 +2385,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "info_bar", "Information bar (Shift+Y)", "Displays information such as the time, speed, and other details at the top of the screen"),
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
         switch_row(app, "trip_summary", "Trip summary after each trip", "When a trip ends: its stops with the times planned and driven and the passengers who got on and off"),
+        switch_row(app, "pax_seating", "Passengers choose their seat as people do", "Window seats and double seats to themselves first; the elderly sit next to the driver. Off: any free place at random, as in OMSI"),
         switch_row(app, "full_sign", "OPTAGET on the destination display when the bus is full", "When the bus is as full as chosen, the sign turns between the destination and OPTAGET"),
         pick("full_sign_at", "OPTAGET from", "How full the bus is before its sign says OPTAGET"),
         pick("boarding", "Boarding", "How passengers get their tickets"),

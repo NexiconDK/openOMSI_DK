@@ -2076,6 +2076,8 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
     v["pedestrians"] = json!(100);
     // (the fork) a summary of each trip when it ends
     v["trip_summary"] = json!(false);
+    // (the fork) passengers choose their seat as people do
+    v["pax_seating"] = json!(true);
     v["navigator_size"] = json!(1.0);
     v["navigator_tall"] = json!(0.0);
     v["nav_classic"] = json!(false);
@@ -2196,7 +2198,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
             "head_tracking_yaw_sens" | "head_tracking_pitch_sens" | "head_tracking_roll_sens" | "head_tracking_x_sens" | "head_tracking_y_sens" | "head_tracking_z_sens" => v[&k] = json!(val.parse::<f64>().ok().filter(|x| x.is_finite()).map(|x| x.clamp(0.0, 100.0)).unwrap_or(100.0)),
             "nav_arrows" | "nav_ai" | "get_up" | "time_sync" | "metar_sync" | "ui_scale_window" | "notes" | "machine_translation" | "update_check" | "update_auto" | "update_notify" | "presence" | "reflections" | "steering_linear" | "old_steering" | "red_steer_spd" | "ff_invert" | "ff_enabled" | "brake_hold" | "auto_clutch" | "momentary_gears" | "auto_shift" | "mouse_steering" | "mouse_right_off" | "mouse_smooth" | "mouse_hold" | "blinker_cancel" => v[&k] = json!(b(val)),
             "info_bar" => v[&k] = json!(b(val)),
-            "windy_trees" | "ai_wait_timed_stops_only" | "full_sign" | "trip_summary" | "nav_classic" => v[&k] = json!(b(val)),
+            "windy_trees" | "ai_wait_timed_stops_only" | "full_sign" | "trip_summary" | "pax_seating" | "nav_classic" => v[&k] = json!(b(val)),
             "time_speed" => v[&k] = json!(val.trim_start_matches(['x', 'X']).parse::<f64>().map(|x| x.clamp(1.0, 30.0)).map(|x| if x.fract() == 0.0 { format!("{}", x as i64) } else { x.to_string() }).unwrap_or_else(|_| "1".into())),
             "language" => v[&k] = json!(language_code(val)),
             "graphics" | "renderer" => graphics = Some(graphics_mode(val)),
@@ -2602,6 +2604,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("full_sign={}\n", b("full_sign", true)));
     text.push_str(&format!("full_sign_at={}\n", n("full_sign_at", 95).clamp(50, 100)));
     text.push_str(&format!("trip_summary={}\n", b("trip_summary", false)));
+    text.push_str(&format!("pax_seating={}\n", b("pax_seating", true)));
     text.push_str(&format!("nav_classic={}\n", b("nav_classic", false)));
     text.push_str(&format!("navigator_size={}\n", v.get("navigator_size").and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))).unwrap_or(1.0).clamp(0.6, 2.0)));
     text.push_str(&format!("navigator_tall={}\n", v.get("navigator_tall").and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))).map(|x: f64| if x > 0.0 { x.clamp(0.3, 3.0) } else { 0.0 }).unwrap_or(0.0)));

@@ -60,7 +60,12 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 ### Passagerer
 - Ny indstilling **Mennesker på gaden**: Ingen, Få, Normal, Mange eller Rigtig mange. Den bestemmer, hvor mange der går på fortovene, uafhængigt af antallet af passagerer ved stoppestederne. Findes i launcheren under Gameplay → Passagerer og i spillets menu, og virker med det samme. Skruer du ned, forsvinder de overskydende, når du ikke kan se dem.
 - I din egen bus sætter passagererne sig, hvis der er en ledig plads. På din vagt står 7 ud af 10 dog op, hvis de kun skal under **1 km**. Er den ønskede slags plads optaget, tager de den anden. Ændringen kommer fra openOMSI PR #1394.
-- AI-bussernes passagerer tager stadig en tilfældig plads, som i OMSI 2.
+- Ny indstilling **Passagerer vælger plads som rigtige mennesker** (slået til fra start; i launcheren under Gameplay → Passagerer og i spillets menu). Slået fra vælger de en tilfældig ledig plads som i OMSI 2.
+  - Passagerer tager helst en **vinduesplads** i et **tomt dobbeltsæde** og sætter sig først ved siden af en fremmed, når der ikke er andet.
+  - **Ældre passagerer** (65 år og derover efter personens fil, fx den ældre dame med gråt hår og beige cardigan) sætter sig på **sædet nærmest føreren**, når det er ledigt. De andre lader det stå, så længe de har et andet.
+  - I din bus sætter de, der står, sig på en plads, der bliver ledig, når bussen kører igen (én ad gangen).
+  - Står en ældre passager, og der ikke er en ledig plads, **rejser en yngre sig** og giver hende sin plads.
+- AI-bussernes passagerer tager en tilfældig plads, som i OMSI 2, når indstillingen er slået fra.
 
 ### Opdateringer
 - openOMSI DK opdaterer sig selv fra denne fork og ikke fra den officielle openOMSI, så ændringerne bliver.

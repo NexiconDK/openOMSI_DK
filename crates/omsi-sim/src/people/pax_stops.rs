@@ -156,6 +156,34 @@ impl PeopleSim {
         Some(k)
     }
 
+    /// (the fork) A free place of the bus as passenger `i` chooses it (`seating`): a seat
+    /// when `prefer_seat` (or they are elderly), else a standing place; None: nothing free.
+    pub fn reserve_place_as_people_do(&mut self, i: usize, bus: BusId, cabin: &super::cabin::Cabin, off: &[bool], prefer_seat: Option<bool>) -> Option<usize> {
+        let places = &cabin.seats;
+        let n = places.len();
+        let taken = self.seats.entry(bus).or_insert_with(|| vec![false; n]);
+        if taken.len() < n {
+            taken.resize(n, false);
+        }
+        let taken = taken.clone();
+        let free: Vec<usize> = (0..n).filter(|k| !taken[*k] && !off.get(*k).copied().unwrap_or(false)).collect();
+        let elderly = self.people.get(i).is_some_and(|p| p.age >= super::seating::ELDERLY);
+        let map = super::seating::SeatMap::of(places, cabin.data.driver_positions.first().map(|d| Vec3::from(d.pos)));
+        let pick = self.rand() as usize;
+        let k = map.choose(&free, &taken, places, prefer_seat.unwrap_or(true), elderly, pick)?;
+        if bus == BusId::Player {
+            log::info!(
+                "player bus boarding (as people do): {}wants {}; took {} place {k}{}",
+                if elderly { "an elderly passenger " } else { "" },
+                if prefer_seat == Some(false) && !elderly { "to stand" } else { "a seat" },
+                if places[k].seated { "seated" } else { "standing" },
+                if map.by_driver == Some(k) { " (next to the driver)" } else if map.window.get(k).copied().unwrap_or(false) { " (by the window)" } else { "" },
+            );
+        }
+        self.seats.get_mut(&bus).unwrap()[k] = true;
+        Some(k)
+    }
+
     /// sub_5ce4e0: stamp (stamper_prop) or buy (ticketbuy_prop) at a bus that has a
     /// validator / a cash desk, else nothing to do; the ticket bought (sub_5ce2dc).
     pub fn decide_pax_ticket(&mut self, i: usize, bn: &BusNow) -> (u8, u8) {
