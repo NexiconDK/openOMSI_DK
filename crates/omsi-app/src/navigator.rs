@@ -481,6 +481,9 @@ pub struct Navigator {
     pub arrows: bool,
     /// The other (AI) vehicles are drawn on the maps (the `nav_ai` setting).
     pub show_ai: bool,
+    /// (the fork) The setting `nav_cars`: with the AI vehicles shown, the cars as well (off:
+    /// only the public transport - buses, trolleybuses, trams).
+    pub show_cars: bool,
     /// How far the panel has faded in (Shift+N fades it in and out rather than cutting).
     shown: f32,
     /// The trip's next stops (place, name, the bus's heading there) and where the bus is,
@@ -596,6 +599,7 @@ impl Navigator {
             next_dist: None,
             arrows: false,
             show_ai: true,
+            show_cars: true,
             shown: if enabled { 1.0 } else { 0.0 },
             stop_spots: Vec::new(),
             bus_at: DVec3::ZERO,
@@ -1276,6 +1280,9 @@ impl Navigator {
                     continue;
                 }
                 let (color, line) = traffic_kind(c);
+                if color == DOT && !self.show_cars {
+                    continue;
+                }
                 if color == DOT {
                     dy.world_disc(rel(c.vehicle.position), 1.7, 3.6, Color::rgba(8, 8, 8, 0.9));
                     dy.world_disc(rel(c.vehicle.position), 1.2, 2.6, color);
@@ -2743,7 +2750,10 @@ impl Navigator {
         // small map)
         let mut dots = Painter::new();
         // (the fork) at their own size and shape (Luc-nbr's), the line tag over each bus
-        let vehicles = map_vehicles(f.traffic.filter(|_| self.show_ai), f.bus, f64::INFINITY);
+        let mut vehicles = map_vehicles(f.traffic.filter(|_| self.show_ai), f.bus, f64::INFINITY);
+        if !self.show_cars {
+            vehicles.retain(|v| v.bus);
+        }
         if self.classic {
             // (classic: dots, the public transport as pictograms)
             for car in f.traffic.filter(|_| self.show_ai).map(|t| t.cars.as_slice()).unwrap_or(&[]).iter().filter(|c| !c.gone) {

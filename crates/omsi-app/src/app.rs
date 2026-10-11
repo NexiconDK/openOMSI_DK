@@ -408,6 +408,7 @@ impl App {
                 if let Some(n) = self.menus.navigator.as_mut() {
                     n.arrows = self.settings.nav_arrows;
                     n.show_ai = self.settings.nav_ai;
+                    n.show_cars = self.settings.nav_cars;
                     n.size = self.settings.navigator_size;
                     n.tall = self.settings.navigator_tall;
                     n.classic = self.settings.nav_classic;

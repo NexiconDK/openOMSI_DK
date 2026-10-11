@@ -1237,6 +1237,7 @@ fn general_tab(ui: &mut Ui, s: &mut Value, dirty: &mut f32, out: &mut Outside, c
     toggle_setting(ui, s, dirty, c.row(), "Navigator (Shift+N: map, schedule, off)", "navigator");
     toggle_setting(ui, s, dirty, c.row(), "Route arrows (as in OMSI 2)", "nav_arrows");
     toggle_setting(ui, s, dirty, c.row(), "AI vehicles on the map", "nav_ai");
+    toggle_setting(ui, s, dirty, c.row(), "Cars on the map", "nav_cars");
     toggle_setting(ui, s, dirty, c.row(), "Classic navigator", "nav_classic");
     // the corner: a little screen with four corners to click
     let r = Rect::new(c.inner.x, c.y, c.inner.w, 70.0);
@@ -3008,7 +3009,7 @@ mod settings_tests {
         ];
         let general = vec![
             "s-lang", "set-machine_translation", "set-launcher_rest", "set-discord_status", "set-voice_chat", "s-uiscale", "set-ui_scale_window", "s-uiop", "set-tooltips", "set-show_fps", "set-notes", "set-chat", "s-chatsize", "set-name_tags",
-            "set-navigator", "set-nav_arrows", "set-nav_ai", "set-nav_classic", "corner-top-left", "corner-top-right", "corner-bottom-left", "corner-bottom-right",
+            "set-navigator", "set-nav_arrows", "set-nav_ai", "set-nav_cars", "set-nav_classic", "corner-top-left", "corner-top-right", "corner-bottom-left", "corner-bottom-right",
             "set-update_check", "set-update_auto", "set-update_notify", "set-presence", "s-upd-check", "s-upd-github", "s-reset",
         ];
         vec![graphics, driving, camera, sound, gameplay, general]

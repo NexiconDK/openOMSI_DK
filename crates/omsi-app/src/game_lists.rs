@@ -1562,6 +1562,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
     Some(match id {
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
+        "nav_cars" => s.nav_cars,
         "nav_classic" => s.nav_classic,
         "shadows" => s.shadows,
         "head" => s.head_movement,
@@ -1665,6 +1666,13 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
             }
             app.settings.nav_ai = on;
             Some(("nav_ai", bit))
+        }
+        "nav_cars" => {
+            if let Some(n) = app.menus.navigator.as_mut() {
+                n.show_cars = on;
+            }
+            app.settings.nav_cars = on;
+            Some(("nav_cars", bit))
         }
         "shadows" => {
             app.settings.shadows = on;
@@ -2350,6 +2358,7 @@ fn sync_live(app: &mut App) {
     omsi_sim::timetable_run::NEXT_TRIP_EARLY.store(s.next_trip_early, std::sync::atomic::Ordering::Relaxed);
     if let Some(n) = app.menus.navigator.as_mut() {
         n.arrows = s.nav_arrows;
+        n.show_cars = s.nav_cars;
     }
     if let Some(h) = app.session.humans.as_mut() {
         h.exact_fare = s.exact_fare;
@@ -2374,6 +2383,7 @@ fn options_pages(app: &App) -> Vec<Page> {
     let game: Vec<(String, String)> = vec![
         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
+        switch_row(app, "nav_cars", "Cars on the map", "With the AI vehicles shown: the cars as well. Off: only the buses, trolleybuses and trams"),
         switch_row(app, "nav_classic", "Classic navigator", "The navigator and the city map as before: without the duty board, the duty sheet and the stop signs"),
         switch_row(app, "nav_arrows", "Route arrows (as in OMSI 2)", "Shows OMSI 2's route arrows over the road"),
         pick("navigator_corner", "Corner", later),
