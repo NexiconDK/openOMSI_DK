@@ -221,6 +221,36 @@ fn waiting_at_the_terminus_still_uses_the_scheduled_changeover() {
     assert!(duty.served_terminus.is_none());
 }
 
+/// (the fork) `next_trip_early`: the next trip at once when the bus has served the terminus,
+/// not a minute before it leaves; a trip not driven to its end still waits for that minute.
+#[test]
+fn with_next_trip_early_the_next_trip_begins_at_the_terminus() {
+    super::super::duty::TEST_NEXT_TRIP_EARLY.with(|c| c.set(true));
+    let mut duty = early_departure_duty();
+    let mut bus = timetable_test_vehicle();
+    bus.position.x = 400.0;
+    bus.set_speed(5.0);
+    duty.update(&mut bus, 140.0);
+    assert_eq!(duty.trip_index, 0, "on the way to the terminus");
+    bus.position.x = 500.0;
+    bus.set_speed(0.0);
+    bus.set_var("door_0", 1.0);
+    duty.update(&mut bus, 150.0);
+    duty.update(&mut bus, 151.0);
+    assert_eq!((duty.trip_index, duty.next_stop), (1, 0), "long before 540");
+    assert!(duty.take_trip_change());
+    duty.update(&mut bus, 160.0);
+    assert_eq!(duty.trip_index, 1, "one trip on, not more");
+    // an unbegun trip is not skipped early
+    let mut duty = early_departure_duty();
+    duty.left_late = None;
+    duty.next_stop = 0;
+    bus.position.x = 0.0;
+    duty.update(&mut bus, 150.0);
+    assert_eq!(duty.trip_index, 0);
+    super::super::duty::TEST_NEXT_TRIP_EARLY.with(|c| c.set(false));
+}
+
 #[test]
 fn early_departure_does_not_run_past_the_end_of_the_duty() {
     let mut duty = early_departure_duty();

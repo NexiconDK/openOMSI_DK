@@ -1598,6 +1598,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "exact_fare" => s.exact_fare,
         "full_sign" => s.full_sign,
         "trip_summary" => s.trip_summary,
+        "next_trip_early" => s.next_trip_early,
         "collision_pedestrians" => s.collision_pedestrians,
         "ssao" => s.ssao,
         "detail_textures" => s.detail_textures,
@@ -1823,6 +1824,11 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
         "trip_summary" => {
             app.settings.trip_summary = on;
             Some(("trip_summary", bit))
+        }
+        "next_trip_early" => {
+            app.settings.next_trip_early = on;
+            omsi_sim::timetable_run::NEXT_TRIP_EARLY.store(on, std::sync::atomic::Ordering::Relaxed);
+            Some(("next_trip_early", bit))
         }
         "exact_fare" => {
             app.settings.exact_fare = on;
@@ -2341,6 +2347,7 @@ fn sync_live(app: &mut App) {
     crate::startup::SOUND_AI.store(s.vol_ai.to_bits(), std::sync::atomic::Ordering::Relaxed);
     crate::startup::SOUND_SCENERY.store(s.vol_scenery.to_bits(), std::sync::atomic::Ordering::Relaxed);
     omsi_audio::DOPPLER.store(s.doppler, std::sync::atomic::Ordering::Relaxed);
+    omsi_sim::timetable_run::NEXT_TRIP_EARLY.store(s.next_trip_early, std::sync::atomic::Ordering::Relaxed);
     if let Some(n) = app.menus.navigator.as_mut() {
         n.arrows = s.nav_arrows;
     }
@@ -2377,6 +2384,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "timetable_win", "Timetable window (Insert)", "Displays a list of all stops (only when a tour is active)"),
         switch_row(app, "info_bar", "Information bar (Shift+Y)", "Displays information such as the time, speed, and other details at the top of the screen"),
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
+        switch_row(app, "next_trip_early", "Next trip begins at the terminus", "On: the next trip begins as soon as the bus has ended its trip at the terminus. Off: a minute before it leaves, as in OMSI"),
         switch_row(app, "trip_summary", "Trip summary after each trip", "When a trip ends: its stops with the times planned and driven and the passengers who got on and off"),
         switch_row(app, "full_sign", "OPTAGET on the destination display when the bus is full", "When the bus is as full as chosen, the sign turns between the destination and OPTAGET"),
         pick("full_sign_at", "OPTAGET from", "How full the bus is before its sign says OPTAGET"),

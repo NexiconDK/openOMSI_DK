@@ -29514,3 +29514,11 @@ _version: 2
 "exp. %{time}":
   de: "erw. %{time}"
   da: "forv. %{time}"
+
+"Next trip begins at the terminus":
+  de: "Nächste Fahrt beginnt an der Endhaltestelle"
+  da: "Næste tur starter ved endestationen"
+
+"On: the next trip begins as soon as the bus has ended its trip at the terminus. Off: a minute before it leaves, as in OMSI":
+  de: "An: Die nächste Fahrt beginnt, sobald der Bus seine Fahrt an der Endhaltestelle beendet hat. Aus: eine Minute vor der Abfahrt, wie in OMSI"
+  da: "Til: næste tur starter, så snart bussen har afsluttet turen ved endestationen. Fra: et minut før afgang, som i OMSI"

@@ -2,6 +2,25 @@
 
 use super::*;
 
+/// (the fork) The setting `next_trip_early`: the duty goes on to the tour's next trip as soon
+/// as the bus has ended the one it drove (at its terminus), not a minute before the next one
+/// leaves - the IBIS, the signs and the people at the stop have the next trip at once.
+pub static NEXT_TRIP_EARLY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
+thread_local! {
+    /// (tests) `NEXT_TRIP_EARLY` for this test's thread alone: the tests run side by side.
+    pub(crate) static TEST_NEXT_TRIP_EARLY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn next_trip_early() -> bool {
+    #[cfg(test)]
+    if TEST_NEXT_TRIP_EARLY.with(|c| c.get()) {
+        return true;
+    }
+    NEXT_TRIP_EARLY.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 impl StopDir {
     pub(crate) fn takes(self, fwd: glam::DVec2) -> bool {
         if self.inbound.is_none() && self.outbound.is_none() {
@@ -758,10 +777,14 @@ impl PlayerDuty {
             self.place(pos, day_time);
         }
         // on to the next trip a minute before it leaves, once this one is over, was never
-        // begun, or was given up half an hour ago
-        while self.trip_index + 1 < self.trips.len()
-            && self.trips[self.trip_index + 1].departure - 60.0 <= day_time
-        {
+        // begun, or was given up half an hour ago; (the fork) with `NEXT_TRIP_EARLY`, as
+        // soon as this one is over, whenever the next one leaves
+        let early = next_trip_early();
+        while self.trip_index + 1 < self.trips.len() {
+            let due = self.trips[self.trip_index + 1].departure - 60.0 <= day_time;
+            if !due && !early {
+                break;
+            }
             let given_up = day_time > self.trip().end + 1800.0;
             let unbegun = self.left_late.is_none() && !self.picked;
             // on the trip's last leg and standing at the next trip's first stop: this trip is
@@ -777,7 +800,13 @@ impl PlayerDuty {
             let at_next_start = self.next_stop >= last
                 && !at_last
                 && self.trips[self.trip_index + 1].stops.first().and_then(|s| s.position).is_some_and(|p| (p - pos).length() < AT_STOP);
-            if !(self.done || unbegun || given_up || at_next_start) {
+            let go = if due {
+                self.done || unbegun || given_up || at_next_start
+            } else {
+                // (early: only a trip driven to its end)
+                self.done || (at_next_start && self.left_late.is_some())
+            };
+            if !go {
                 break;
             }
             // (one done has ended already; one the bus never left a stop of was never driven,
