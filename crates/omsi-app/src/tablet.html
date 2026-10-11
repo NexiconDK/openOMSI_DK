@@ -1,0 +1,366 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Web-IBIS</title>
+<style>
+  /* The screen is the terminal's: 1280 x 720 units, as large as the tablet allows. */
+  :root { --u: 1px; --ink: #000; --line: #555; --soft: #444; --dim: #8a8a8a; --paper: #fff;
+    --field: #f2f2f2; --pick: #dff3df; --now: #f0b429; --rail: #2e9e5b; --plate: #ffd23f;
+    --early: #c62828; --ontime: #1e7d3c; --late: #d06a00; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center;
+    font-family: "DejaVu Sans", Verdana, "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+  #stage { position: relative; width: calc(1280 * var(--u)); height: calc(720 * var(--u));
+    background: var(--paper); overflow: hidden; font-size: calc(22 * var(--u)); }
+  .screen { position: absolute; inset: 0; display: none; }
+  .screen.on { display: block; }
+  .u { position: absolute; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+  /* the bar along the top: the login picture's strip, or plain */
+  .bar { position: absolute; left: 0; top: 0; width: 100%; height: calc(64.5 * var(--u));
+    background: var(--paper) url("/tex/login.png") no-repeat 0 0 / 100% auto; }
+  .plain .bar { background: var(--paper); border-bottom: 1px solid var(--line); }
+  .clock { position: absolute; right: 0; top: 0; width: calc(124 * var(--u)); height: calc(63 * var(--u));
+    background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center;
+    line-height: 1.1; font-size: calc(24 * var(--u)); font-variant-numeric: tabular-nums; }
+  .plain .clock { border-left: 1px solid var(--line); }
+  /* the bar along the bottom: what the keys do */
+  .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(60 * var(--u)); display: flex;
+    border-top: 1px solid var(--line); background: var(--paper); }
+  .foot button { min-width: calc(120 * var(--u)); padding: 0 calc(18 * var(--u)); font-size: calc(24 * var(--u));
+    border-right: 1px solid var(--line); }
+  .foot button.right { margin-left: auto; border-right: 0; border-left: 1px solid var(--line); }
+  .foot button:active, .key:active, .row:active { background: var(--pick); }
+  .body { position: absolute; left: 0; right: 0; top: calc(65 * var(--u)); bottom: calc(60 * var(--u)); }
+  h2 { margin: 0; font-weight: 400; font-size: calc(30 * var(--u)); }
+
+  /* login: the picture with its two fields */
+  #login { background: var(--paper) url("/tex/login.png") no-repeat 0 0 / 100% 100%; }
+  #login input { position: absolute; border: 0; outline: 0; background: transparent; font: inherit;
+    font-size: calc(22 * var(--u)); padding: 0 calc(8 * var(--u)); }
+  #login input:focus { background: rgba(0, 120, 255, .06); }
+  #login .esc, #login .ok { position: absolute; bottom: 0; height: calc(60 * var(--u)); font-size: calc(24 * var(--u));
+    padding: 0 calc(17 * var(--u)); }
+  #login .esc { left: 0; } #login .ok { right: 0; }
+  /* (the picture has its own ESC: the key lies over it) */
+  #login:not(.plain) .esc { color: transparent; }
+  #login .drawn { display: none; }
+  #login.plain { background: var(--paper); }
+  #login.plain .drawn { display: block; }
+  .drawn.box { border: 1px solid var(--line); }
+  .drawn.title { left: 0; right: 0; top: calc(220 * var(--u)); text-align: center; font-size: calc(64 * var(--u));
+    font-weight: 700; color: #5d5e60; letter-spacing: calc(-1 * var(--u)); }
+
+  /* lines: big keys */
+  .keys { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(70 * var(--u)); bottom: calc(14 * var(--u));
+    overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(150 * var(--u)), 1fr));
+    gap: calc(14 * var(--u)); align-content: start; }
+  .key { height: calc(88 * var(--u)); border: calc(2 * var(--u)) solid var(--soft); border-radius: calc(4 * var(--u));
+    background: var(--field); font-size: calc(38 * var(--u)); font-weight: 700; }
+  .key.mine { background: var(--pick); border-color: var(--rail); }
+  .head { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(14 * var(--u));
+    display: flex; align-items: center; gap: calc(16 * var(--u)); }
+  .note { color: var(--dim); }
+
+  /* trips */
+  .tabs { display: flex; gap: calc(8 * var(--u)); margin-left: auto; }
+  .tab { border: 1px solid var(--line); padding: calc(6 * var(--u)) calc(14 * var(--u)); font-size: calc(20 * var(--u));
+    max-width: calc(330 * var(--u)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab.on { background: #000; color: #fff; }
+  .list { position: absolute; left: 0; right: 0; top: calc(70 * var(--u)); bottom: 0; overflow-y: auto;
+    border-top: 1px solid var(--line); }
+  .row { display: grid; width: 100%; text-align: left; align-items: center; height: calc(56 * var(--u));
+    grid-template-columns: calc(110 * var(--u)) calc(90 * var(--u)) 1fr calc(150 * var(--u));
+    padding: 0 calc(24 * var(--u)); border-bottom: 1px solid #d8d8d8; font-size: calc(23 * var(--u)); }
+  .row b { font-variant-numeric: tabular-nums; }
+  .row .to { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .tour { text-align: right; color: var(--dim); font-size: calc(18 * var(--u)); }
+  .row.past { color: var(--dim); }
+  .row.driving { background: var(--pick); box-shadow: inset calc(5 * var(--u)) 0 0 var(--rail); }
+  .plate { justify-self: start; background: #000; color: #fff; font-weight: 700; padding: 0 calc(10 * var(--u));
+    border-radius: calc(3 * var(--u)); font-size: calc(21 * var(--u)); }
+  .past .plate { background: var(--dim); }
+
+  /* the question before a trip is taken on */
+  .ask { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); display: none; align-items: center; justify-content: center; }
+  .ask.on { display: flex; }
+  .ask .box { width: calc(760 * var(--u)); background: var(--paper); border: calc(2 * var(--u)) solid #000; padding: calc(28 * var(--u)); }
+  .ask p { margin: calc(14 * var(--u)) 0 calc(26 * var(--u)); font-size: calc(26 * var(--u)); }
+  .ask .err { color: var(--early); min-height: 1.2em; font-size: calc(20 * var(--u)); margin: 0 0 calc(10 * var(--u)); }
+  .ask .btns { display: flex; gap: calc(16 * var(--u)); }
+  .ask .btns button { flex: 1; height: calc(80 * var(--u)); border: calc(2 * var(--u)) solid var(--soft); background: var(--field);
+    font-size: calc(30 * var(--u)); font-weight: 700; }
+  .ask .btns button.yes { background: var(--pick); border-color: var(--rail); }
+
+  /* the duty */
+  .left { position: absolute; left: calc(24 * var(--u)); top: calc(18 * var(--u)); width: calc(500 * var(--u)); bottom: calc(14 * var(--u)); }
+  .sign { display: flex; align-items: center; gap: calc(14 * var(--u)); }
+  .sign .plate { font-size: calc(36 * var(--u)); padding: calc(2 * var(--u)) calc(14 * var(--u)); }
+  .sign .dest { font-size: calc(32 * var(--u)); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { color: var(--soft); margin: calc(8 * var(--u)) 0 calc(16 * var(--u)); font-size: calc(19 * var(--u)); }
+  .chip { display: inline-block; border-radius: calc(30 * var(--u)); padding: calc(6 * var(--u)) calc(18 * var(--u));
+    font-weight: 700; font-size: calc(26 * var(--u)); font-variant-numeric: tabular-nums; }
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(10 * var(--u)); margin-top: calc(16 * var(--u)); }
+  .tile { border: 1px solid var(--line); padding: calc(8 * var(--u)) calc(12 * var(--u)); }
+  .tile b { display: block; font-size: calc(30 * var(--u)); font-variant-numeric: tabular-nums; }
+  .tile span { font-size: calc(15 * var(--u)); color: var(--soft); text-transform: uppercase; }
+  .next { margin-top: calc(16 * var(--u)); border: calc(2 * var(--u)) solid var(--now); padding: calc(10 * var(--u)) calc(14 * var(--u)); }
+  .next span { font-size: calc(15 * var(--u)); color: var(--soft); text-transform: uppercase; }
+  .next b { display: block; font-size: calc(30 * var(--u)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .next i { font-style: normal; color: var(--soft); font-variant-numeric: tabular-nums; }
+  .stops { position: absolute; left: calc(548 * var(--u)); right: 0; top: 0; bottom: 0; overflow-y: auto; border-left: 1px solid var(--line); }
+  .r { display: flex; align-items: center; padding: 0 calc(20 * var(--u)); font-size: calc(21 * var(--u)); }
+  .r.trip { height: calc(54 * var(--u)); gap: calc(12 * var(--u)); border-bottom: 1px solid #e3e3e3; }
+  .r.trip.now { background: var(--pick); box-shadow: inset calc(5 * var(--u)) 0 0 var(--rail); }
+  .r.trip.done { color: var(--dim); }
+  .r.trip .plate { font-size: calc(18 * var(--u)); }
+  .r.trip.done .plate { background: var(--dim); }
+  .r.trip .t { font-weight: 700; width: calc(70 * var(--u)); font-variant-numeric: tabular-nums; }
+  .r.trip .x { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .r.trip .a { color: var(--soft); font-variant-numeric: tabular-nums; }
+  .r.stop { height: calc(42 * var(--u)); position: relative; padding-left: calc(60 * var(--u)); }
+  .r.stop .rail { position: absolute; left: calc(34 * var(--u)); top: 0; bottom: 0; width: calc(4 * var(--u)); background: var(--rail); }
+  .r.stop.first .rail { top: 50%; } .r.stop.lastrow .rail { bottom: 50%; }
+  .r.stop.done .rail { background: #bdbdbd; }
+  .r.stop .pin { position: absolute; left: calc(28 * var(--u)); top: 50%; width: calc(16 * var(--u)); height: calc(16 * var(--u));
+    margin-top: calc(-8 * var(--u)); border-radius: 50%; background: var(--paper); border: calc(3 * var(--u)) solid var(--rail); }
+  .r.stop.done .pin { background: #bdbdbd; border-color: #bdbdbd; }
+  .r.stop.now .pin { background: var(--now); border-color: #b07d00; width: calc(20 * var(--u)); height: calc(20 * var(--u));
+    left: calc(26 * var(--u)); margin-top: calc(-10 * var(--u)); }
+  .r.stop .t { width: calc(80 * var(--u)); font-variant-numeric: tabular-nums; }
+  .r.stop .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .r.stop.done { color: var(--dim); }
+  .r.stop.now { font-weight: 700; }
+  .r.stop .e { font-weight: 700; margin-left: calc(10 * var(--u)); font-variant-numeric: tabular-nums; }
+  .r.stop .tag { margin-left: calc(10 * var(--u)); border: 1px solid var(--line); padding: 0 calc(6 * var(--u)); font-size: calc(15 * var(--u)); color: var(--soft); }
+  .r.pause, .r.change { height: calc(36 * var(--u)); padding-left: calc(60 * var(--u)); color: var(--soft); font-size: calc(18 * var(--u)); }
+  .r.change { color: #9a6a00; font-weight: 700; }
+  .early { color: var(--early); } .ontime { color: var(--ontime); } .late { color: var(--late); }
+  .empty { position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: var(--soft); font-size: calc(28 * var(--u)); }
+  .lost { position: absolute; left: 50%; bottom: calc(76 * var(--u)); transform: translateX(-50%); background: var(--early); color: #fff;
+    padding: calc(8 * var(--u)) calc(20 * var(--u)); font-weight: 700; display: none; z-index: 5; }
+  .lost.on { display: block; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- login: any driver number and password do -->
+  <form id="login" class="screen" autocomplete="off">
+    <div class="drawn title u">Web-IBIS</div>
+    <div class="drawn u" id="l-driver" style="left:calc(100*var(--u));top:calc(413*var(--u));width:calc(230*var(--u));text-align:right"></div>
+    <div class="drawn u" id="l-password" style="left:calc(100*var(--u));top:calc(465*var(--u));width:calc(222*var(--u));text-align:right"></div>
+    <div class="drawn box u" style="left:calc(339*var(--u));top:calc(411*var(--u));width:calc(577*var(--u));height:calc(33*var(--u))"></div>
+    <div class="drawn box u" style="left:calc(337*var(--u));top:calc(461*var(--u));width:calc(579*var(--u));height:calc(34*var(--u))"></div>
+    <div class="drawn u" id="l-hint" style="left:0;right:0;top:calc(558*var(--u));text-align:center"></div>
+    <input id="driver" inputmode="numeric" style="left:calc(340*var(--u));top:calc(412*var(--u));width:calc(575*var(--u));height:calc(31*var(--u))">
+    <input id="password" type="password" inputmode="numeric" style="left:calc(338*var(--u));top:calc(462*var(--u));width:calc(577*var(--u));height:calc(32*var(--u))">
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <button type="button" class="esc">ESC</button>
+    <button type="submit" class="ok">OK</button>
+  </form>
+
+  <section id="lines" class="screen">
+    <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="body">
+      <div class="head"><h2 data-l="pick_line"></h2></div>
+      <div class="keys" id="keys"></div>
+      <div class="empty" id="no-lines" hidden data-l="no_lines"></div>
+    </div>
+    <div class="foot"><button data-go="logout">ESC</button><button class="right" data-go="duty" data-l="duty"></button></div>
+  </section>
+
+  <section id="trips" class="screen">
+    <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="body">
+      <div class="head"><h2 id="trips-title"></h2><div class="tabs" id="tabs"></div></div>
+      <div class="list" id="trip-list"></div>
+      <div class="empty" id="no-trips" hidden data-l="no_trips"></div>
+    </div>
+    <div class="foot"><button data-go="lines">ESC</button><button class="right" data-go="duty" data-l="duty"></button></div>
+    <div class="ask" id="ask"><div class="box"><h2 data-l="start_q"></h2><p id="ask-what"></p><div class="err" id="ask-err"></div>
+      <div class="btns"><button class="yes" id="ask-yes" data-l="yes"></button><button id="ask-no" data-l="no"></button></div></div></div>
+  </section>
+
+  <section id="duty" class="screen">
+    <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="body" id="duty-body"></div>
+    <div class="foot"><button data-go="lines">ESC</button><button class="right" data-go="lines" data-l="lines"></button></div>
+  </section>
+  <div class="lost" id="lost"></div>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
+                set(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} } };
+let state = null, labels = {}, screen = null, line = null, trips = [], dir = "", pick = null, failures = 0;
+
+// the screen as large as the tablet allows, at 16:9
+function fit() {
+  const u = Math.min(innerWidth / 1280, innerHeight / 720);
+  document.documentElement.style.setProperty("--u", u + "px");
+}
+addEventListener("resize", fit); fit();
+
+// the pictures are the player's own (the WebIBIS folder): without them, plain screens
+const pic = new Image();
+pic.onerror = () => document.querySelectorAll("#login, .screen").forEach((e) => e.classList.add("plain"));
+pic.src = "/tex/login.png";
+
+function show(name) {
+  screen = name;
+  document.querySelectorAll(".screen").forEach((e) => e.classList.toggle("on", e.id === name));
+  if (name === "lines") loadLines();
+  if (name === "trips") loadTrips();
+  if (name === "duty") drawDuty();
+  if (name === "login") setTimeout(() => $("driver").focus(), 50);
+}
+
+function words() {
+  document.querySelectorAll("[data-l]").forEach((e) => { e.textContent = labels[e.dataset.l] ?? ""; });
+  $("l-driver").textContent = labels.driver ?? ""; $("l-password").textContent = labels.password ?? "";
+  $("l-hint").textContent = labels.login_hint ?? ""; $("lost").textContent = labels.lost ?? "⚠";
+}
+
+// login: any number does
+$("login").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!$("driver").value.trim()) return $("driver").focus();
+  if (!$("password").value.trim()) return $("password").focus();
+  store.set("driver", $("driver").value.trim());
+  $("password").value = "";
+  show("lines");
+});
+$("driver").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("password").focus(); } });
+document.querySelector("#login .esc").addEventListener("click", () => { $("driver").value = ""; $("password").value = ""; $("driver").focus(); });
+document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.go === "logout") { store.set("driver", null); return show("login"); }
+  show(b.dataset.go);
+}));
+
+async function getJson(url, opts) {
+  const r = await fetch(url, Object.assign({ cache: "no-store" }, opts));
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function loadLines() {
+  let v; try { v = await getJson("/lines"); } catch (e) { return; }
+  const mine = state && state.duty ? state.duty.line : null;
+  $("keys").innerHTML = (v.lines || []).map((l) =>
+    `<button class="key${l.sign === mine ? " mine" : ""}" data-line="${esc(l.name)}">${esc(l.sign)}</button>`).join("");
+  $("no-lines").hidden = (v.lines || []).length > 0;
+  $("keys").querySelectorAll(".key").forEach((k) => k.addEventListener("click", () => { line = k.dataset.line; dir = ""; show("trips"); }));
+}
+
+async function loadTrips(keep) {
+  if (!line) return show("lines");
+  let v; try { v = await getJson("/trips?line=" + encodeURIComponent(line)); } catch (e) { return; }
+  trips = v.trips || [];
+  $("trips-title").textContent = `${labels.line ?? ""} ${v.sign ?? line}`;
+  // the directions: the trips' ends, the most common first
+  const count = {};
+  trips.forEach((t) => { count[t.to] = (count[t.to] || 0) + 1; });
+  const ends = Object.keys(count).sort((a, b) => count[b] - count[a]).slice(0, 3);
+  $("tabs").innerHTML = [["", labels.all ?? "*"], ...ends.map((e) => [e, "→ " + e])]
+    .map(([k, t]) => `<button class="tab${k === dir ? " on" : ""}" data-dir="${esc(k)}">${esc(t)}</button>`).join("");
+  $("tabs").querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { dir = b.dataset.dir; loadTrips(); }));
+  drawTrips(v.now_s, keep);
+}
+
+function drawTrips(now, keep) {
+  const box = $("trip-list"), top = box.scrollTop;
+  const shown = trips.filter((t) => !dir || t.to === dir);
+  box.innerHTML = shown.map((t, i) => {
+    const past = t.arr_s < now;
+    return `<button class="row${past ? " past" : ""}${t.driving ? " driving" : ""}" data-i="${trips.indexOf(t)}">
+      <b>${esc(t.dep)}</b><span class="plate">${esc(t.sign)}</span>
+      <span class="to">${esc(t.from)} → ${esc(t.to)}</span><span class="tour">${esc(labels.tour)} ${esc(t.tour)}</span></button>`;
+  }).join("");
+  $("no-trips").hidden = shown.length > 0;
+  box.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => ask(trips[+r.dataset.i])));
+  if (keep) { box.scrollTop = top; return; }
+  // (from the trip under way or the next to leave)
+  const first = shown.findIndex((t) => t.driving) >= 0 ? shown.findIndex((t) => t.driving) : shown.findIndex((t) => t.arr_s >= now);
+  const row = box.children[Math.max(0, first)];
+  box.scrollTop = row ? Math.max(0, row.offsetTop - row.offsetHeight) : 0;
+}
+
+function ask(t) {
+  pick = t;
+  $("ask-what").innerHTML = `<b>${esc(t.dep)}</b> &nbsp;<span class="plate">${esc(t.sign)}</span>&nbsp; ${esc(t.from)} → ${esc(t.to)}<br>
+    <span class="note">${esc(labels.tour)} ${esc(t.tour)} · ${esc(t.dep)} – ${esc(t.arr)}</span>`;
+  $("ask-err").textContent = "";
+  $("ask").classList.add("on");
+}
+$("ask-no").addEventListener("click", () => $("ask").classList.remove("on"));
+$("ask-yes").addEventListener("click", async () => {
+  if (!pick || !line) return;
+  const body = new URLSearchParams({ line, tour: pick.tour, pos: String(pick.pos) });
+  let v; try { v = await getJson("/start", { method: "POST", body }); } catch (e) { v = { ok: false, error: labels.lost }; }
+  if (!v.ok) { $("ask-err").textContent = v.error || "?"; return; }
+  $("ask").classList.remove("on");
+  setTimeout(() => show("duty"), 600);
+});
+
+function drawDuty() {
+  const box = $("duty-body");
+  if (!state) return;
+  const d = state.duty, L = labels;
+  if (!d) { box.innerHTML = `<div class="empty">${esc(L.no_duty)}</div>`; return; }
+  const keep = box.querySelector(".stops")?.scrollTop;
+  const next = d.next ? `<div class="next"><span>${esc(L.next_stop)}</span><b>${esc(d.next.name)}</b>
+      <i>${d.next.dist ? esc(d.next.dist) + " · " : ""}${esc(d.next.time)}</i></div>` : "";
+  const rows = d.rows.map((r, i) => {
+    if (r.k === "trip") return `<div class="r trip ${r.state}"${r.state === "now" ? ' id="now"' : ""}><span class="t">${esc(r.dep)}</span>
+        ${r.line ? `<span class="plate">${esc(r.line)}</span>` : ""}<span class="x">${esc(r.terminus)}</span><span class="a">${esc(r.arr)}</span></div>`;
+    if (r.k === "stop") {
+      const first = !(d.rows[i - 1] && d.rows[i - 1].k === "stop"), last = !(d.rows[i + 1] && d.rows[i + 1].k === "stop");
+      return `<div class="r stop ${r.state}${first ? " first" : ""}${last ? " lastrow" : ""}"><span class="rail"></span><span class="pin"></span>
+        <span class="t">${esc(r.time)}</span><span class="n">${esc(r.name)}</span>
+        ${r.exp ? `<span class="e ${r.exp_tone || ""}">${esc(r.exp)}</span>` : ""}${r.last ? `<span class="tag">${esc(L.terminus)}</span>` : ""}</div>`;
+    }
+    return `<div class="r ${r.k}">${esc(r.text)}</div>`;
+  }).join("");
+  box.innerHTML = `<div class="left">
+      <div class="sign">${d.line ? `<span class="plate">${esc(d.line)}</span>` : ""}<span class="dest">${esc(d.terminus)}</span></div>
+      <div class="sub">${esc(d.title)} · ${esc(d.span)}</div>
+      <span class="chip" style="background:${d.status.fill};color:${d.status.ink}">${esc(d.status.text)}</span>
+      <div class="tiles"><div class="tile"><b class="${d.delay_tone || ""}">${esc(d.delay)}</b><span>${esc(L.delay)}</span></div>
+        <div class="tile"><b>${esc(d.trip)}</b><span>${esc(L.trip)}</span></div></div>${next}
+    </div><div class="stops">${rows}</div>`;
+  const right = box.querySelector(".stops"), now = $("now");
+  if (keep != null) right.scrollTop = keep; else if (now) right.scrollTop = Math.max(0, now.offsetTop - 8);
+}
+
+async function tick() {
+  try {
+    const s = await getJson("/state");
+    failures = 0; $("lost").classList.remove("on");
+    if (s.labels) {
+      const first = !state;
+      state = s; labels = s.labels; words();
+      document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
+      document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
+      if (first) show(store.get("driver") ? (s.duty ? "duty" : "lines") : "login");
+      else if (screen === "duty") drawDuty();
+    }
+  } catch (e) {
+    if (++failures >= 3) $("lost").classList.add("on");
+  }
+  setTimeout(tick, 1000);
+}
+// (a line's trips again now and then: which are past, which is driven)
+setInterval(() => { if (screen === "trips" && !$("ask").classList.contains("on")) loadTrips(true); }, 30000);
+tick();
+</script>
+</body>
+</html>

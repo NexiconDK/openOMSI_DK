@@ -211,6 +211,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_SKIP_PIPE` | text | - | frame | render | Pipeline kinds to leave out of the main pass (comma-separated numbers). |
 | `OMSI_SPOT_SELECT` | num | - | use | app | Turn on spotlight n (headlight pictures). |
 | `OMSI_STOP_SIGNS_PREVIEW` | text | - | test | app | City map stop sign preview test: the folder for its pictures. |
+| `OMSI_TABLET_PREVIEW` | text | - | test | app | Web IBIS preview test: the folder for the state it writes. |
 | `OMSI_TEST_CONTENT` | text | - | test | app, o3d | Content root for tests that need real OMSI content. |
 | `OMSI_TEST_WINE_DIR` | text | - | test | plugin | Plugin demo test: folder holding omsi-plugin-host.exe for Wine. |
 | `OMSI_TOUCH` | bool | off | use | app | The on-screen touch controls on a computer. |

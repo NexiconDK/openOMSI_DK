@@ -73,6 +73,7 @@ mod schedule;
 mod schedule_paper;
 mod real_time;
 mod settings;
+mod tablet;
 mod telemetry;
 mod threads;
 mod tiles;
@@ -430,6 +431,7 @@ pub(crate) fn make_app(mut args: Args, server_cfg: Option<server::ServerCfg>) ->
     MIRROR_SIZE.store(settings.mirror_size, std::sync::atomic::Ordering::Relaxed);
     omsi_audio::DOPPLER.store(settings.doppler, std::sync::atomic::Ordering::Relaxed);
     omsi_sim::timetable_run::NEXT_TRIP_EARLY.store(settings.next_trip_early, std::sync::atomic::Ordering::Relaxed);
+    tablet::set(settings.tablet, settings.tablet_port);
     CLASSIC.store(
         settings.classic() && !ENHANCED.load(std::sync::atomic::Ordering::Relaxed),
         std::sync::atomic::Ordering::Relaxed,

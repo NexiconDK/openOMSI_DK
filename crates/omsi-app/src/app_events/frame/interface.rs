@@ -7,6 +7,10 @@ impl App {
     /// The interface over the picture. The VR navigator's display (for the headset's
     /// picture).
     pub(super) fn frame_ui(&mut self, dt: f32) -> Option<crate::vr_navigator::Display> {
+        // (the fork) what the web IBIS asked (`crate::tablet`)
+        for (ask, reply) in crate::tablet::take_asks() {
+            let _ = reply.send(crate::game_lists::tablet_answer(self, ask));
+        }
         // (the game menu's lines, for the interface below)
         let menu_lines = if self.menus.game_menu.is_some() { self.game_menu_items() } else { Vec::new() };
         // (the mirror editor's keys and the panel under the cursor, while it is on)
@@ -115,6 +119,8 @@ impl App {
             lines.extend(lan::hud_lines(lan, &self.net.remotes, self.player.as_ref()));
             lines.extend(self.sound.voice.as_ref().and_then(|v| v.hud_line()));
         }
+        // (the fork) where the tablet page is to be opened
+        lines.extend(crate::tablet::hud_line());
         if let Some(h) = self.session.humans.as_ref() {
             if let Some(hint) = h.hint() {
                 lines.push(hint);
@@ -377,6 +383,15 @@ impl App {
             let menu_disabled: &[&str] = &[];
             let (menu_kind, menu_head, menu_preview) = crate::game_lists::menu_extras(self.menus.list_kind.as_ref(), self.menus.admin_list.as_deref(), chooser_sel, self.session.schedule.as_ref(), self.clock.time);
             crate::telemetry::publish(self.player.as_ref(), self.session.duty.as_ref(), self.session.humans.as_ref(), self.paused, self.session.schedule.as_ref(), self.session.traffic.as_ref());
+            // (the fork) the duty for the tablet page
+            crate::tablet::publish(
+                self.session.duty.as_ref(),
+                &self.clock,
+                self.player.as_ref().map(|p| p.vehicle.position),
+                self.player.as_ref().map(|p| p.vehicle.physics.velocity_kmh()).unwrap_or(0.0),
+                self.session.humans.as_ref().map(|h| h.riding()),
+                self.paused,
+            );
             // (the fork) the trip just driven, while its summary is open
             let summary = self.session.trip_summary.and_then(|t| self.session.journey.as_ref().and_then(|j| j.summary(t)));
             let frame = ui::Frame {

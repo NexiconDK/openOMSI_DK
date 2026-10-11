@@ -421,6 +421,7 @@ flags! {
     OMSI_SURFACE_FLUSH: Num, Tuning, Once, "0.12", "Height in metres under which a surface counts as flush with the road.";
     OMSI_SUSP_TRACE: Text, Debug, Use, "-", "Offscreen CSV: body height and each wheel's travel and load every frame.";
     OMSI_SUSP_TRACE_WINDOW: Text, Debug, Use, "-", "Window CSV: each wheel's travel every frame.";
+    OMSI_TABLET_PREVIEW: Text, Test, Test, "-", "Web IBIS preview test: the folder for the state it writes.";
     OMSI_TERRAIN_ALIGN: Bool, Switch, Use, "off", "Align the terrain to the splines again at load (A/B; Omsi.exe does not).";
     OMSI_TEST_CONTENT: Text, Test, Test, "-", "Content root for tests that need real OMSI content.";
     OMSI_TEST_WINE_DIR: Text, Test, Test, "-", "Plugin demo test: folder holding omsi-plugin-host.exe for Wine.";

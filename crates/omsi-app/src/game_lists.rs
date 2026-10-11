@@ -1563,6 +1563,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
         "nav_cars" => s.nav_cars,
+        "tablet" => s.tablet,
         "nav_classic" => s.nav_classic,
         "shadows" => s.shadows,
         "head" => s.head_movement,
@@ -1673,6 +1674,11 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
             }
             app.settings.nav_cars = on;
             Some(("nav_cars", bit))
+        }
+        "tablet" => {
+            app.settings.tablet = on;
+            crate::tablet::set(on, app.settings.tablet_port);
+            Some(("tablet", bit))
         }
         "shadows" => {
             app.settings.shadows = on;
@@ -2356,6 +2362,7 @@ fn sync_live(app: &mut App) {
     crate::startup::SOUND_SCENERY.store(s.vol_scenery.to_bits(), std::sync::atomic::Ordering::Relaxed);
     omsi_audio::DOPPLER.store(s.doppler, std::sync::atomic::Ordering::Relaxed);
     omsi_sim::timetable_run::NEXT_TRIP_EARLY.store(s.next_trip_early, std::sync::atomic::Ordering::Relaxed);
+    crate::tablet::set(s.tablet, s.tablet_port);
     if let Some(n) = app.menus.navigator.as_mut() {
         n.arrows = s.nav_arrows;
         n.show_cars = s.nav_cars;
@@ -2384,6 +2391,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
         switch_row(app, "nav_cars", "Cars on the map", "With the AI vehicles shown: the cars as well. Off: only the buses, trolleybuses and trams"),
+        switch_row(app, "tablet", "Web-IBIS on a tablet or phone", "An IBIS on a web page: log in, pick a line and a trip, and the bus takes it on. Open the address at the top left of the game on a tablet or phone on the same network"),
         switch_row(app, "nav_classic", "Classic navigator", "The navigator and the city map as before: without the duty board, the duty sheet and the stop signs"),
         switch_row(app, "nav_arrows", "Route arrows (as in OMSI 2)", "Shows OMSI 2's route arrows over the road"),
         pick("navigator_corner", "Corner", later),
@@ -3069,6 +3077,78 @@ pub(crate) fn start_duty_at(app: &mut App, line: &str, tour: &str, trip: usize, 
     app.args.tour = Some(tour.to_string());
     app.session.duty = Some(d);
     app.service_msg = Some((format!("Line {line}, tour {}", tour.trim()), 4.0));
+}
+
+/// (the fork) A tour of `line` the web IBIS offers: one that runs today (or, after
+/// midnight, yesterday's still under way).
+fn tablet_tour(sch: &crate::schedule::Schedule, line: &str, tour: &omsi_timetable::Tour, now: f64) -> bool {
+    sch.tour_available(tour) && (sch.tour_runs_today(tour) || tour_listed(sch, line, tour, now))
+}
+
+/// (the fork) The web IBIS's question answered (`crate::tablet`): the lines of the map's
+/// timetable that the bus's depot file knows (all of them without one), a line's trips of
+/// the day in both directions, or a trip taken on.
+pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_json::Value {
+    use crate::tablet::Ask;
+    use serde_json::json;
+    let now = app.clock.time;
+    match ask {
+        Ask::Lines => {
+            let Some(sch) = app.session.schedule.as_ref() else { return json!({ "ok": true, "lines": [] }) };
+            let hof = app.player.as_ref().and_then(|p| p.vehicle.host.hof.clone());
+            let mut lines: Vec<&omsi_timetable::Line> = sch
+                .data
+                .lines
+                .iter()
+                .filter(|l| l.user_allowed && l.tours.iter().any(|t| tablet_tour(sch, &l.name, t, now)))
+                .filter(|l| hof.as_ref().is_none_or(|h| h.has_line(&l.name)))
+                .collect();
+            lines.sort_by(|a, b| natural(&a.name, &b.name));
+            let lines: Vec<_> = lines.into_iter().map(|l| json!({ "name": l.name, "sign": line_sign(Some(sch), l) })).collect();
+            json!({ "ok": true, "lines": lines })
+        }
+        Ask::Trips(line) => {
+            let Some(sch) = app.session.schedule.as_ref() else { return json!({ "ok": false, "trips": [] }) };
+            let Some(l) = sch.data.lines.iter().find(|l| l.name == line) else { return json!({ "ok": false, "trips": [] }) };
+            let duty = app.session.duty.as_ref().map(|d| (d.tour.clone(), d.trips.get(d.trip_index).map(|t| t.departure)));
+            let mut trips = Vec::new();
+            for t in l.tours.iter().filter(|t| tablet_tour(sch, &l.name, t, now)) {
+                for pos in 0..sch.tour_trip_count(&l.name, &t.number) {
+                    let stops = sch.tour_trip_stops(&l.name, &t.number, pos);
+                    let (Some(first), Some(last)) = (stops.first(), stops.last()) else { continue };
+                    let sign = tour_trip_name(sch, t, first.0)
+                        .and_then(|n| sch.data.trips.iter().find(|x| x.name.eq_ignore_ascii_case(&n)).map(|x| x.line.trim().to_string()))
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or_else(|| line_sign(Some(sch), l));
+                    let driving = duty.as_ref().is_some_and(|(tour, dep)| tour.eq_ignore_ascii_case(&t.number) && dep.is_some_and(|d| (d - first.3).abs() < 1.0));
+                    trips.push(json!({
+                        "tour": t.number.trim(),
+                        "pos": pos,
+                        "dep_s": first.3,
+                        "arr_s": last.3,
+                        "dep": crate::nav_duty::hhmm(first.3),
+                        "arr": crate::nav_duty::hhmm(last.3),
+                        "from": first.2.trim(),
+                        "to": last.2.trim(),
+                        "sign": sign,
+                        "driving": driving,
+                    }));
+                }
+            }
+            trips.sort_by(|a, b| a["dep_s"].as_f64().unwrap_or(0.0).total_cmp(&b["dep_s"].as_f64().unwrap_or(0.0)));
+            json!({ "ok": true, "line": line, "sign": line_sign(Some(sch), l), "now_s": now, "trips": trips })
+        }
+        Ask::Start { line, tour, pos } => {
+            let known = app.session.schedule.as_ref().is_some_and(|s| s.data.lines.iter().any(|l| l.name == line && l.tours.iter().any(|t| t.number == tour)));
+            if !known || app.player.is_none() {
+                return json!({ "ok": false, "error": "no such trip" });
+            }
+            start_duty_at(app, &line, &tour, pos, 0);
+            let ok = app.session.duty.as_ref().is_some_and(|d| d.line == line && d.tour == tour);
+            let error = (!ok).then(|| app.service_msg.as_ref().map(|m| m.0.clone()).unwrap_or_default());
+            json!({ "ok": ok, "error": error })
+        }
+    }
 }
 
 fn start_duty(app: &mut App, line: &str, tour: &str) {

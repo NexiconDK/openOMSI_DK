@@ -409,6 +409,7 @@ impl App {
                     n.arrows = self.settings.nav_arrows;
                     n.show_ai = self.settings.nav_ai;
                     n.show_cars = self.settings.nav_cars;
+                    crate::tablet::set_root(&self.args.root);
                     n.size = self.settings.navigator_size;
                     n.tall = self.settings.navigator_tall;
                     n.classic = self.settings.nav_classic;

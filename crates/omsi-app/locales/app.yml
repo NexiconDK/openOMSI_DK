@@ -29530,3 +29530,55 @@ _version: 2
 "With the AI vehicles shown: the cars as well. Off: only the buses, trolleybuses and trams":
   de: "Wenn KI-Fahrzeuge angezeigt werden: auch die Autos. Aus: nur Busse, O-Busse und Straßenbahnen"
   da: "Når AI-køretøjer vises: også bilerne. Fra: kun busser, trolleybusser og sporvogne"
+
+"Next stop":
+  de: "Nächste Haltestelle"
+  da: "Næste stop"
+
+"Web-IBIS on a tablet or phone":
+  de: "Web-IBIS auf einem Tablet oder Handy"
+  da: "Web-IBIS på en tablet eller telefon"
+
+"An IBIS on a web page: log in, pick a line and a trip, and the bus takes it on. Open the address at the top left of the game on a tablet or phone on the same network":
+  de: "Ein IBIS auf einer Webseite: anmelden, Linie und Fahrt wählen, und der Bus übernimmt sie. Die Adresse oben links im Spiel auf einem Tablet oder Handy im selben Netzwerk öffnen"
+  da: "En IBIS på en webside: log ind, vælg linje og tur, og bussen kører den. Åbn adressen øverst til venstre i spillet på en tablet eller telefon på samme netværk"
+
+"Choose a line":
+  de: "Linie wählen"
+  da: "Vælg linje"
+
+"Take on this trip?":
+  de: "Diese Fahrt übernehmen?"
+  da: "Kør denne tur?"
+
+"Yes":
+  de: "Ja"
+  da: "Ja"
+
+"No":
+  de: "Nein"
+  da: "Nej"
+
+"Log out":
+  de: "Abmelden"
+  da: "Log ud"
+
+"No trips today":
+  de: "Heute keine Fahrten"
+  da: "Ingen ture i dag"
+
+"No connection to the game":
+  de: "Keine Verbindung zum Spiel"
+  da: "Ingen forbindelse til spillet"
+
+"Driver number":
+  de: "Fahrernummer"
+  da: "Chaufførnummer"
+
+"Password":
+  de: "Passwort"
+  da: "Adgangskode"
+
+"Type a driver number and a password (any will do)":
+  de: "Fahrernummer und Passwort eingeben (beliebig)"
+  da: "Tast chaufførnummer og adgangskode (hvad som helst)"

@@ -46,13 +46,10 @@ const ON_LINE: Color = Color::rgba(26, 20, 0, 1.0);
 /// Punctuality as fills (a chip): late, on time, early.
 pub(crate) const LATE: Color = Color::rgba(217, 58, 48, 1.0);
 pub(crate) const ON_TIME: Color = Color::rgba(26, 138, 79, 1.0);
-// (blue whatever the accent: it is a meaning)
-pub(crate) const EARLY: Color = Color::rgba(42, 117, 247, 1.0);
 /// The same as letters on the dark panel (the fills are too dark to read as text there;
 /// Omsi-Hub's overlay wrote its delay in these).
 pub(crate) const LATE_INK: Color = Color::hex(0xFF5F57);
 pub(crate) const ON_TIME_INK: Color = Color::hex(0x37D67A);
-pub(crate) const EARLY_INK: Color = Color::hex(0x4DA3FF);
 /// (the fork) Late, orange: ahead of the timetable is the worse (red), as the drivers have it.
 pub(crate) const BEHIND: Color = Color::rgba(222, 120, 22, 1.0);
 pub(crate) const BEHIND_INK: Color = Color::hex(0xFFA23F);
@@ -815,16 +812,9 @@ pub(crate) fn draw_sheet_head(pen: &mut Pen, d: &DutyState, r: Rect, time: f64, 
     let status = d.status();
     let cw = pen.chip(status, x1, r.y + 27.0 * s, s);
     let tx = x0 + 28.0 * s;
-    // (the fork) with the duty's name from the timetable (its tour, "143H01")
-    let title = match d.leg(d.trip).1.trim() {
-        "" => omsi_ui::tr("Duty").into_owned(),
-        tour => format!("{} {tour}", omsi_ui::tr("Duty")),
-    };
+    let title = sheet_title(d);
     pen.text_in(&title, 18.0 * s, Weight::Bold, Rect::new(tx, r.y + 15.0 * s, (x1 - cw - 8.0 * s - tx).max(0.0), 24.0 * s), Align::Left, TEXT);
-    let span = match (d.trips.first(), d.trips.last()) {
-        (Some(a), Some(b)) => format!("{}  ·  {} – {}", tr_with(if d.trips.len() == 1 { "%{n} trip" } else { "%{n} trips" }, &[("n", d.trips.len().to_string())]), hhmm(a.departure), hhmm(b.end)),
-        _ => String::new(),
-    };
+    let span = sheet_span(d);
     pen.text_in(&span, 12.0 * s, Weight::Medium, Rect::new(tx, r.y + 38.0 * s, x1 - tx, 18.0 * s), Align::Left, TEXT_DIM);
     // the tiles: the time in the game, the delay (in its colour; none before a trip and
     // during a break), the trip
@@ -844,6 +834,37 @@ pub(crate) fn draw_sheet_head(pen: &mut Pen, d: &DutyState, r: Rect, time: f64, 
     }
     pen.p.rect(Rect::new(r.x, r.y + SHEET_HEAD * s - 1.0, r.w, 1.0), HAIRLINE);
     Rect::new(r.x, r.y + SHEET_HEAD * s, r.w, (r.h - SHEET_HEAD * s - 8.0 * s).max(0.0))
+}
+
+/// The sheet's title: the duty with its name from the timetable (its tour, "Duty 143H01").
+pub(crate) fn sheet_title(d: &DutyState) -> String {
+    match d.leg(d.trip).1.trim() {
+        "" => omsi_ui::tr("Duty").into_owned(),
+        tour => format!("{} {tour}", omsi_ui::tr("Duty")),
+    }
+}
+
+/// Under the title: how many trips, from when to when.
+pub(crate) fn sheet_span(d: &DutyState) -> String {
+    match (d.trips.first(), d.trips.last()) {
+        (Some(a), Some(b)) => format!("{}  ·  {} – {}", tr_with(if d.trips.len() == 1 { "%{n} trip" } else { "%{n} trips" }, &[("n", d.trips.len().to_string())]), hhmm(a.departure), hhmm(b.end)),
+        _ => String::new(),
+    }
+}
+
+/// Under a trip of the sheet: its line (or an empty run) and how many stops it serves.
+pub(crate) fn trip_sub(line: Option<&str>, stops: usize) -> String {
+    let sub = match line {
+        Some(l) => tr_with("line %{line}", &[("line", l.to_string())]),
+        None => omsi_ui::tr("Empty run").into_owned(),
+    };
+    let count = if stops == 1 { omsi_ui::tr("1 stop").into_owned() } else { tr_with("%{n} stops", &[("n", stops.to_string())]) };
+    format!("{sub}  ·  {count}")
+}
+
+/// (the fork, the tablet page) The status chip's fill and ink.
+pub(crate) fn chip_colours(status: Status) -> (Color, Color) {
+    status.colours()
 }
 
 /// Draw the sheet's list into `view` (in the list's own layer, clipped to it), scrolled
@@ -885,12 +906,7 @@ pub(crate) fn draw_sheet_list(pen: &mut Pen, rows: &[SheetRow], view: Rect, scro
                 };
                 let nx = px + plw + 8.0 * s;
                 pen.text_in(terminus, 13.5 * s, Weight::Bold, Rect::new(nx, cy - 9.0 * s, (x1 - aw - 8.0 * s - nx).max(0.0), 18.0 * s), Align::Left, ink);
-                let sub = match line {
-                    Some(l) => tr_with("line %{line}", &[("line", l.clone())]),
-                    None => omsi_ui::tr("Empty run").into_owned(),
-                };
-                let count = if *stops == 1 { omsi_ui::tr("1 stop").into_owned() } else { tr_with("%{n} stops", &[("n", stops.to_string())]) };
-                pen.text_in(&format!("{sub}  ·  {count}"), 11.0 * s, Weight::Medium, Rect::new(nx, r.y + 26.0 * s, (x1 - nx).max(0.0), 14.0 * s), Align::Left, if *state == TripState::Done { TEXT_FAINT } else { TEXT_DIM });
+                pen.text_in(&trip_sub(line.as_deref(), *stops), 11.0 * s, Weight::Medium, Rect::new(nx, r.y + 26.0 * s, (x1 - nx).max(0.0), 14.0 * s), Align::Left, if *state == TripState::Done { TEXT_FAINT } else { TEXT_DIM });
             }
             SheetRow::Stop { planned, name, state, last } => {
                 // (as Omsi-Hub's live duty: the pin on the rail, the time, the name)

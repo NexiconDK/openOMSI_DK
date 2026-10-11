@@ -41,6 +41,15 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Knappen med listen i bykortets top (grøn, når panelet vises) skjuler og viser vagt-panelet.
 - Bykortet tegner nu stoppestederne som **H-skilte** med navn og tid (de kørte stop nedtonet), og de andre busser og biler i **deres rigtige størrelse og form** med linjeskilt over busserne (din egen linje fremhævet). Med vagt-panelet åbent centreres kortet på den del, panelet ikke dækker. Også fra Luc-nbr's beta.
 
+### Web-IBIS (tablet)
+- Ny indstilling **Web-IBIS på en tablet eller telefon** (slået fra fra start; i launcheren under navigatorens indstillinger og i spillets menu). Slået til viser spillet en IBIS som webside på dit eget netværk. Adressen står øverst til venstre i spillet, fx **Web-IBIS: http://192.168.1.20:8095**. Åbn den i browseren på en tablet eller telefon på samme wifi. Første gang spørger Windows' firewall, om spillet må bruge netværket. Svar ja for private netværk.
+- **Login:** skriv et vilkårligt chaufførnummer og en vilkårlig adgangskode. Klokken og datoen i hjørnet følger spillets tid.
+- **Linjer:** alle linjer i kortets køreplan, som bussens HOF-fil kender. Den linje, du kører, er markeret.
+- **Ture:** et tryk på en linje viser dagens ture i begge retninger med afgangstid, fra/til og vagt. Kørte ture er grå, og listen starter ved den næste tur. Knapperne øverst filtrerer på retning.
+- **Kør tur:** tryk på en tur og svar **Ja**. Spillet starter turen som din vagt (bussen bliver, hvor den er), og bussen skilter destinationen.
+- **Vagt:** linje og destination, status-boksen, forsinkelse, tur x/y, næste stop og hele vagten med turens stop og forventede tider.
+- **Dine egne billeder:** læg login-billedet som **login.png** (1280 × 720) i mappen **WebIBIS** i din OMSI-mappe. Billedets øverste stribe bruges også som topbjælke på de andre skærme. Uden billede tegnes simple hvide skærme. Billederne følger ikke med spillet.
+
 ### Turoversigt
 - Ny indstilling **Turoversigt efter hver tur** (slået fra fra start; findes i launcheren under Gameplay → Passagerer og i spillets menu). Når en tur slutter, og bussen holder **helt stille** ved endestationen, åbner et vindue (aldrig under kørslen) med alle stoppesteder: planlagt og faktisk ankomst og afgang, afvigelse, **hvor mange der steg på og af**, km-tæller og status (OK, forsinket, kørt for tidligt, sprunget over). Nederst står totaler for turen.
 - Påstigere og afstigere tælles nu efter, hvem der faktisk kom ind i og ud af bussen, uanset hvilken dør de brugte. Før talte kun dem, der gik ind ved føreren, så der kunne stå flere stået af end på. Dem, der stiger på ved endestationen til turen tilbage, tæller med på næste tur.
