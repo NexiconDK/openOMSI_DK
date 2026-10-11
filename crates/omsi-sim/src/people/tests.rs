@@ -950,3 +950,48 @@ fn a_preferred_place_kind_falls_back_to_the_other() {
         assert_eq!(super::pax_stops::choose_place(&[0, 2], &places, Some(false), pick), [0, 2][pick % 2], "nowhere to stand: a seat");
     }
 }
+
+/// The trips due at the stops are made anew once a game minute (#1415): a stop no trip was
+/// due at when the game started gets its people once one is. A dedicated server made them
+/// at its start only, and a stop without a trip in its first quarter of an hour stayed
+/// empty for the rest of the session.
+#[test]
+fn the_trips_due_at_the_stops_follow_the_clock() {
+    // stop 1 has a trip due from 08:00 on, stop 2 from 08:30 on
+    let due = |t: f64| -> HashMap<i64, HashSet<String>> {
+        let mut m = HashMap::new();
+        m.insert(1, ["Hbf".to_string()].into_iter().collect());
+        if t >= 8.5 * 3600.0 {
+            m.insert(2, ["Oberhof".to_string()].into_iter().collect());
+        }
+        m
+    };
+    let none_due = |h: &PeopleSim, stop: i64| {
+        h.due_dests
+            .as_ref()
+            .is_some_and(|d| d.get(&stop).is_none_or(|s| s.is_empty()))
+    };
+    let mut h = PeopleSim::new(Path::new("/nonexistent"), 200);
+    let mut made = 0;
+    h.keep_due_dests(8.0 * 3600.0, |t| {
+        made += 1;
+        due(t)
+    });
+    assert_eq!(made, 1);
+    assert!(!none_due(&h, 1));
+    assert!(none_due(&h, 2));
+    // not again within the game minute
+    h.keep_due_dests(8.0 * 3600.0 + 59.0, |t| {
+        made += 1;
+        due(t)
+    });
+    assert_eq!(made, 1);
+    // half an hour later the trip at stop 2 is due
+    h.keep_due_dests(8.5 * 3600.0, |t| {
+        made += 1;
+        due(t)
+    });
+    assert_eq!(made, 2);
+    assert!(!none_due(&h, 2));
+    assert_eq!(h.due_at, 8.5 * 3600.0);
+}
