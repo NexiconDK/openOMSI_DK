@@ -105,9 +105,15 @@ fn in_player_box(world: vec3<f32>) -> vec3<f32> {
 // outside it? Nothing shadows another vehicle's lamps: the headlights of a bus behind shone
 // through the player's bus onto the road ahead, seen through the windscreen. (A lamp of the
 // player's own vehicle is never blocked; its box taken 0.1 m smaller, so that the skin
-// facing the lamp is still lit.)
-fn player_vehicle_blocks(lamp: vec3<f32>, p: vec3<f32>) -> bool {
+// facing the lamp is still lit.) `range`: how far the lamp shines - one whose light cannot
+// reach past the vehicle is not tested (most of a city's traffic, every pixel).
+fn player_vehicle_blocks(lamp: vec3<f32>, p: vec3<f32>, range: f32) -> bool {
     if (camera.inside_c.w < 0.5) {
+        return false;
+    }
+    let reach = range + length(camera.inside_b.yzw) + length(camera.inside_c.xyz);
+    let off = lamp - camera.inside_a.xyz;
+    if (dot(off, off) > reach * reach) {
         return false;
     }
     let a = in_player_box(lamp);
@@ -1210,7 +1216,7 @@ fn point_lights(p: vec3<f32>, n: vec3<f32>, map_k: f32) -> vec3<f32> {
                 continue;
             }
             // (the player's bus casts its shadow: a lamp behind it lights no road ahead of it)
-            if (vehicle_lamp && player_vehicle_blocks(l.pos.xyz, p)) {
+            if (vehicle_lamp && player_vehicle_blocks(l.pos.xyz, p, l.pos.w)) {
                 continue;
             }
             // full intensity within 1/8 of the range, then inverse-square, cut off at the range;

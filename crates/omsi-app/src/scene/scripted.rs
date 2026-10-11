@@ -597,7 +597,10 @@ impl World {
                 let _ = o.inst.take_refresh_strings();
                 // a departure board's "sofort" (due now) in the interface's language, blinking
                 let now_word = o.arrivals.then(|| omsi_ui::tr(DUE_NOW)).filter(|w| w != DUE_NOW);
-                let blink_on = (now.time * 2.0).rem_euclid(2.0) < 1.0;
+                // (only a board one can read blinks: each blink draws its text anew and sends it
+                // to the graphics card, twice a second on every board of the map that said
+                // "Nu" - a hitch every half second)
+                let blink_on = dist > BLINK_NEAR || (now.time * 2.0).rem_euclid(2.0) < 1.0;
                 for (tex, st) in o.texts.iter_mut() {
                     // (read in place: a copy each frame was only compared with the last)
                     let text = o.inst.str_var(st.def.variable.trim());
@@ -838,12 +841,15 @@ impl World {
 
 /// What a departure board's script writes for a bus that leaves now (OMSI's German boards).
 const DUE_NOW: &str = "sofort";
+/// (the fork) Within this many metres of the camera a board's "now" blinks; farther, it
+/// stays lit.
+const BLINK_NEAR: f64 = 120.0;
 
 /// `text` with its [`DUE_NOW`] written as `word` (in capitals when the board wrote it so), or
 /// left out while `on` is false so it blinks; `None` when the text has no such word.
 fn due_now_text(text: &str, word: &str, on: bool) -> Option<String> {
-    let lower = text.to_ascii_lowercase();
-    let at = lower.find(DUE_NOW)?;
+    // (looked for without a lower-case copy of every board's text each frame)
+    let at = text.as_bytes().windows(DUE_NOW.len()).position(|w| w.eq_ignore_ascii_case(DUE_NOW.as_bytes()))?;
     let found = &text[at..at + DUE_NOW.len()];
     let word = if !on {
         String::new()

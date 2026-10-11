@@ -271,7 +271,7 @@ fn lamp_light(p: vec3<f32>, n: vec3<f32>, v: vec3<f32>, sf: Surface, thin: bool,
         }
         // (the player's bus casts its shadow: the headlights of a bus behind it light no road
         // ahead of it, and no car or wall in front)
-        if (vehicle_lamp && player_vehicle_blocks(l.pos.xyz, p)) {
+        if (vehicle_lamp && player_vehicle_blocks(l.pos.xyz, p, range)) {
             continue;
         }
         let dist = sqrt(dist2);

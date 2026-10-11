@@ -67,7 +67,7 @@ const LABEL_DIM: Color = Color::rgba(178, 178, 178, 1.0);
 // --- the style ------------------------------------------------------------------------
 
 /// Which country's stop sign the maps draw (`stop_style`: "de", "uk", "fr").
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Style {
     #[default]
@@ -136,7 +136,7 @@ pub fn style() -> Style {
 // --- the kind of stop -----------------------------------------------------------------
 
 /// Where a stop is in the trip, as its sign shows it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     /// A stop still to come.
     Ahead,
@@ -516,10 +516,29 @@ fn extent(style: Style, kind: Kind, size: f32) -> f32 {
     sign(style, kind, size).iter().flat_map(|s| s.pts.iter()).map(|p| p.length()).fold(0.0, f32::max)
 }
 
+/// (the fork) [`sign`] made once per style, kind and size: the city map draws every stop of
+/// the trip each frame, each sign some hundred small shapes made anew.
+fn sign_cached(style: Style, kind: Kind, size: f32) -> std::rc::Rc<Vec<Shape>> {
+    use std::collections::HashMap;
+    thread_local! {
+        static SIGNS: std::cell::RefCell<HashMap<(Style, Kind, u32), std::rc::Rc<Vec<Shape>>>> = Default::default();
+    }
+    SIGNS.with(|c| {
+        let mut c = c.borrow_mut();
+        // (sizes come and go with the zoom and the interface's size: a bounded cache)
+        if c.len() > 512 {
+            c.clear();
+        }
+        c.entry((style, kind, size.to_bits())).or_insert_with(|| std::rc::Rc::new(sign(style, kind, size))).clone()
+    })
+}
+
 /// A sign on the screen, its middle at `at` (pixels).
 pub fn draw(p: &mut Painter, style: Style, kind: Kind, at: Vec2, size: f32) {
-    for s in sign(style, kind, size) {
-        let pts: Vec<Vec2> = s.pts.iter().map(|q| at + *q).collect();
+    let mut pts: Vec<Vec2> = Vec::new();
+    for s in sign_cached(style, kind, size).iter() {
+        pts.clear();
+        pts.extend(s.pts.iter().map(|q| at + *q));
         p.convex(&pts, s.color);
     }
 }

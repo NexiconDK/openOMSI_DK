@@ -24,6 +24,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Før midnat viser tavlerne også nattens afgange efter midnat (fx kl. 23:45: NE21 kl. 00:20).
 - Tider efter midnat står nu som på et ur: **00:29** og ikke 24:29 (køreplanen tæller videre efter 24:00, men tavlen gør ikke).
 - På dansk står der **Nu** i stedet for "sofort", når en bus kører nu, og det **blinker**.
+- Hurtigere: kun tavler inden for ca. 120 m blinker. Tavler længere væk viser "Nu" uden at blinke. Før blev teksten på alle tavler i byen tegnet forfra to gange i sekundet, hvilket kunne give små hak.
 - I multiplayer kommer de andre spilleres busser på tavlerne, dér hvor de faktisk er, med deres forsinkelse. Kører to spillere samme tur (fx med 1-2 minutters mellemrum), står **begge busser** på tavlen. Turens senere afgange står kun én gang. En bus, der er kørt forbi stoppestedet, forsvinder fra tavlen. Alle spillere skal have den nye version.
 
 ### Navigator (minimap og bykort)
@@ -40,6 +41,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Vagt-panelet på bykortet viser nu **vagtens navn** i overskriften, fx **Vagt 143H01** (navnet fra køreplanen).
 - Knappen med listen i bykortets top (grøn, når panelet vises) skjuler og viser vagt-panelet.
 - Bykortet tegner nu stoppestederne som **H-skilte** med navn og tid (de kørte stop nedtonet), og de andre busser og biler i **deres rigtige størrelse og form** med linjeskilt over busserne (din egen linje fremhævet). Med vagt-panelet åbent centreres kortet på den del, panelet ikke dækker. Også fra Luc-nbr's beta.
+- Hurtigere: H-skiltene på bykortet tegnes én gang i hver størrelse og genbruges, i stedet for at blive bygget forfra hvert billede.
 
 ### Web-IBIS (tablet)
 - Ny indstilling **Web-IBIS på en tablet eller telefon** (slået fra fra start; i launcheren under navigatorens indstillinger og i spillets menu). Slået til viser spillet en IBIS som webside på dit eget netværk. Adressen står øverst til venstre i spillet, fx **Web-IBIS: http://192.168.1.20:8095**. Åbn den i browseren på en tablet eller telefon på samme wifi. Første gang spørger Windows' firewall, om spillet må bruge netværket. Svar ja for private netværk.
@@ -66,6 +68,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Forlygterne fra en bus eller bil bag dig (andre spillere og AI) lyser ikke længere igennem din bus ind på forruden, instrumentbrættet og kabinen, når du sidder i førerhuset (grafik: Enhanced og Enhanced+).
 - Det gælder nu alle lygter på andre køretøjer (også deres positionslys og de forenklede lygter), og også med grafikken Vanilla og Vanilla+.
 - Din bus kaster nu skygge for lyset fra køretøjer bag dig: deres forlygter lyser ikke længere vejen, bilerne og husene **foran** din bus op, som om din bus ikke var der (det så ud som forlygter i forruden). Gælder alle grafikindstillinger, når du sidder i bussen.
+- Hurtigere: skyggen regnes nu kun ud for lygter, hvis lys kan nå forbi din bus. Før blev hvert billedpunkt tjekket mod alle bilers lygter i byen, hvilket kostede om natten.
 
 ### Multiplayer
 - På minimappet og bykortet står de andre spilleres **linje foran deres navn**, fx **123 - Bjorn**, eller **Ikke i rute - Bjorn**, når de ikke har nogen linje. Går de til fods eller kører med i en andens bus, står kun navnet.
