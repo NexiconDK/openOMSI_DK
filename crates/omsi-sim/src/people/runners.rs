@@ -113,11 +113,14 @@ impl PeopleSim {
             return;
         }
         self.runner_at = self.time;
+        // (anybody still late, for `runner_step`: while nobody is, nobody looks)
+        self.runners_live = self.people.iter().any(|p| matches!(&p.state, State::Pax(x) if x.late.is_some()));
         // (a bus no longer listed at the stop has left it: at the next stop a new roll)
         let stops = &self.stops;
         self.runner_rolls.retain(|(s, b)| stops.get(s).is_some_and(|st| st.buses.iter().any(|x| x.0 == *b)));
         let chance = runner_chance(self.runner_chance);
-        if chance <= 0.0 {
+        // (no player's bus standing: nothing more to look at - the stops not at all)
+        if chance <= 0.0 || !buses.iter().any(|b| players_bus(b.id) && b.speed.abs() < 0.5) {
             return;
         }
         // the players' buses standing in the box of a stop near the player
@@ -216,6 +219,7 @@ impl PeopleSim {
             (None, None) => return None,
         };
         self.set_task(i, if ours { Task::ToBus } else { Task::WalkingToBusstop }, buses, bus_ix, world);
+        self.runners_live = true;
         trace!(
             "t={:.1} pax {} late for {bus:?} at stop {id}, {}, {:.0} m away",
             self.time,
@@ -272,6 +276,9 @@ impl PeopleSim {
     /// Somebody late, before their movement this frame: left behind when the bus goes, an
     /// ordinary passenger again once aboard or waiting at the stop.
     pub fn runner_step(&mut self, i: usize, dt: f32, world: &dyn World, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) {
+        if !self.runners_live {
+            return;
+        }
         let Some(p) = self.pax(i) else { return };
         let Some(late) = p.late else { return };
         let (task, inside, stop, bus) = (p.task, p.inside, p.stop, p.bus);

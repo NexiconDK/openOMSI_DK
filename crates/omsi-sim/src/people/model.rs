@@ -288,6 +288,9 @@ pub struct PeopleSim {
     /// The players' buses that have had their roll for somebody running up late at the stop
     /// they stand at (`runners_tick`): (stop, bus), forgotten once the bus has left.
     pub runner_rolls: HashSet<(i64, BusId)>,
+    /// Somebody may be late now (`runners_tick` looks four times a second, a new runner sets
+    /// it): while not, `runner_step` does nothing for anybody.
+    pub runners_live: bool,
     /// (the fork) When `runners_tick` last looked (`RUNNER_EVERY`).
     pub runner_at: f64,
     /// Timetable buses to keep at their stop for a few seconds more (for the traffic): the

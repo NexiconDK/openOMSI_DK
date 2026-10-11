@@ -99,6 +99,7 @@ impl PeopleSim {
             ai_visits: HashMap::new(),
             last_door_open: HashMap::new(),
             runner_rolls: HashSet::new(),
+            runners_live: false,
             runner_at: f64::NEG_INFINITY,
             holds: Vec::new(),
             ai_requests: Vec::new(),
