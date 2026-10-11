@@ -3085,6 +3085,13 @@ fn tablet_tour(sch: &crate::schedule::Schedule, line: &str, tour: &omsi_timetabl
     sch.tour_available(tour) && (sch.tour_runs_today(tour) || tour_listed(sch, line, tour, now))
 }
 
+/// (the fork) Whether the depot file's IBIS trips carry a timetable's line: by the line's
+/// name ("Linje 143") or by the number its trips show ("143").
+fn hof_knows(hof: &omsi_vehicle::Hof, name: &str, sign: &str) -> bool {
+    let bare = name.trim().rsplit(' ').next().unwrap_or("");
+    [name, sign, bare].iter().any(|n| !n.trim().is_empty() && hof.has_line(n))
+}
+
 /// (the fork) The web IBIS's question answered (`crate::tablet`): the lines of the map's
 /// timetable that the bus's depot file knows (all of them without one), a line's trips of
 /// the day in both directions, or a trip taken on.
@@ -3096,13 +3103,11 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
         Ask::Lines => {
             let Some(sch) = app.session.schedule.as_ref() else { return json!({ "ok": true, "lines": [] }) };
             let hof = app.player.as_ref().and_then(|p| p.vehicle.host.hof.clone());
-            let mut lines: Vec<&omsi_timetable::Line> = sch
-                .data
-                .lines
-                .iter()
-                .filter(|l| l.user_allowed && l.tours.iter().any(|t| tablet_tour(sch, &l.name, t, now)))
-                .filter(|l| hof.as_ref().is_none_or(|h| h.has_line(&l.name)))
-                .collect();
+            let running: Vec<&omsi_timetable::Line> = sch.data.lines.iter().filter(|l| l.user_allowed && l.tours.iter().any(|t| tablet_tour(sch, &l.name, t, now))).collect();
+            // (the timetable names a line after its file, "Linje 143", the depot file by its
+            // number: either will do; a depot file that knows none of them hides none)
+            let known: Vec<&omsi_timetable::Line> = running.iter().copied().filter(|l| hof.as_ref().is_none_or(|h| hof_knows(h, &l.name, &line_sign(Some(sch), l)))).collect();
+            let mut lines = if known.is_empty() { running } else { known };
             lines.sort_by(|a, b| natural(&a.name, &b.name));
             let lines: Vec<_> = lines.into_iter().map(|l| json!({ "name": l.name, "sign": line_sign(Some(sch), l) })).collect();
             json!({ "ok": true, "lines": lines })
@@ -3180,6 +3185,18 @@ fn start_duty(app: &mut App, line: &str, tour: &str) {
 
 #[cfg(test)]
 mod tests {
+    /// (the fork) The web IBIS's lines: the timetable's "Linje 143" is the depot file's
+    /// line 143 (an IBIS trip coded 14301).
+    #[test]
+    fn a_line_named_after_its_file_is_known_by_its_number() {
+        let mut hof = omsi_vehicle::Hof::default();
+        hof.info_trips.push(omsi_vehicle::hof::InfoTrip { code: "14301".into(), name: "143 Lößstein".into(), ..Default::default() });
+        assert!(super::hof_knows(&hof, "Linje 143", "143"));
+        assert!(super::hof_knows(&hof, "Linje 143", ""));
+        assert!(super::hof_knows(&hof, "x", "143"));
+        assert!(!super::hof_knows(&hof, "Linje 146", "146"));
+    }
+
     #[test]
     fn searches_model_and_hof_names_and_paths_without_losing_their_actions() {
         assert!(super::search_matches("Volvo BRT", "bus Vehicles/Pack/biarticulado.bus", "VOLVO biarticulado"));

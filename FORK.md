@@ -45,6 +45,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Ny indstilling **Web-IBIS på en tablet eller telefon** (slået fra fra start; i launcheren under navigatorens indstillinger og i spillets menu). Slået til viser spillet en IBIS som webside på dit eget netværk. Adressen står øverst til venstre i spillet, fx **Web-IBIS: http://192.168.1.20:8095**. Åbn den i browseren på en tablet eller telefon på samme wifi. Første gang spørger Windows' firewall, om spillet må bruge netværket. Svar ja for private netværk.
 - **Login:** skriv et vilkårligt chaufførnummer og en vilkårlig adgangskode. Klokken og datoen i hjørnet følger spillets tid.
 - **Linjer:** alle linjer i kortets køreplan, som bussens HOF-fil kender. Den linje, du kører, er markeret.
+- Rettet: linjelisten var tom ("Ingen køreplan på dette kort"), fordi køreplanen kalder linjerne "Linje 143", mens HOF-filen kender dem som "143". Nu genkendes begge, og kender HOF-filen ingen af linjerne, vises de alle.
 - **Ture:** et tryk på en linje viser dagens ture i begge retninger med afgangstid, fra/til og vagt. Kørte ture er grå, og listen starter ved den næste tur. Knapperne øverst filtrerer på retning.
 - **Kør tur:** tryk på en tur og svar **Ja**. Spillet starter turen som din vagt (bussen bliver, hvor den er), og bussen skilter destinationen.
 - **Vagt:** linje og destination, status-boksen, forsinkelse, tur x/y, næste stop og hele vagten med turens stop og forventede tider.
