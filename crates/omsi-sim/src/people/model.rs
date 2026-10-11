@@ -292,6 +292,8 @@ pub struct PeopleSim {
     /// `Placed` or `Running`), for `put_out`: asked for every pedestrian every frame, it went
     /// through all the rolls each time.
     pub runner_out: Vec<u32>,
+    /// (the fork) When `runners_tick` last looked (`RUNNER_EVERY`).
+    pub runner_at: f64,
     /// Timetable buses to keep at their stop for a few seconds more (for the traffic): the
     /// bus, the stop it must be serving for it (none: any), the seconds.
     pub holds: Vec<(u64, Option<i64>, f32)>,

@@ -39,6 +39,8 @@ pub const RUNNER_OVERTAKEN: f64 = 25.0;
 pub const RUNNER_SPEED: (f32, f32) = (3.0, 3.6);
 /// Seconds somebody hurrying keeps a timetable bus at the stop, at most.
 pub const RUNNER_HOLD_MAX: f32 = 12.0;
+/// (the fork) How often the buses coming to the stops near the player are looked at (s).
+pub const RUNNER_EVERY: f64 = 0.25;
 /// Seconds somebody left behind stands looking after the bus.
 pub const RUNNER_MISSED: f32 = 2.0;
 
@@ -204,6 +206,13 @@ impl PeopleSim {
         if self.mirror || self.avatar_only {
             return;
         }
+        // (the fork) four times a second, not every frame: a bus covers a few metres in a
+        // quarter of a second, well inside the distances it is looked at by (150 m to be put
+        // out for, 25 m to be overtaken in, 15 m to the doors)
+        if self.time - self.runner_at < RUNNER_EVERY && self.time >= self.runner_at {
+            return;
+        }
+        self.runner_at = self.time;
         self.runners_turn(world, net, buses, bus_ix);
         self.refresh_runner_out();
     }

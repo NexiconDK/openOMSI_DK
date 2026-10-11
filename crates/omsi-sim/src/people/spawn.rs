@@ -100,6 +100,7 @@ impl PeopleSim {
             last_door_open: HashMap::new(),
             runner_rolls: HashMap::new(),
             runner_out: Vec::new(),
+            runner_at: f64::NEG_INFINITY,
             holds: Vec::new(),
             ai_requests: Vec::new(),
             tickets: None,
