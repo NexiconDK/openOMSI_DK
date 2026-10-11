@@ -2291,6 +2291,7 @@ fn select_options(key: &str) -> Vec<(&'static str, &'static str)> {
         "maintenance" => vec![("0", "Infinite (no wear)"), ("1", "Very bad"), ("2", "Bad"), ("3", "Normal"), ("4", "Good")],
         "full_sign_at" => vec![("80", "80% full"), ("90", "90% full"), ("95", "95% full"), ("100", "100% full")],
         "pedestrians" => vec![("0", "None"), ("50", "Few"), ("100", "Normal"), ("200", "Many"), ("400", "Very many")],
+        "pax_runners" => vec![("0", "Off"), ("5", "Now and then"), ("15", "Often"), ("30", "Very often")],
         "pax_sit" => vec![("0", "Off (random place, as OMSI)"), ("50", "Little"), ("100", "Normal"), ("150", "Much"), ("200", "Very much")],
         "ai_unsched_factor" => vec![("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%"), ("150", "150%"), ("200", "200%")],
         "ai_max_scheduled" => vec![("0", "All"), ("10", "At most 10"), ("25", "At most 25"), ("50", "At most 50")],
@@ -2372,6 +2373,7 @@ fn sync_live(app: &mut App) {
         h.boarding = s.boarding.clone();
         h.pedestrian_factor = s.pedestrians;
         h.sit_wish = s.pax_sit;
+        h.runner_chance = s.pax_runners;
         h.voices = match s.pax_voices.as_str() {
             "off" => 2,
             "tickets" => 1,
@@ -2408,6 +2410,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         pick("full_sign_at", "OPTAGET from", "How full the bus is before its sign says OPTAGET"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
         pick("pedestrians", "People on the streets", "How many people walk the pavements"),
+        pick("pax_runners", "Passengers running for the bus", "Now and then somebody late runs along the pavement to catch a bus at a stop near you; a timetable bus waits a few seconds for them"),
         pick("pax_sit", "Passengers' wish to sit", "How passengers choose their place: window seats, the pilot's seat for the elderly, groups who sit together. Off: a place at random, as in OMSI"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),

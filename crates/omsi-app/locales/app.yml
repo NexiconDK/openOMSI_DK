@@ -29582,3 +29582,23 @@ _version: 2
 "Type a driver number and a password (any will do)":
   de: "Fahrernummer und Passwort eingeben (beliebig)"
   da: "Tast chaufførnummer og adgangskode (hvad som helst)"
+
+"Passengers running for the bus":
+  de: "Fahrgäste, die zum Bus rennen"
+  da: "Passagerer der løber efter bussen"
+
+"Now and then":
+  de: "Ab und zu"
+  da: "En gang imellem"
+
+"Often":
+  de: "Oft"
+  da: "Tit"
+
+"Very often":
+  de: "Sehr oft"
+  da: "Meget tit"
+
+"Now and then somebody late runs along the pavement to catch a bus at a stop near you; a timetable bus waits a few seconds for them":
+  de: "Ab und zu rennt jemand, der spät dran ist, den Gehweg entlang, um einen Bus an einer Haltestelle in deiner Nähe zu erreichen; ein Fahrplanbus wartet ein paar Sekunden auf ihn"
+  da: "En gang imellem løber en, der er sent på den, ad fortovet for at nå en bus ved et stoppested i nærheden af dig; en køreplansbus venter et par sekunder på dem"

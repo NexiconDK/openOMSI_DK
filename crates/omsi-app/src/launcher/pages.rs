@@ -1140,6 +1140,7 @@ fn gameplay_tab(ui: &mut Ui, s: &mut Value, dirty: &mut f32, cols: [Rect; 2]) ->
     toggle_setting(ui, s, dirty, c.row(), "Trip summary after each trip", "trip_summary");
     toggle_setting(ui, s, dirty, c.row(), "Next trip begins at the terminus", "next_trip_early");
     sel_setting(ui, s, dirty, "s-paxsit", c.row(), "Passengers' wish to sit", "pax_sit", &[("0", "Off (random place, as OMSI)"), ("50", "Little"), ("100", "Normal"), ("150", "Much"), ("200", "Very much")]);
+    sel_setting(ui, s, dirty, "s-paxrun", c.row(), "Passengers running for the bus", "pax_runners", &[("0", "Off"), ("5", "Now and then"), ("15", "Often"), ("30", "Very often")]);
     c.section(ui, "Traffic");
     sel_setting(ui, s, dirty, "s-unsched", c.row(), "Random traffic", "ai_unsched_factor", &[("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%"), ("150", "150%"), ("200", "200%")]);
     sel_setting(ui, s, dirty, "s-maxsched", c.row(), "Timetable vehicles", "ai_max_scheduled", &[("0", "All"), ("10", "At most 10"), ("25", "At most 25"), ("50", "At most 50")]);
@@ -3005,7 +3006,7 @@ mod settings_tests {
         // (the radio stations: one, see `frame`)
         let sound = vec!["s-vol", "s-volai", "s-volsc", "set-doppler", "s-voices", "radio-name-0", "radio-url-0", "radio-del-0", "radio-add"];
         let gameplay = vec![
-            "s-board", "set-exact_fare", "s-pax", "s-peds", "set-get_up", "set-full_sign", "s-fullat", "set-trip_summary", "set-next_trip_early", "s-paxsit", "s-unsched", "s-maxsched", "s-maxpark", "set-ai_wait_timed_stops_only",
+            "s-board", "set-exact_fare", "s-pax", "s-peds", "set-get_up", "set-full_sign", "s-fullat", "set-trip_summary", "set-next_trip_early", "s-paxsit", "s-paxrun", "s-unsched", "s-maxsched", "s-maxpark", "set-ai_wait_timed_stops_only",
             "s-maint", "set-collision_vehicles", "set-collision_objects", "set-collision_pedestrians", "set-use_real_time", "set-use_real_date", "set-time_sync", "set-metar_sync", "s-timespeed",
         ];
         let general = vec![

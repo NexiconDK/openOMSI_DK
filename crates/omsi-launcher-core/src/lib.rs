@@ -2082,6 +2082,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
     v["next_trip_early"] = json!(false);
     // (the fork) passengers choose their seat as people do
     v["pax_sit"] = json!(100);
+    v["pax_runners"] = json!(5);
     v["navigator_size"] = json!(1.0);
     v["navigator_tall"] = json!(0.0);
     v["nav_classic"] = json!(false);
@@ -2151,7 +2152,7 @@ pub fn settings_from_text(text: Option<&str>) -> Value {
             "max_fps" => v[&k] = json!(val.parse::<f64>().map(|x| x as i64).unwrap_or(0)),
             "max_obj_dist" => v[&k] = if val.eq_ignore_ascii_case("auto") { json!("auto") } else { json!(val.parse::<f64>().map(|m| (m.round() as i64).to_string()).unwrap_or_else(|_| "auto".into())) },
             "ssao" | "shadows" | "shadow_blobs" | "navigator" | "enhanced" | "triple_screen" | "triple_span" | "triple_hud_center" | "vr" | "vr_desktop_mirror" | "fullscreen" | "vsync" | "exact_fare" | "detail_textures" | "texture_compression" | "chat" | "tooltips" | "name_tags" | "show_fps" | "clouds" | "doppler" | "driver" | "use_real_time" | "use_real_date" | "use_real_year" | "collision_vehicles" | "collision_objects" | "collision_pedestrians" | "head_movement" | "driverview_smooth" | "hands_in_cab" | "alt_view" | "precision_zoom" => v[&k] = json!(b(val)),
-            "maintenance" | "ai_unsched_factor" | "ai_max_scheduled" | "pedestrians" | "full_sign_at" | "pax_sit" => v[&k] = json!(val.trim_end_matches('%').parse::<f64>().map(|x| x.max(0.0) as i64).unwrap_or(0)),
+            "maintenance" | "ai_unsched_factor" | "ai_max_scheduled" | "pedestrians" | "full_sign_at" | "pax_sit" | "pax_runners" => v[&k] = json!(val.trim_end_matches('%').parse::<f64>().map(|x| x.max(0.0) as i64).unwrap_or(0)),
             // (-1: no parked cars at all, #864)
             "ai_max_parked" => v[&k] = json!(val.parse::<f64>().map(|x| x.max(-1.0) as i64).unwrap_or(0)),
             "ai_max_humans" => v[&k] = json!(val.parse::<f64>().map(|x| x.max(1.0) as i64).unwrap_or(200)),
@@ -2614,6 +2615,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("tablet_port={}\n", n("tablet_port", 8095).clamp(1024, 65535)));
     text.push_str(&format!("next_trip_early={}\n", b("next_trip_early", false)));
     text.push_str(&format!("pax_sit={}\n", n("pax_sit", 100).clamp(0, 200)));
+    text.push_str(&format!("pax_runners={}\n", n("pax_runners", 5).clamp(0, 100)));
     text.push_str(&format!("nav_classic={}\n", b("nav_classic", false)));
     text.push_str(&format!("navigator_size={}\n", v.get("navigator_size").and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))).unwrap_or(1.0).clamp(0.6, 2.0)));
     text.push_str(&format!("navigator_tall={}\n", v.get("navigator_tall").and_then(|x| x.as_f64().or_else(|| x.as_str().and_then(|s| s.trim().parse().ok()))).map(|x: f64| if x > 0.0 { x.clamp(0.3, 3.0) } else { 0.0 }).unwrap_or(0.0)));

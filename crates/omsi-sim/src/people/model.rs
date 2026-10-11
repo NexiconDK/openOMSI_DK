@@ -285,6 +285,13 @@ pub struct PeopleSim {
     pub ai_visits: HashMap<u64, (i64, f64)>,
     /// When each bus last had a door open (the passengers' clock).
     pub last_door_open: HashMap<BusId, f64>,
+    /// The buses coming to or listed at a stop near the player, for somebody running up late
+    /// (`runners_tick`): (stop, bus) → where its roll stands.
+    pub runner_rolls: HashMap<(i64, BusId), RollEntry>,
+    /// (the fork) The people put out to run for a bus that has not come yet (the rolls
+    /// `Placed` or `Running`), for `put_out`: asked for every pedestrian every frame, it went
+    /// through all the rolls each time.
+    pub runner_out: Vec<u32>,
     /// Timetable buses to keep at their stop for a few seconds more (for the traffic): the
     /// bus, the stop it must be serving for it (none: any), the seconds.
     pub holds: Vec<(u64, Option<i64>, f32)>,
@@ -388,6 +395,9 @@ pub struct PeopleSim {
     /// (the fork) The `pax_sit` setting, the passengers' wish to sit: 0 a place at random
     /// as in Omsi.exe; else they choose it as people do (`seating`), the wish 0.5 .. 2.
     pub sit_wish: f32,
+    /// (the fork) The `pax_runners` setting: the chance somebody late runs for a bus at a stop
+    /// near the player (`runners`), 0..1; `OMSI_RUNNER_CHANCE` overrides it.
+    pub runner_chance: f32,
     /// (the fork) Seconds to the next look for a seat to change to (`reseat_player_bus`).
     pub reseat_t: f32,
     /// (the fork) When (`time`) somebody last stood up for an elderly passenger in the
