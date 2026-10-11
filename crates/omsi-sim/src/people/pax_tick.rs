@@ -46,6 +46,7 @@ impl PeopleSim {
         }
         // (the fork) standing riders of the player's bus take the seats that come free
         self.reseat_player_bus(dt, buses, bus_ix);
+        self.group_places_tick();
         // (where every passenger stands: in a bus's frame, or the world's - and the people
         // walking the pavement, among them a rider who has just stepped off, still on the
         // step until they are clear of the door. Not those who stand where they got off

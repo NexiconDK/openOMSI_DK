@@ -29475,10 +29475,26 @@ _version: 2
 "sofort":
   da: "Nu"
 
-"Passengers choose their seat as people do":
-  de: "Fahrgäste wählen ihren Platz wie Menschen"
-  da: "Passagerer vælger plads som rigtige mennesker"
+"Passengers' wish to sit":
+  de: "Sitzwunsch der Fahrgäste"
+  da: "Passagerernes lyst til at sidde"
 
-"Window seats and double seats to themselves first; the elderly sit next to the driver. Off: any free place at random, as in OMSI":
-  de: "Erst Fensterplätze und Doppelsitze für sich allein; Ältere sitzen neben dem Fahrer. Aus: ein freier Platz nach Zufall, wie in OMSI"
-  da: "Vinduespladser og tomme dobbeltsæder først; ældre sidder ved føreren. Fra: en tilfældig ledig plads, som i OMSI"
+"Off (random place, as OMSI)":
+  de: "Aus (Platz nach Zufall, wie OMSI)"
+  da: "Fra (tilfældig plads, som OMSI)"
+
+"Little":
+  de: "Wenig"
+  da: "Lidt"
+
+"Much":
+  de: "Viel"
+  da: "Meget"
+
+"Very much":
+  de: "Sehr viel"
+  da: "Rigtig meget"
+
+"How passengers choose their place: window seats, the pilot's seat for the elderly, groups who sit together. Off: a place at random, as in OMSI":
+  de: "Wie Fahrgäste ihren Platz wählen: Fensterplätze, der Platz neben dem Fahrer für Ältere, Gruppen, die zusammen sitzen. Aus: ein Platz nach Zufall, wie in OMSI"
+  da: "Hvordan passagerer vælger plads: vinduespladser, pilotsædet for ældre, grupper der sidder sammen. Fra: en tilfældig plads, som i OMSI"

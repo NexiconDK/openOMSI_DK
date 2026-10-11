@@ -1598,7 +1598,6 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "exact_fare" => s.exact_fare,
         "full_sign" => s.full_sign,
         "trip_summary" => s.trip_summary,
-        "pax_seating" => s.pax_seating,
         "collision_pedestrians" => s.collision_pedestrians,
         "ssao" => s.ssao,
         "detail_textures" => s.detail_textures,
@@ -1824,13 +1823,6 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
         "trip_summary" => {
             app.settings.trip_summary = on;
             Some(("trip_summary", bit))
-        }
-        "pax_seating" => {
-            app.settings.pax_seating = on;
-            if let Some(h) = app.session.humans.as_mut() {
-                h.seating = on;
-            }
-            Some(("pax_seating", bit))
         }
         "exact_fare" => {
             app.settings.exact_fare = on;
@@ -2279,6 +2271,7 @@ fn select_options(key: &str) -> Vec<(&'static str, &'static str)> {
         "maintenance" => vec![("0", "Infinite (no wear)"), ("1", "Very bad"), ("2", "Bad"), ("3", "Normal"), ("4", "Good")],
         "full_sign_at" => vec![("80", "80% full"), ("90", "90% full"), ("95", "95% full"), ("100", "100% full")],
         "pedestrians" => vec![("0", "None"), ("50", "Few"), ("100", "Normal"), ("200", "Many"), ("400", "Very many")],
+        "pax_sit" => vec![("0", "Off (random place, as OMSI)"), ("50", "Little"), ("100", "Normal"), ("150", "Much"), ("200", "Very much")],
         "ai_unsched_factor" => vec![("25", "25%"), ("50", "50%"), ("75", "75%"), ("100", "100%"), ("150", "150%"), ("200", "200%")],
         "ai_max_scheduled" => vec![("0", "All"), ("10", "At most 10"), ("25", "At most 25"), ("50", "At most 50")],
         "ai_max_parked" => vec![("-1", "None"), ("0", "Every space"), ("35", "At most 35"), ("100", "At most 100"), ("250", "At most 250")],
@@ -2355,7 +2348,7 @@ fn sync_live(app: &mut App) {
         h.exact_fare = s.exact_fare;
         h.boarding = s.boarding.clone();
         h.pedestrian_factor = s.pedestrians;
-        h.seating = s.pax_seating;
+        h.sit_wish = s.pax_sit;
         h.voices = match s.pax_voices.as_str() {
             "off" => 2,
             "tickets" => 1,
@@ -2385,11 +2378,11 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "info_bar", "Information bar (Shift+Y)", "Displays information such as the time, speed, and other details at the top of the screen"),
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
         switch_row(app, "trip_summary", "Trip summary after each trip", "When a trip ends: its stops with the times planned and driven and the passengers who got on and off"),
-        switch_row(app, "pax_seating", "Passengers choose their seat as people do", "Window seats and double seats to themselves first; the elderly sit next to the driver. Off: any free place at random, as in OMSI"),
         switch_row(app, "full_sign", "OPTAGET on the destination display when the bus is full", "When the bus is as full as chosen, the sign turns between the destination and OPTAGET"),
         pick("full_sign_at", "OPTAGET from", "How full the bus is before its sign says OPTAGET"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
         pick("pedestrians", "People on the streets", "How many people walk the pavements"),
+        pick("pax_sit", "Passengers' wish to sit", "How passengers choose their place: window seats, the pilot's seat for the elderly, groups who sit together. Off: a place at random, as in OMSI"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),
         pick("ai_max_scheduled", "Timetable vehicles", later),

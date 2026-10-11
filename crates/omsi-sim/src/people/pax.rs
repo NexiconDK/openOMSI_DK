@@ -190,6 +190,12 @@ pub struct Pax {
     pub bad_at: [f32; 3],
     /// Distance moved this frame (+0x644, `LastMovedDist`).
     pub moved: f32,
+    /// (the fork) The group they travel with (`seating`): they wait, ride and get off
+    /// together; None alone.
+    pub group: Option<u32>,
+    /// (the fork) The group's buyer: the tickets still to buy for the others (ticket ids as
+    /// `ticket_id`), one after the other at the desk.
+    pub group_tickets: Vec<u8>,
 }
 
 impl Pax {
@@ -257,6 +263,8 @@ impl Pax {
             complaint: 0,
             bad_at: [0.0; 3],
             moved: 0.0,
+            group: None,
+            group_tickets: Vec::new(),
         }
     }
 

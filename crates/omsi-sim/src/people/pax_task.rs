@@ -306,22 +306,43 @@ impl PeopleSim {
                         // destination on the trip, or in free drive, sit: most buses have
                         // far more standing places than seats, and any place left 9 in 10
                         // standing)
+                        // (the fork) the wish to sit (`sit_wish`) scales how many sit: on a short
+                        // ride 3 in 10 at 1, on a longer one all from 1 on
+                        let wish = if self.seating() { self.sit_wish as f64 } else { 1.0 };
                         let prefer_seat = if bn.id == BusId::Player {
                             let short = match (self.duty.as_ref(), p.dest.as_deref()) {
                                 (Some((trip, _, false)), Some(dest)) => super::pax_stops::duty_ride_m(trip, &self.stops, stop, dest).is_some_and(|m| m < 1000.0),
                                 _ => false,
                             };
-                            Some(!short || self.rand_f() < 0.3)
+                            let r = self.rand_f();
+                            Some(if short { r < 0.3 * wish } else { r < wish })
                         } else {
                             None
                         };
-                        let place = if self.seating {
+                        // (the fork) a group: the first to get in finds places for all and buys
+                        // the tickets; the others take theirs (and stamp their own)
+                        let group = p.group.filter(|_| self.seating());
+                        let kept = group.is_some_and(|g| self.group_places.contains_key(&(g, bn.id)));
+                        let others: Vec<f32> = match group {
+                            Some(g) if !kept => self.group_ages(g, i),
+                            _ => Vec::new(),
+                        };
+                        let place = if self.seating() {
                             self.reserve_place_as_people_do(i, bn.id, &bn.cabin, &bn.places_off, prefer_seat)
                         } else {
                             self.reserve_place(bn.id, &bn.cabin.seats, &bn.places_off, prefer_seat)
                         };
                         if let Some(k) = place {
-                            let (tk, id) = self.decide_pax_ticket(i, bn);
+                            let (mut tk, id) = self.decide_pax_ticket(i, bn);
+                            if kept && tk == TICKET_BUY {
+                                tk = TICKET_NONE;
+                            }
+                            let group_tickets: Vec<u8> = if tk == TICKET_BUY && id > 0 {
+                                others.iter().filter_map(|a| self.pick_ticket(*a)).map(|t| (t + 1).min(255) as u8).collect()
+                            } else {
+                                Vec::new()
+                            };
+                            self.pax_mut(i).unwrap().group_tickets = group_tickets;
                             let price = self.tickets.as_ref().and_then(|t| t.tickets.get(id.saturating_sub(1) as usize)).map(|t| t.value).unwrap_or(0.0);
                             let pp = self.pax_mut(i).unwrap();
                             pp.seat = Some(k);
