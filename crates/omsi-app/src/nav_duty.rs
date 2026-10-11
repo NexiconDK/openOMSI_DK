@@ -1173,7 +1173,7 @@ pub(crate) mod tests {
         let s = 2.0;
         let states = [state(&trips, &tours, 0, 3, false, 250.0), state(&trips, &tours, 1, 2, true, -480.0), DutyState { at_stop: true, ..state(&trips, &tours, 0, 0, false, -299.0) }];
         let (pw, map_h, bars) = (360.0 * s, 223.0 * s, 80.0 * s);
-        let boards: Vec<Vec<Row>> = states.iter().map(|d| board(Some(d), 2)).collect();
+        let boards: Vec<Vec<Row>> = states.iter().map(|d| board(Some(d), 3)).collect();
         let tall = boards.iter().map(|b| board_height(b) * s).fold(0.0, f32::max) + map_h + bars;
         let mut img = image::RgbaImage::from_pixel(((pw + 40.0) * 3.0) as u32, (tall + 40.0) as u32, image::Rgba([70, 84, 96, 255]));
         for (k, rows) in boards.iter().enumerate() {
