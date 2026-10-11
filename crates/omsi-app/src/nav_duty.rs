@@ -53,6 +53,9 @@ pub(crate) const EARLY: Color = Color::rgba(42, 117, 247, 1.0);
 pub(crate) const LATE_INK: Color = Color::hex(0xFF5F57);
 pub(crate) const ON_TIME_INK: Color = Color::hex(0x37D67A);
 pub(crate) const EARLY_INK: Color = Color::hex(0x4DA3FF);
+/// (the fork) Late, orange: ahead of the timetable is the worse (red), as the drivers have it.
+pub(crate) const BEHIND: Color = Color::rgba(222, 120, 22, 1.0);
+pub(crate) const BEHIND_INK: Color = Color::hex(0xFFA23F);
 /// The stop the bus heads for, and the advice about what comes next.
 pub(crate) const NOW: Color = Color::hex(0xF0B429);
 /// The stops' rail ahead of the bus (the route: the accent) and behind it.
@@ -75,8 +78,10 @@ const ADVICE: Color = Color::rgba(245, 230, 200, 1.0);
 // --- punctuality --------------------------------------------------------------------------
 
 /// Later than this after the timetable is late, and more than this before it early (s).
-pub(crate) const LATE_AFTER: f64 = 180.0;
-pub(crate) const EARLY_BEFORE: f64 = 120.0;
+/// (the fork) Late from two minutes on; ahead of it at all is early (by a whole second, as
+/// the chip writes it).
+pub(crate) const LATE_AFTER: f64 = 120.0;
+pub(crate) const EARLY_BEFORE: f64 = 0.5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Punctuality {
@@ -100,17 +105,18 @@ impl Punctuality {
     /// Its colour as letters on the dark panel.
     pub(crate) fn ink(self) -> Color {
         match self {
-            Punctuality::Early => EARLY_INK,
+            // (the fork) early red, late orange
+            Punctuality::Early => LATE_INK,
             Punctuality::OnTime => ON_TIME_INK,
-            Punctuality::Late => LATE_INK,
+            Punctuality::Late => BEHIND_INK,
         }
     }
 
     fn fill(self) -> Color {
         match self {
-            Punctuality::Early => EARLY,
+            Punctuality::Early => LATE,
             Punctuality::OnTime => ON_TIME,
-            Punctuality::Late => LATE,
+            Punctuality::Late => BEHIND,
         }
     }
 }
@@ -125,6 +131,23 @@ pub(crate) fn hhmm(t: f64) -> String {
 pub(crate) fn offset(delay: f64) -> String {
     let s = delay.abs().round() as i64;
     format!("{}{}:{:02}", if delay < 0.0 { '\u{2212}' } else { '+' }, s / 60, s % 60)
+}
+
+/// (the fork) How far off the timetable without its sign, `mm:ss` (`00:32`, `02:15`), an
+/// hour or more `hh:mm:ss`: the chip's colour tells early from late.
+pub(crate) fn clock(delay: f64) -> String {
+    let s = delay.abs().round() as i64;
+    if s >= 3600 {
+        format!("{:02}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
+    } else {
+        format!("{:02}:{:02}", s / 60, s % 60)
+    }
+}
+
+/// `text` with its first letter a capital ("til tiden" - "Til tiden").
+fn capitalized(text: &str) -> String {
+    let mut c = text.chars();
+    c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
 }
 
 /// Whole minutes, rounded up (a break with 20 s left is not over).
@@ -252,9 +275,11 @@ impl Status {
     pub fn label(self) -> String {
         match self {
             Status::DepartsIn(s) => tr_with("leaves in %{m} min", &[("m", minutes_up(s).max(1).to_string())]),
+            // (the fork) how far off, to the second, whichever way: its colour says which;
+            // on time named as well ("on time 1:45")
             Status::Running(d) => match punctuality(d) {
-                Punctuality::OnTime => omsi_ui::tr("on time").into_owned(),
-                _ => offset(d),
+                Punctuality::OnTime => format!("{} - {}", capitalized(&omsi_ui::tr("on time")), clock(d)),
+                _ => clock(d),
             },
             Status::Break(left) if left >= 0.0 => tr_with("break, %{m} min left", &[("m", minutes_up(left).to_string())]),
             Status::Break(left) => tr_with("%{m} min over", &[("m", minutes_up(-left).max(1).to_string())]),
@@ -915,10 +940,14 @@ pub(crate) mod tests {
 
     #[test]
     fn punctuality_is_omsis() {
-        assert_eq!(punctuality(180.0), Punctuality::OnTime);
-        assert_eq!(punctuality(181.0), Punctuality::Late);
-        assert_eq!(punctuality(-120.0), Punctuality::OnTime);
-        assert_eq!(punctuality(-121.0), Punctuality::Early);
+        assert_eq!(punctuality(120.0), Punctuality::OnTime);
+        assert_eq!(punctuality(121.0), Punctuality::Late);
+        assert_eq!(punctuality(0.0), Punctuality::OnTime);
+        assert_eq!(punctuality(-1.0), Punctuality::Early);
+        assert_eq!(clock(-32.0), "00:32");
+        assert_eq!(clock(135.0), "02:15");
+        assert_eq!(clock(3725.0), "01:02:05");
+        assert_eq!(capitalized("til tiden"), "Til tiden");
         assert_eq!(offset(192.0), "+3:12");
         assert_eq!(offset(-150.0), "\u{2212}2:30");
         assert_eq!(hhmm(11.0 * 3600.0 + 26.0 * 60.0 + 59.0), "11:26");
@@ -956,7 +985,9 @@ pub(crate) mod tests {
         }));
         // the next trip of the same tour: its break, no change of line
         assert_eq!(rows.last(), Some(&Row::Next { departure: (12.0 * 60.0 + 1.0) * 60.0, line: Some("35".into()), terminus: "Hauptbahnhof".into(), pause: 15, change: None }));
-        assert_eq!(Status::Running(40.0).label(), "on time");
+        assert_eq!(Status::Running(40.0).label(), format!("{} - 00:40", capitalized(&omsi_ui::tr("on time"))));
+        assert_eq!(Status::Running(40.0).colours().0, ON_TIME);
+        assert_eq!(Status::Running(-32.0).colours().0, LATE, "ahead: red");
     }
 
     /// Late: the stops ahead say when the bus will be there, the one behind it does not.
@@ -967,8 +998,8 @@ pub(crate) mod tests {
         let rows = board(Some(&d), 2);
         let expected: Vec<Option<String>> = rows.iter().filter_map(|r| match r { Row::Stop { expected, .. } => Some(expected.map(hhmm)), _ => None }).collect();
         assert_eq!(expected, [None, Some("11:36".to_string()), Some("11:39".to_string())]);
-        assert_eq!(Status::Running(250.0).label(), "+4:10");
-        assert_eq!(Status::Running(250.0).colours().0, LATE);
+        assert_eq!(Status::Running(250.0).label(), "04:10");
+        assert_eq!(Status::Running(250.0).colours().0, BEHIND, "late: orange");
         // standing at the stop it is due at: it is there now
         let d = DutyState { at_stop: true, ..d };
         assert!(matches!(board(Some(&d), 2)[2], Row::Stop { state: StopState::Now, expected: None, .. }));
@@ -1171,7 +1202,7 @@ pub(crate) mod tests {
         let fonts = Fonts::new();
         let mut atlas = Atlas::new(2048);
         let s = 2.0;
-        let states = [state(&trips, &tours, 0, 3, false, 250.0), state(&trips, &tours, 1, 2, true, -480.0), DutyState { at_stop: true, ..state(&trips, &tours, 0, 0, false, -299.0) }];
+        let states = [state(&trips, &tours, 0, 3, false, -32.0), state(&trips, &tours, 0, 3, false, 105.0), state(&trips, &tours, 0, 3, false, 135.0)];
         let (pw, map_h, bars) = (360.0 * s, 223.0 * s, 80.0 * s);
         let boards: Vec<Vec<Row>> = states.iter().map(|d| board(Some(d), 3)).collect();
         let tall = boards.iter().map(|b| board_height(b) * s).fold(0.0, f32::max) + map_h + bars;
