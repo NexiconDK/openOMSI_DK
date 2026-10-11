@@ -1,48 +1,30 @@
-//! Somebody late for the bus. While a bus is on its way to a stop near the player and still
-//! 150 m off or more, now and then somebody is put out on the pavement of the stop's street,
-//! out of the player's sight, walking along to the stop - from before it (they start to run
-//! as the bus overtakes them) or from beyond it (they run once it stands at the stop). They
-//! run along the pavement and only the last metres straight to the doors. A timetable bus
-//! waits a few seconds for them (`holds_bus`); the player's bus does not have to. With
-//! nobody put out, somebody else walking near runs - or, for a timetable bus, somebody
-//! comes from behind it out of sight. Left behind, they stand a moment and walk back.
+//! Somebody late for the bus (from openOMSI PR #2073 by JDCustard, MIT; the fork's own
+//! version). Only a player's bus - ours, or on the host another LAN player's - and only once
+//! it stands at a stop: then, now and then (the setting `pax_runners`), somebody runs for it -
+//! somebody walking near on the stop's side of the street, else somebody from 25 to 60 m along
+//! the pavement out of the player's sight (behind the bus first, where the driver sees them
+//! come in the mirror). They run to the doors; the bus leaving without them, they stand a
+//! moment and walk on. (The pull request also put people out on the pavement while a bus was
+//! still 150 m off, for the timetable's buses too: left out here, and all that looking every
+//! frame with it.)
 
 use super::*;
 
-/// Chance per bus standing at a stop near the player (`OMSI_RUNNER_CHANCE`).
+/// The chance per stop a player's bus stands at, by default (`PeopleSim::runner_chance`).
 pub const RUNNER_CHANCE: f32 = 0.05;
-/// How far along the pavement from the stop somebody late starts (m).
+/// How far along the pavement from the stop somebody comes from behind (m).
 pub const RUNNER_START: (f32, f32) = (25.0, 60.0);
-/// A bus at least this far off its next stop has somebody put out for it there (m).
-pub const RUNNER_PLACE_FROM: f64 = 150.0;
-/// The speed a bus is taken to come at, for when it gets to the stop (m/s).
-pub const RUNNER_BUS_SPEED: f64 = 6.0;
-/// Where somebody put out is meant to be when the bus gets to the stop: beyond it, coming
-/// towards the bus, or before it, the bus having overtaken them (m from the stop).
-pub const RUNNER_BEYOND_AT: (f32, f32) = (25.0, 45.0);
-pub const RUNNER_BEFORE_AT: (f32, f32) = (35.0, 60.0);
-/// The longest walk along the pavement somebody is put out at the start of (m).
-pub const RUNNER_ROUTE_MAX: f32 = 160.0;
-/// Seconds a roll is kept after its bus last looked to be coming: the bus's next stop
-/// flickers, and a forgotten roll put a second person out for the same bus.
-pub const RUNNER_ROLL_KEPT: f64 = 30.0;
-/// Somebody walking within this of the stop can run straight to a bus standing there (m).
+/// Somebody walking within this of the stop can run for the bus there (m).
 pub const RUNNER_NEAR: f64 = 50.0;
-/// How far to either side of the pavement line at the stop the walk to it may go (m): not
-/// into a yard, a building or a side street.
-pub const RUNNER_STREET: f64 = 12.0;
-/// Running along the pavement, this close to the stop they make for the doors (m).
-pub const RUNNER_TO_DOORS: f64 = 15.0;
-/// The bus overtaking somebody before the stop: within this of them they start to run (m).
-pub const RUNNER_OVERTAKEN: f64 = 25.0;
 /// The pace of somebody hurrying for the bus (m/s).
 pub const RUNNER_SPEED: (f32, f32) = (3.0, 3.6);
-/// Seconds somebody hurrying keeps a timetable bus at the stop, at most.
+/// Seconds somebody hurrying keeps a timetable bus at the stop, at most (`holds_bus`).
 pub const RUNNER_HOLD_MAX: f32 = 12.0;
-/// (the fork) How often the buses coming to the stops near the player are looked at (s).
-pub const RUNNER_EVERY: f64 = 0.25;
 /// Seconds somebody left behind stands looking after the bus.
 pub const RUNNER_MISSED: f32 = 2.0;
+/// How often the stops are looked at for a player's bus standing there (s): four times a
+/// second, not every frame.
+pub const RUNNER_EVERY: f64 = 0.25;
 
 /// Logs with `OMSI_DEBUG_PAX`.
 macro_rules! trace {
@@ -55,42 +37,13 @@ macro_rules! trace {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LatePhase {
-    /// Walking up to the stop at their own pace; the bus is not standing there yet.
+    /// On the way to the stop at a run, for another player's bus (its own game takes them
+    /// in once they wait there).
     Approach,
-    /// The bus stands at the stop: hurrying for it.
+    /// Hurrying for the bus's doors.
     Hurry,
     /// The bus left without them: the seconds left standing there.
     Missed(f32),
-}
-
-/// A bus's roll at a stop.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Roll {
-    /// Somebody is to run for it; nobody put out yet.
-    Due,
-    /// Pedestrian `id` was put out on the stop's pavement while it was far off.
-    Placed(u32),
-    /// Pedestrian `id`, put out for it, runs for it along the pavement.
-    Running(u32),
-    /// Nobody (more) for this visit.
-    Done,
-}
-
-/// A roll and what goes with it (`PeopleSim::runner_rolls`): when its bus last looked to be
-/// coming (`RUNNER_ROLL_KEPT`), and why nobody could be put out yet (`OMSI_DEBUG_PAX`).
-#[derive(Debug, Clone, Copy)]
-pub struct RollEntry {
-    pub roll: Roll,
-    pub kept: f64,
-    pub why: &'static str,
-}
-
-/// Where somebody late comes from: a pedestrian already walking near (by index), or a
-/// place behind the bus out of sight.
-#[derive(Debug, Clone, Copy)]
-enum Source {
-    Stroller(usize),
-    Spawn(DVec3),
 }
 
 /// What makes a passenger somebody late (`Pax::late`).
@@ -100,10 +53,9 @@ pub struct Late {
     /// Their own walking pace, and the pace they hurry at.
     pub walk: f32,
     pub run: f32,
-    /// Seconds spent hurrying (a timetable bus waits `RUNNER_HOLD_MAX` at most).
+    /// Seconds spent hurrying.
     pub hurried: f32,
-    /// The bus has stood at the stop since they began to hurry: it leaving now leaves them
-    /// behind (before, it was still pulling in).
+    /// The bus has stood at the stop since they began to hurry.
     pub stood: bool,
 }
 
@@ -114,10 +66,17 @@ impl Late {
     }
 }
 
-/// The chance per bus: `OMSI_RUNNER_CHANCE` when set, else `setting` (the fork's `pax_runners`,
-/// `PeopleSim::runner_chance`), 0..1.
+/// The chance per bus: `OMSI_RUNNER_CHANCE` when set, else `setting` (`pax_runners`), 0..1.
 pub fn runner_chance(setting: f32) -> f32 {
     omsi_cfg::flags::OMSI_RUNNER_CHANCE.parse::<f32>().unwrap_or(setting).clamp(0.0, 1.0)
+}
+
+/// Whether `b` is a player's bus: ours, or another LAN player's (`remote_bus_id`).
+pub fn players_bus(b: BusId) -> bool {
+    match b {
+        BusId::Player => true,
+        BusId::Ai(k) => remote_bus_player(k).is_some(),
+    }
 }
 
 /// `t` (0..1) of the way through `range`.
@@ -125,22 +84,8 @@ fn lerp(range: (f32, f32), t: f32) -> f32 {
     range.0 + (range.1 - range.0) * t
 }
 
-/// (the fork) A bus's place in a fixed order (sorting by its `Debug` text made a string for
-/// every comparison).
-fn bus_order(b: BusId) -> (u8, u64) {
-    match b {
-        BusId::Player => (0, 0),
-        BusId::Ai(k) => (1, k),
-    }
-}
-
-/// Bus `b` of this frame's.
-fn bus_of<'a>(buses: &'a [BusNow], bus_ix: &HashMap<BusId, usize>, b: BusId) -> Option<&'a BusNow> {
-    bus_ix.get(&b).map(|k| &buses[*k])
-}
-
 /// How far the pavement (lane `lane`) 10 m from the stop at `s0` lies along `fwd`, that way
-/// along the lane (`sign`): which way is beyond the stop.
+/// along the lane (`sign`): which way is behind the bus.
 fn along(net: &Network, lane: usize, s0: f32, lane_len: f32, stop_pos: DVec3, fwd: DVec2, sign: f32) -> f64 {
     (net.lanes[lane].at((s0 + sign * 10.0).clamp(0.0, lane_len)).0 - stop_pos).truncate().dot(fwd)
 }
@@ -152,353 +97,54 @@ fn bus_takes(id: i64, stop: &PaxStop, bn: &BusNow, dest: Option<&str>, line: Opt
         return false;
     }
     match line.and_then(|k| stop.lines.get(k)) {
-        // no line record: the first bus listed
         None => stop.buses.first().is_some_and(|b| b.0 == bn.id),
         Some((_, termini)) => bn.terminus.as_deref().is_some_and(|t| fit(id, stop, dest, termini, t, &bn.takes).is_some()),
     }
 }
 
-/// A walk along the pavement network from `dist` m away to the stop, the stop lying on lane
-/// `lane` at `s0`: out from the stop along the lane in direction `sign` and on at the
-/// junctions (`PedNet::next_leg`, choosing by `pick`), then the legs the other way round.
-/// Where it starts, the walking heading there, and the legs; none where the pavement ends or
-/// leaves the line of the pavement at the stop (along `fwd`) by more than `RUNNER_STREET`.
-#[allow(clippy::too_many_arguments)]
-pub fn route_to_stop(ped: &PedNet, net: &Network, lane: usize, s0: f32, sign: f32, dist: f32, pick: u64, fwd: DVec2) -> Option<(DVec3, f64, Vec<Leg>)> {
-    let stop_pos = net.lanes.get(lane)?.at(s0).0;
-    let off_street = |l: &Leg| {
-        let lane = &net.lanes[l.lane];
-        let n = ((l.len() / 5.0).ceil() as usize).max(1);
-        (0..=n).any(|k| (lane.at(l.a + (l.b - l.a) * k as f32 / n as f32).0 - stop_pos).truncate().perp_dot(fwd).abs() > RUNNER_STREET)
-    };
-    let len0 = net.lanes.get(lane)?.length();
-    let mut leg = Leg { lane, a: s0, b: if sign > 0.0 { len0 } else { 0.0 } };
-    let mut out: Vec<Leg> = Vec::new();
-    let mut left = dist;
-    loop {
-        if leg.len() >= left {
-            out.push(Leg { b: leg.dist(left), ..leg });
-            break;
-        }
-        left -= leg.len();
-        out.push(leg);
-        if out.len() > 8 {
-            return None;
-        }
-        let node = ped.end_node(net, &leg)?;
-        leg = ped.next_leg(net, node, leg.lane, pick)?;
-    }
-    if out.iter().any(off_street) {
-        return None;
-    }
-    let legs: Vec<Leg> = out.iter().rev().map(|l| Leg { lane: l.lane, a: l.b, b: l.a }).collect();
-    let (q, h) = legs[0].at(net, 0.0);
-    Some((q, h, legs))
-}
-
 impl PeopleSim {
-    /// Somebody late for a bus at a stop near the player. Once the bus is on its way to the
-    /// stop and still 150 m off or more it has its roll (`runner_chance`), and a pedestrian is
-    /// put out out of the player's sight, walking along to the stop (`place_walker`). Once the
-    /// bus stands in the stop's box they run for it (`run_along`, `spawn_runner`). A bus not
-    /// known to be coming has its roll when it is listed at the stop.
+    /// Four times a second: a player's bus standing in a stop's box near the player has its
+    /// roll once per stop (`runner_chance`), and somebody runs for it when it falls so.
     pub fn runners_tick(&mut self, world: &dyn World, net: &Network, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) {
         if self.mirror || self.avatar_only {
             return;
         }
-        // (the fork) four times a second, not every frame: a bus covers a few metres in a
-        // quarter of a second, well inside the distances it is looked at by (150 m to be put
-        // out for, 25 m to be overtaken in, 15 m to the doors)
-        if self.time - self.runner_at < RUNNER_EVERY && self.time >= self.runner_at {
+        if self.time >= self.runner_at && self.time - self.runner_at < RUNNER_EVERY {
             return;
         }
         self.runner_at = self.time;
-        self.runners_turn(world, net, buses, bus_ix);
-        self.refresh_runner_out();
-    }
-
-    /// (the fork) Who is put out now (`runner_out`), for `put_out` the rest of the frame.
-    fn refresh_runner_out(&mut self) {
-        self.runner_out.clear();
-        self.runner_out.extend(self.runner_rolls.values().filter_map(|e| match e.roll {
-            Roll::Placed(p) | Roll::Running(p) => Some(p),
-            _ => None,
-        }));
-    }
-
-    /// `runners_tick`'s turn.
-    fn runners_turn(&mut self, world: &dyn World, net: &Network, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) {
-        // the buses on their way to a stop, how far off, and whether the stop is near the
-        // player (only then is anybody put out; a roll stays while its bus heads there)
-        let heading: Vec<(i64, BusId, f64, bool)> = buses
-            .iter()
-            .filter_map(|bn| {
-                let next = bn.next_stop.as_ref()?;
-                let s = self.stops.get(&next.id)?;
-                Some((next.id, bn.id, (bn.pos - s.pos).truncate().length(), s.near))
-            })
-            .collect();
-        // (a roll whose bus neither comes to the stop, nor is listed or near there, is
-        // forgotten after `RUNNER_ROLL_KEPT`; whoever runs for it walks on)
-        let (stops, now) = (&self.stops, self.time);
-        // (the fork) looked up, not searched: every roll against every bus each frame)
-        let coming: std::collections::HashSet<(i64, BusId)> = heading.iter().map(|h| (h.0, h.1)).collect();
-        let mut gone: Vec<u32> = Vec::new();
-        self.runner_rolls.retain(|(s, b), e| {
-            let keep = coming.contains(&(*s, *b))
-                || stops
-                    .get(s)
-                    .is_some_and(|st| st.buses.iter().any(|x| x.0 == *b) || bus_ix.get(b).is_some_and(|k| (buses[*k].pos - st.pos).length() < 120.0));
-            if keep {
-                e.kept = now;
-            }
-            let still = now - e.kept < RUNNER_ROLL_KEPT;
-            if let (false, Roll::Running(pid)) = (still, e.roll) {
-                gone.push(pid);
-            }
-            still
-        });
-        for pid in gone {
-            self.stop_running(pid);
-        }
+        // (a bus no longer listed at the stop has left it: at the next stop a new roll)
+        let stops = &self.stops;
+        self.runner_rolls.retain(|(s, b)| stops.get(s).is_some_and(|st| st.buses.iter().any(|x| x.0 == *b)));
         let chance = runner_chance(self.runner_chance);
         if chance <= 0.0 {
             return;
         }
-        for &(id, bus, d, near) in &heading {
-            if !near || d < RUNNER_PLACE_FROM {
+        // the players' buses standing in the box of a stop near the player
+        let mut standing: Vec<(i64, BusId)> = self
+            .stops
+            .iter()
+            .filter(|(_, s)| s.near)
+            .flat_map(|(id, s)| s.buses.iter().filter(|(b, in_box)| *in_box && players_bus(*b)).map(move |(b, _)| (*id, *b)))
+            .filter(|(_, b)| bus_ix.get(b).is_some_and(|k| buses[*k].speed.abs() < 0.5))
+            .collect();
+        standing.sort_unstable_by_key(|(id, b)| (*id, matches!(b, BusId::Ai(_))));
+        for key in standing {
+            if !self.runner_rolls.insert(key) {
                 continue;
             }
-            let roll = match self.runner_rolls.get(&(id, bus)) {
-                Some(e) => e.roll,
-                None => {
-                    let roll = if (self.rand_f() as f32) < chance { Roll::Due } else { Roll::Done };
-                    self.new_roll((id, bus), roll)
-                }
-            };
-            // (somewhere in sight now, perhaps not a frame later as the bus comes on)
-            let Some(bn) = bus_of(buses, bus_ix, bus).filter(|_| roll == Roll::Due) else {
-                continue;
-            };
-            match self.place_walker(world, net, id, bn, d) {
-                Ok(pid) => self.set_roll((id, bus), Roll::Placed(pid)),
-                Err(why) => self.runner_rolls.get_mut(&(id, bus)).unwrap().why = why,
-            }
-        }
-        self.run_along(world, net, buses, bus_ix);
-        let mut ids: Vec<i64> = self.stops.iter().filter(|(_, s)| s.near && !s.buses.is_empty()).map(|(k, _)| *k).collect();
-        ids.sort_unstable();
-        for id in ids {
-            for (bus, in_box) in self.stops[&id].buses.clone() {
-                let Some(bn) = bus_of(buses, bus_ix, bus) else {
-                    continue;
-                };
-                let standing = bn.speed.abs() < 0.5;
-                let roll = match self.runner_rolls.get(&(id, bus)) {
-                    // (those put out run along the pavement, `run_along`)
-                    Some(RollEntry { roll: Roll::Done | Roll::Placed(_) | Roll::Running(_), .. }) => continue,
-                    Some(e) => *e,
-                    // (not known to be coming: the roll now - one already standing when the
-                    // stop came near has nobody running up)
-                    None => {
-                        let roll = if standing || self.rand_f() as f32 >= chance { Roll::Done } else { Roll::Due };
-                        self.new_roll((id, bus), roll);
-                        continue;
-                    }
-                };
-                if !(standing && in_box) {
-                    continue;
-                }
-                self.set_roll((id, bus), Roll::Done);
-                let why = if roll.why.is_empty() { "it was never 150 m off" } else { roll.why };
-                trace!("t={:.1} nobody was put out for {bus:?} at stop {id}: {why}", self.time);
-                self.spawn_runner(world, net, id, bus, None, false, buses, bus_ix);
+            if (self.rand_f() as f32) < chance {
+                self.spawn_runner(world, net, key.0, key.1, buses, bus_ix);
             }
         }
     }
 
-    /// A new roll, kept from now.
-    fn new_roll(&mut self, key: (i64, BusId), roll: Roll) -> Roll {
-        self.runner_rolls.insert(key, RollEntry { roll, kept: self.time, why: "" });
-        roll
-    }
-
-    /// Where a roll stands now.
-    fn set_roll(&mut self, key: (i64, BusId), roll: Roll) {
-        if let Some(e) = self.runner_rolls.get_mut(&key) {
-            e.roll = roll;
-        }
-        // (somebody put out just now is not free for anything else this frame either)
-        if let Roll::Placed(p) | Roll::Running(p) = roll {
-            if !self.runner_out.contains(&p) {
-                self.runner_out.push(p);
-            }
-        }
-    }
-
-    /// The people put out: somebody before the stop starts to run as their bus overtakes
-    /// them, somebody beyond it once it stands at the stop - along the pavement, at a run,
-    /// until they are `RUNNER_TO_DOORS` off the stop and make for the doors as a passenger
-    /// (`spawn_runner`). A bus that drives on, or leaves, before they are there: they walk on.
-    fn run_along(&mut self, world: &dyn World, net: &Network, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) {
-        let mut ours: Vec<((i64, BusId), Roll)> =
-            self.runner_rolls.iter().filter(|(_, e)| matches!(e.roll, Roll::Placed(_) | Roll::Running(_))).map(|(k, e)| (*k, e.roll)).collect();
-        // (in a fixed order, the same each run: by stop, then bus)
-        ours.sort_by_key(|((s, b), _)| (*s, bus_order(*b)));
-        for ((id, bus), roll) in ours {
-            let (Roll::Placed(pid) | Roll::Running(pid)) = roll else {
-                continue;
-            };
-            let Some(j) = self.people.iter().position(|p| p.id == pid && matches!(p.state, State::Strolling(_))) else {
-                // (gone, or somebody else now)
-                self.set_roll((id, bus), Roll::Done);
-                continue;
-            };
-            let Some(bn) = bus_of(buses, bus_ix, bus) else {
-                continue;
-            };
-            let Some((stop_pos, in_box)) = self.stops.get(&id).map(|s| (s.pos, s.buses.iter().any(|x| x.0 == bus && x.1))) else {
-                continue;
-            };
-            let standing = in_box && bn.speed.abs() < 0.5;
-            let at = self.people[j].position;
-            let to_stop = (at - stop_pos).truncate().length();
-            match roll {
-                // (there before the bus, which came slower than it was taken to: they wait
-                // there as anybody, and hurry to its doors when it stands)
-                Roll::Placed(_) if to_stop < RUNNER_TO_DOORS => {
-                    self.set_roll((id, bus), Roll::Done);
-                    trace!("t={:.1} pax {} put out for {bus:?} is at stop {id} before it", self.time, self.people[j].label());
-                    if self.spawn_runner(world, net, id, bus, Some(j), false, buses, bus_ix).is_none() {
-                        self.stop_running(pid);
-                    }
-                }
-                Roll::Placed(_) => {
-                    let rel = (at - bn.pos).truncate();
-                    if standing || (rel.dot(bn.fwd()) < 2.0 && rel.length() < RUNNER_OVERTAKEN) {
-                        self.people[j].pace = lerp(RUNNER_SPEED, self.rand_f() as f32) as f64;
-                        self.set_roll((id, bus), Roll::Running(pid));
-                        let why = if standing { "it stands at the stop" } else { "it overtakes them" };
-                        trace!("t={:.1} pax {} runs along the pavement for {bus:?}, {to_stop:.0} m off stop {id}: {why}", self.time, self.people[j].label());
-                    }
-                }
-                _ => {
-                    // (it drove on past the stop, or left it, before they were there)
-                    if !self.listed_at(id, bus) && (bn.pos - stop_pos).truncate().dot(bn.fwd()) > 10.0 {
-                        self.stop_running(pid);
-                        self.set_roll((id, bus), Roll::Done);
-                    } else if to_stop < RUNNER_TO_DOORS || (standing && to_stop < 2.0 * RUNNER_TO_DOORS) {
-                        self.set_roll((id, bus), Roll::Done);
-                        let pace = self.people[j].pace as f32;
-                        if self.spawn_runner(world, net, id, bus, Some(j), true, buses, bus_ix).is_none() {
-                            self.stop_running(pid);
-                        } else if let Some(p) = self.pax_mut(j) {
-                            // (at the pace they ran along the pavement)
-                            p.walk_speed = pace;
-                            if let Some(l) = p.late.as_mut() {
-                                l.run = pace;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Somebody who ran for a bus along the pavement and need not any more: on at a walk.
-    fn stop_running(&mut self, pid: u32) {
-        let pace = 1.0 + self.rand_f() * 0.2;
-        if let Some(p) = self.people.iter_mut().find(|p| p.id == pid && matches!(p.state, State::Strolling(_))) {
-            p.pace = pace;
-        }
-    }
-
-    /// A pedestrian put out for a bus `bn` `d_bus` m off stop `id`, out of the player's sight,
-    /// walking along the pavement to the stop: from beyond it, coming towards the bus, or
-    /// from before it, the bus overtaking them - either, as it falls, and the other when that
-    /// one does not do. Put out as far along as they walk until the bus gets there (at
-    /// `RUNNER_BUS_SPEED`), to be `RUNNER_BEYOND_AT` / `RUNNER_BEFORE_AT` from the stop then.
-    /// Their id, or why nobody (tried again next frame).
-    fn place_walker(&mut self, world: &dyn World, net: &Network, id: i64, bn: &BusNow, d_bus: f64) -> Result<u32, &'static str> {
-        let (lane, s0, stop_pos, heading) =
-            self.stops.get(&id).and_then(|s| s.lane.map(|(l, s0)| (l, s0, s.pos, s.heading))).ok_or("the stop has no pavement")?;
-        let lane_len = net.lanes.get(lane).ok_or("the stop has no pavement")?.length();
-        // (beyond the stop by the stop's own way: the bus's heading this far off, before a
-        // bend, put "beyond" behind it as often as not)
-        let fwd = DVec2::new(heading.to_radians().sin(), heading.to_radians().cos());
-        let probe = |sign| along(net, lane, s0, lane_len, stop_pos, fwd, sign);
-        let beyond = if probe(1.0) >= probe(-1.0) { 1.0f32 } else { -1.0 };
-        let pace = 1.0 + self.rand_f() * 0.2;
-        let eta = (d_bus / RUNNER_BUS_SPEED) as f32;
-        let r = self.rand_f() as f32;
-        let pick = self.rand();
-        let sides = if self.rand_f() < 0.5 { [beyond, -beyond] } else { [-beyond, beyond] };
-        let mut why = "";
-        for sign in sides {
-            let at = lerp(if sign == beyond { RUNNER_BEYOND_AT } else { RUNNER_BEFORE_AT }, r);
-            let mut dist = (at + pace as f32 * eta).min(RUNNER_ROUTE_MAX);
-            if sign != beyond {
-                // (ahead of the bus, which overtakes them: not behind it already)
-                dist = dist.min(d_bus as f32 - 30.0);
-                if dist < at + 10.0 {
-                    why = "the bus is too close to start before the stop";
-                    continue;
-                }
-            }
-            // (a few ways on at the junctions: one may turn off the street, another not)
-            let route = self.ped.as_ref().and_then(|ped| (0..4u64).find_map(|k| route_to_stop(ped, net, lane, s0, sign, dist, pick.wrapping_add(k), fwd)));
-            let Some((q, h, legs)) = route else {
-                why = "the pavement ends or leaves the street";
-                continue;
-            };
-            // (to the pavement at the stop: the stop's object stands out at the kerb)
-            why = if crosses_street(net, q.truncate(), net.lanes[lane].at(s0).0.truncate()) {
-                "the walk starts across the street"
-            } else if !world.has_ground(q.x, q.y) {
-                "the walk starts where nothing is loaded"
-            } else if self.seen(q) {
-                "both ways are in sight"
-            } else {
-                ""
-            };
-            if !why.is_empty() {
-                continue;
-            }
-            let side = 0.3 + self.rand_f() as f32 * 0.4;
-            let Some(i) = self.spawn(world, q, h, State::Strolling(PedWalk::new(legs, true, side))) else {
-                return Err("no room for anybody more");
-            };
-            self.people[i].activity = Activity::Walk;
-            self.people[i].pace = pace;
-            let way = if sign == beyond { "beyond" } else { "before" };
-            trace!(
-                "t={:.1} pax {} put out {dist:.0} m along the pavement {way} stop {id} for {:?}, {d_bus:.0} m off",
-                self.time,
-                self.people[i].label(),
-                bn.id
-            );
-            return Ok(self.people[i].id);
-        }
-        Err(why)
-    }
-
-    /// A passenger for bus `bus` at stop `id`, running for it (`running`) or walking up to a
-    /// free waiting place: the one put out for it (`placed`) - else somebody walking near -
-    /// else, for a timetable bus, somebody from behind it out of sight (`start_behind`).
-    /// Nobody when the stop is full, has no pavement, no destination drawn is one the bus goes
-    /// to, or nobody is there to run.
-    #[allow(clippy::too_many_arguments)]
-    pub fn spawn_runner(
-        &mut self,
-        world: &dyn World,
-        net: &Network,
-        id: i64,
-        bus: BusId,
-        placed: Option<usize>,
-        running: bool,
-        buses: &[BusNow],
-        bus_ix: &HashMap<BusId, usize>,
-    ) -> Option<usize> {
+    /// Somebody running for bus `bus` standing at stop `id`: somebody walking near, else
+    /// somebody from behind the bus out of the player's sight (`start_behind`). For our bus
+    /// they make for its doors; for another player's they run to a waiting place, where
+    /// that player's game asks for them. Nobody when the stop is full, has no pavement, no
+    /// destination drawn is one the bus goes to, or nobody is there to run.
+    pub fn spawn_runner(&mut self, world: &dyn World, net: &Network, id: i64, bus: BusId, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) -> Option<usize> {
         let Some((lane, s0, stop_pos, full)) = self.stops.get(&id).and_then(|s| s.lane.map(|(l, s0)| (l, s0, s.pos, s.taken.iter().all(|t| *t)))) else {
             trace!("t={:.1} nobody late for {bus:?} at stop {id}: the stop has no pavement", self.time);
             return None;
@@ -507,7 +153,7 @@ impl PeopleSim {
             trace!("t={:.1} nobody late for {bus:?} at stop {id}: every waiting place is taken", self.time);
             return None;
         }
-        let bn = bus_of(buses, bus_ix, bus)?;
+        let bn = bus_ix.get(&bus).map(|k| &buses[*k])?;
         // (a few draws: the stop's destinations go with every line calling there - and with
         // none of those for this bus, the first of the stop's line records it takes)
         let mut drawn = None;
@@ -527,41 +173,29 @@ impl PeopleSim {
             return None;
         };
         let lane_len = net.lanes.get(lane)?.length();
-        let fwd = bn.fwd();
         let jitter = self.rand_f() as f32 * 5.0;
-        // (distances to the pavement at the stop, see `walks_near`; anybody but the one put
-        // out not right at the stop, as if they had been waiting there)
+        // (anybody walking near, not right at the stop - as if they had been waiting there)
         let pave = net.lanes[lane].at(s0).0;
-        let near = placed
-            .filter(|&j| self.walks_near(net, j, pave))
-            .or_else(|| self.stroller_near(net, pave).filter(|&j| (self.people[j].position - pave).truncate().length() > 5.0))
-            .map(Source::Stroller);
-        // (not for the player's bus: whoever runs for it was there to be seen before)
-        let from = near
-            .or_else(|| (bus != BusId::Player).then(|| self.start_behind(world, net, lane, s0, lane_len, stop_pos, fwd, jitter).map(Source::Spawn)).flatten());
-        let Some(from) = from else {
-            trace!(
-                "t={:.1} nobody late for {bus:?} at stop {id}: nobody walking near, and every place behind is in sight, across the street or not loaded",
-                self.time
-            );
-            return None;
+        let near = self.stroller_near(net, pave).filter(|&j| (self.people[j].position - pave).truncate().length() > 5.0);
+        let start = match near {
+            Some(_) => None,
+            None => Some(self.start_behind(world, net, lane, s0, lane_len, stop_pos, bn.fwd(), jitter)?),
         };
         let k = self.take_spot(id)?;
         let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
         let run = lerp(RUNNER_SPEED, self.rand_f() as f32);
+        // (another player's bus: to the waiting place at a run, that player's game takes them in)
+        let ours = bus == BusId::Player;
         let mut pax = Pax::new(walk, self.rand_f());
         pax.stop = Some(id);
         pax.spot = Some(k);
         pax.dest = dest;
         pax.line = line;
         pax.bus = Some(bus);
-        let phase = if running { LatePhase::Hurry } else { LatePhase::Approach };
-        pax.late = Some(Late { phase, walk, run, hurried: 0.0, stood: false });
-        if running {
-            pax.walk_speed = run;
-        }
-        let i = match from {
-            Source::Stroller(j) => {
+        pax.late = Some(Late { phase: if ours { LatePhase::Hurry } else { LatePhase::Approach }, walk, run, hurried: 0.0, stood: true });
+        pax.walk_speed = run;
+        let i = match (near, start) {
+            (Some(j), _) => {
                 // (on from where they walk, the way they face)
                 let p = &mut self.people[j];
                 pax.pos = p.position;
@@ -569,7 +203,7 @@ impl PeopleSim {
                 p.state = State::Pax(Box::new(pax));
                 j
             }
-            Source::Spawn(start) => {
+            (None, Some(start)) => {
                 let yaw = yaw_of((stop_pos - start).truncate());
                 pax.pos = start;
                 pax.yaw = yaw;
@@ -579,45 +213,37 @@ impl PeopleSim {
                 };
                 i
             }
+            (None, None) => return None,
         };
-        // (already running: on to the gather point and the doors)
-        let task = if running { Task::ToBus } else { Task::WalkingToBusstop };
-        self.set_task(i, task, buses, bus_ix, world);
-        let how = match from {
-            Source::Stroller(j) if Some(j) == placed => "put out for it, runs",
-            Source::Stroller(_) => "walking near, runs",
-            Source::Spawn(_) => "comes from behind",
-        };
+        self.set_task(i, if ours { Task::ToBus } else { Task::WalkingToBusstop }, buses, bus_ix, world);
         trace!(
-            "t={:.1} pax {} late for {bus:?} at stop {id}, {how}, {:.0} m away",
+            "t={:.1} pax {} late for {bus:?} at stop {id}, {}, {:.0} m away",
             self.time,
             self.people[i].label(),
+            if near.is_some() { "walking near, runs" } else { "comes from behind" },
             (stop_pos - self.people[i].position).truncate().length()
         );
         Some(i)
     }
 
-    /// Whether person `j` strolls the pavement within `RUNNER_NEAR` of `pave`, the point of
-    /// the pavement at a stop, on its side of the street: somebody who could run for a bus
-    /// there. (Not to the stop's object: it stands out at the kerb, and the way to it from the
-    /// pavement crossed the lane's middle.)
-    fn walks_near(&self, net: &Network, j: usize, pave: DVec3) -> bool {
-        let Some(p) = self.people.get(j) else {
-            return false;
-        };
-        if p.puppet.is_some() || p.remote || !matches!(p.state, State::Strolling(_)) {
-            return false;
-        }
-        (p.position - pave).truncate().length() < RUNNER_NEAR
-            && (p.position.z - pave.z).abs() < 3.0
-            && !crosses_street(net, p.position.truncate(), pave.truncate())
-    }
-
-    /// The nearest of the people who could run for a bus at a stop whose pavement is at
-    /// `pave` (`walks_near`).
+    /// The nearest person strolling the pavement within `RUNNER_NEAR` of `pave` (the point of
+    /// the pavement at a stop), on its side of the street: somebody who could run for a bus.
     fn stroller_near(&self, net: &Network, pave: DVec3) -> Option<usize> {
-        let dist = |j: usize| (self.people[j].position - pave).truncate().length();
-        (0..self.people.len()).filter(|&j| self.walks_near(net, j, pave)).min_by(|&a, &b| dist(a).total_cmp(&dist(b)))
+        let mut best: Option<(usize, f64)> = None;
+        for (j, p) in self.people.iter().enumerate() {
+            if p.puppet.is_some() || p.remote || !matches!(p.state, State::Strolling(_)) {
+                continue;
+            }
+            let d = (p.position - pave).truncate().length();
+            // (the cheap tests first: the street crossing only for the few within reach)
+            if d >= RUNNER_NEAR || (p.position.z - pave.z).abs() >= 3.0 || best.is_some_and(|(_, b)| d >= b) {
+                continue;
+            }
+            if !crosses_street(net, p.position.truncate(), pave.truncate()) {
+                best = Some((j, d));
+            }
+        }
+        best.map(|b| b.0)
     }
 
     /// A place 25 to 60 m along the stop's pavement (lane `lane` at `s0`) out of the
@@ -643,9 +269,8 @@ impl PeopleSim {
         None
     }
 
-    /// Somebody late, before their movement this frame: running once their bus stands at
-    /// the stop, left behind when it goes, an ordinary passenger again once aboard or
-    /// waiting at the stop.
+    /// Somebody late, before their movement this frame: left behind when the bus goes, an
+    /// ordinary passenger again once aboard or waiting at the stop.
     pub fn runner_step(&mut self, i: usize, dt: f32, world: &dyn World, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>) {
         let Some(p) = self.pax(i) else { return };
         let Some(late) = p.late else { return };
@@ -654,26 +279,14 @@ impl PeopleSim {
             self.end_late(i);
             return;
         };
-        let bn = bus.and_then(|b| bus_of(buses, bus_ix, b));
+        let bn = bus.and_then(|b| bus_ix.get(&b).map(|k| &buses[*k]));
         let listed = bus.is_some_and(|b| self.listed_at(stop, b));
-        let standing = bn.is_some_and(|b| b.speed.abs() < 3.0 && self.in_stop_box(stop, b.id));
         match late.phase {
-            // (the bus drove on, or they reached the stop first: they wait as anybody)
+            // (another player's bus: at the waiting place they wait as anybody)
             LatePhase::Approach if !listed || task == Task::WaitingForBus => self.end_late(i),
-            LatePhase::Approach if standing => {
-                let p = self.pax_mut(i).unwrap();
-                p.walk_speed = late.run;
-                p.late = Some(Late { phase: LatePhase::Hurry, ..late });
-                trace!("t={:.1} pax {} hurries for {bus:?}", self.time, self.people[i].label());
-                if task == Task::WalkingToBusstop {
-                    self.set_task(i, Task::ToBus, buses, bus_ix, world);
-                }
-            }
             LatePhase::Approach => {}
             LatePhase::Hurry => {
-                // (running since it overtook them, still pulling in: not left behind yet)
-                let stood = late.stood || standing;
-                if !listed || (stood && bn.is_none_or(|b| b.speed.abs() >= 3.0)) {
+                if !listed || bn.is_none_or(|b| b.speed.abs() >= 3.0) {
                     let p = self.pax_mut(i).unwrap();
                     p.walk_speed = 0.0;
                     p.late = Some(Late { phase: LatePhase::Missed(RUNNER_MISSED), ..late });
@@ -682,7 +295,7 @@ impl PeopleSim {
                     // (gave up at its shut doors, back at the stop)
                     self.end_late(i);
                 } else {
-                    self.pax_mut(i).unwrap().late = Some(Late { hurried: late.hurried + dt, stood, ..late });
+                    self.pax_mut(i).unwrap().late = Some(Late { hurried: late.hurried + dt, ..late });
                 }
             }
             LatePhase::Missed(t) if t > dt => self.pax_mut(i).unwrap().late = Some(Late { phase: LatePhase::Missed(t - dt), ..late }),
@@ -693,13 +306,6 @@ impl PeopleSim {
                 }
             }
         }
-    }
-
-    /// Whether person `id` was put out to run for a bus that has not come yet (they are not
-    /// taken away for room or for being far off).
-    pub fn put_out(&self, id: u32) -> bool {
-        // (the fork: the few put out now, see `runner_out`)
-        self.runner_out.contains(&id)
     }
 
     /// No longer late: their own pace again.
@@ -714,27 +320,24 @@ impl PeopleSim {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
-    /// (the fork) `put_out` asks the short list of who is put out (`runner_out`), not every
-    /// roll: it knows somebody from the moment their roll says so, and forgets them with it.
+    /// Only a player's bus has anybody run for it: ours, or another LAN player's - not the
+    /// timetable's or the traffic's.
     #[test]
-    fn who_is_put_out_follows_the_rolls() {
-        let mut h = PeopleSim::new(Path::new("/nonexistent"), 0);
-        let (a, b) = ((7, BusId::Ai(3)), (8, BusId::Player));
-        h.new_roll(a, Roll::Due);
-        h.new_roll(b, Roll::Due);
-        assert!(!h.put_out(11));
-        h.set_roll(a, Roll::Placed(11));
-        assert!(h.put_out(11), "at once, in the same frame");
-        h.set_roll(a, Roll::Running(11));
-        h.set_roll(b, Roll::Placed(12));
-        assert!(h.put_out(11) && h.put_out(12));
-        assert_eq!(h.runner_out.iter().filter(|p| **p == 11).count(), 1, "once each");
-        h.set_roll(a, Roll::Done);
-        // (made anew after `runners_tick`'s turn)
-        h.refresh_runner_out();
-        assert!(!h.put_out(11) && h.put_out(12));
-        assert!(bus_order(BusId::Player) < bus_order(BusId::Ai(0)) && bus_order(BusId::Ai(2)) < bus_order(BusId::Ai(10)));
+    fn only_the_players_buses_have_runners() {
+        assert!(players_bus(BusId::Player));
+        assert!(players_bus(BusId::Ai(remote_bus_id(3))));
+        assert!(!players_bus(BusId::Ai(17)));
+        assert!(!players_bus(BusId::Ai(placed_bus_id(5))), "a bus the player placed is no player's");
+    }
+
+    #[test]
+    fn the_setting_gives_the_chance_unless_the_variable_does() {
+        if omsi_cfg::flags::OMSI_RUNNER_CHANCE.is_set() {
+            return;
+        }
+        assert_eq!(runner_chance(0.15), 0.15);
+        assert_eq!(runner_chance(2.0), 1.0);
+        assert_eq!(runner_chance(0.0), 0.0);
     }
 }

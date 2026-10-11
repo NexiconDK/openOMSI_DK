@@ -285,13 +285,9 @@ pub struct PeopleSim {
     pub ai_visits: HashMap<u64, (i64, f64)>,
     /// When each bus last had a door open (the passengers' clock).
     pub last_door_open: HashMap<BusId, f64>,
-    /// The buses coming to or listed at a stop near the player, for somebody running up late
-    /// (`runners_tick`): (stop, bus) → where its roll stands.
-    pub runner_rolls: HashMap<(i64, BusId), RollEntry>,
-    /// (the fork) The people put out to run for a bus that has not come yet (the rolls
-    /// `Placed` or `Running`), for `put_out`: asked for every pedestrian every frame, it went
-    /// through all the rolls each time.
-    pub runner_out: Vec<u32>,
+    /// The players' buses that have had their roll for somebody running up late at the stop
+    /// they stand at (`runners_tick`): (stop, bus), forgotten once the bus has left.
+    pub runner_rolls: HashSet<(i64, BusId)>,
     /// (the fork) When `runners_tick` last looked (`RUNNER_EVERY`).
     pub runner_at: f64,
     /// Timetable buses to keep at their stop for a few seconds more (for the traffic): the
