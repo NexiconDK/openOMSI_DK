@@ -1572,3 +1572,16 @@ fn a_season_with_its_phase_crosses_the_wire() {
         assert_eq!(WorldInfo::from_fields(&parts, 0).season, season);
     }
 }
+
+/// (the fork) A passenger handed over goes with their group, ride and destination; a
+/// destination with the list's separators in it stays one field.
+#[test]
+fn pax_info_round_trip() {
+    let p = PaxInfo { person: 104, group: 7, ride_km: 3.25, dest: "Ahlheim Hbf; Bus, Gleis 2".into() };
+    let q = PaxInfo::decode(&p.encode()).unwrap();
+    assert_eq!((q.person, q.group, q.ride_km), (104, 7, 3.25));
+    assert_eq!(q.dest, "Ahlheim Hbf  Bus  Gleis 2");
+    assert_eq!(PaxInfo::decode("5,0,1.5,").unwrap().dest, "");
+    assert!(PaxInfo::decode("5,0,NaN,x").is_none());
+    assert!(PaxInfo::decode("nonsense").is_none());
+}

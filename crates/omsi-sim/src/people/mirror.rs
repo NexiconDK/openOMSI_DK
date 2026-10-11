@@ -48,6 +48,16 @@ mod takes_line_tests {
     }
 }
 
+/// (the fork) A waiting passenger handed over to a client's bus, as we had them: the group
+/// they travel with (0: alone), how far they ride (km) and where to.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Handed {
+    pub person: u32,
+    pub group: u32,
+    pub ride_km: f32,
+    pub dest: String,
+}
+
 /// The bus id (`BusId::Ai`) of a vehicle the player placed (`Player::uid`).
 pub fn placed_bus_id(uid: u64) -> u64 {
     (2 << 40) | uid
@@ -184,11 +194,32 @@ impl PeopleSim {
     }
 
     /// A client's bus takes these waiting people (host): those still waiting leave our
-    /// world (they are the client's now); returns them. Somebody who has meanwhile walked
-    /// up to another bus stays ours.
-    pub fn hand_over(&mut self, player: u32, ids: &[u32], terminus: Option<&str>) -> Vec<u32> {
+    /// world (they are the client's now); returns them, with who they are (`Handed`).
+    /// Somebody who has meanwhile walked up to another bus stays ours. (the fork) Only
+    /// those who would take a bus to `terminus`; and a group goes whole - the others of it
+    /// waiting at that stop too, whoever of them was asked for.
+    pub fn hand_over(&mut self, player: u32, ids: &[u32], terminus: Option<&str>) -> Vec<Handed> {
+        // the groups' other members waiting at the same stop
+        let mut ids: Vec<u32> = ids.to_vec();
+        let groups: Vec<(u32, Option<i64>)> = ids
+            .iter()
+            .filter_map(|id| self.people.iter().find(|p| p.id == *id))
+            .filter_map(|p| match &p.state {
+                State::Pax(x) => x.group.map(|g| (g, x.stop)),
+                _ => None,
+            })
+            .collect();
+        for (g, stop) in groups {
+            for p in &self.people {
+                if let State::Pax(x) = &p.state {
+                    if x.group == Some(g) && x.stop == stop && x.task == Task::WaitingForBus && !p.remote && !ids.contains(&p.id) {
+                        ids.push(p.id);
+                    }
+                }
+            }
+        }
         let mut out = Vec::new();
-        for id in ids {
+        for id in &ids {
             let Some(i) = self.people.iter().position(|p| p.id == *id) else {
                 continue;
             };
@@ -202,6 +233,7 @@ impl PeopleSim {
             if !self.would_take(i, terminus) {
                 continue;
             }
+            let who = self.pax(i).map(|x| Handed { person: *id, group: x.group.unwrap_or(0), ride_km: x.ride_km, dest: x.dest.clone().unwrap_or_default() });
             // (still counted at their stop while that bus stands there, as the people
             // boarding a bus of ours are: see `handed`)
             if let Some(stop) = self.pax(i).and_then(|x| x.stop) {
@@ -210,7 +242,9 @@ impl PeopleSim {
             self.release(i);
             let p = self.people.swap_remove(i);
             self.retire(&p);
-            out.push(*id);
+            if let Some(w) = who {
+                out.push(w);
+            }
         }
         out
     }
@@ -379,7 +413,9 @@ impl PeopleSim {
 
     /// The host handed this waiting person over to our bus (client). (The people of a LAN
     /// game stay the host's: nothing is taken over.)
-    pub fn grant(&mut self, id: u32) -> bool {
+    /// `info`: who the host says they are (the fork; None from an older host): their
+    /// destination, ride and group are kept, not drawn anew.
+    pub fn grant(&mut self, id: u32, info: Option<&Handed>) -> bool {
         self.claimed.remove(&id);
         let Some((stop, spot)) = self.mirror_wait.remove(&id) else { return false };
         let Some(i) = self.people.iter().position(|p| p.id == id && p.remote) else { return false };
@@ -397,10 +433,22 @@ impl PeopleSim {
         // what a waiting person of ours has (sub_626044 and task 6): a destination drawn
         // from the stop (both sides load the same map) and a distance to ride without one;
         // with neither they would get off again at once (#813)
-        let (dest, line) = self.draw_dest(stop);
-        pax.dest = dest;
-        pax.line = line;
-        pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
+        match info {
+            Some(h) => {
+                // (the fork) as the host had them: one group's members ride together
+                let dest = Some(h.dest.trim().to_string()).filter(|d| !d.is_empty());
+                pax.line = dest.as_ref().and_then(|d| self.stops[&stop].lines.iter().position(|(n, _)| n.trim() == d));
+                pax.dest = dest;
+                pax.ride_km = if h.ride_km > 0.0 { h.ride_km } else { self.rand_f() as f32 * 19.0 + 1.0 };
+                pax.group = (h.group != 0).then_some(h.group | (1 << 31));
+            }
+            None => {
+                let (dest, line) = self.draw_dest(stop);
+                pax.dest = dest;
+                pax.line = line;
+                pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
+            }
+        }
         pax.pos = self.people[i].position;
         pax.yaw = self.people[i].heading.to_radians();
         if let Some(sp) = sp {

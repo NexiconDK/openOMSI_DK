@@ -51,6 +51,10 @@
 //! WANT|<id>|c<id>,p<id>,…                        client → host: descriptions lost on the way
 //! CLAIM|<id>|<person>,…                          client → host: waiting people its bus takes
 //! GRANT|<person>,… / DENY|<person>,…             host → client: handed over, or not
+//! GRANT|<person>,…|<person>,<group>,<km>,<dest>;… (the fork) with who they are: the group
+//!                                                they travel with (0 none), the ride (km)
+//!                                                and where they are going (an older game
+//!                                                reads the people alone)
 //! ```
 //!
 //! `<footprints>` are the vehicles standing near the place a client's bus was put at
@@ -828,6 +832,32 @@ pub struct PartPose {
     pub heading: f32,
 }
 
+/// (the fork) A waiting passenger the host hands over to a client's bus, as the host had
+/// them: the group they travel with (0: alone), how far they ride (km) and where to.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PaxInfo {
+    pub person: u32,
+    pub group: u32,
+    pub ride_km: f32,
+    pub dest: String,
+}
+
+impl PaxInfo {
+    fn encode(&self) -> String {
+        let dest: String = clean_text(&self.dest, MAX_FIELD).chars().map(|c| if c == ';' || c == ',' { ' ' } else { c }).collect();
+        format!("{},{},{:.2},{}", self.person, self.group, finite_or(self.ride_km, 0.0).clamp(0.0, 500.0), dest.trim())
+    }
+
+    fn decode(text: &str) -> Option<PaxInfo> {
+        let mut f = text.splitn(4, ',');
+        let person = f.next()?.trim().parse().ok()?;
+        let group = f.next()?.trim().parse().ok()?;
+        let ride_km = f.next()?.trim().parse::<f32>().ok().filter(|v| v.is_finite() && (0.0..=500.0).contains(v))?;
+        let dest = clean_text(f.next().unwrap_or(""), MAX_FIELD);
+        Some(PaxInfo { person, group, ride_km, dest })
+    }
+}
+
 /// What a player says about its vehicle: who and what (`INFO`, every two seconds), and
 /// where it is and what it does (`STATE`, up to twenty times a second).
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -1419,6 +1449,8 @@ pub struct LanSession {
     wants: Vec<(u32, Vec<world::EntityRef>)>,
     claims: Vec<(u32, Vec<u32>)>,
     grants: Vec<(Vec<u32>, bool)>,
+    /// (the fork) What the host told of the people it handed over (`GRANT`'s third field).
+    pax_info: Vec<PaxInfo>,
     world_seq: u16,
     /// People on foot of the clients' own (boarding and leaving their buses), as they send
     /// them up (host): (player, when it came, frame); and their descriptions.
@@ -1523,6 +1555,7 @@ impl LanSession {
             wants: Vec::new(),
             claims: Vec::new(),
             grants: Vec::new(),
+            pax_info: Vec::new(),
             world_seq: 0,
             world_up: Vec::new(),
             descs_up: Vec::new(),
@@ -2080,15 +2113,24 @@ impl LanSession {
         }
     }
 
-    /// Answer a player's claim (host).
-    pub fn answer_claim(&self, id: u32, granted: &[u32], denied: &[u32]) {
+    /// Answer a player's claim (host); `info`: who the people handed over are (the fork).
+    pub fn answer_claim(&self, id: u32, granted: &[u32], denied: &[u32], info: &[PaxInfo]) {
         let Some(to) = self.peer_addr(id) else { return };
-        for (word, list) in [("GRANT", granted), ("DENY", denied)] {
-            for chunk in list.chunks(64).filter(|c| !c.is_empty()) {
-                let ids: Vec<String> = chunk.iter().map(|i| i.to_string()).collect();
-                self.send(format!("{word}|{}", ids.join(",")).as_bytes(), to);
-            }
+        // (a few at a time with their destinations: within one datagram)
+        for chunk in granted.chunks(16).filter(|c| !c.is_empty()) {
+            let ids: Vec<String> = chunk.iter().map(|i| i.to_string()).collect();
+            let about: Vec<String> = info.iter().filter(|p| chunk.contains(&p.person)).map(PaxInfo::encode).collect();
+            self.send(format!("GRANT|{}|{}", ids.join(","), about.join(";")).as_bytes(), to);
         }
+        for chunk in denied.chunks(64).filter(|c| !c.is_empty()) {
+            let ids: Vec<String> = chunk.iter().map(|i| i.to_string()).collect();
+            self.send(format!("DENY|{}", ids.join(",")).as_bytes(), to);
+        }
+    }
+
+    /// (the fork) What the host told of the people it handed over (client).
+    pub fn take_pax_info(&mut self) -> Vec<PaxInfo> {
+        std::mem::take(&mut self.pax_info)
     }
 
     /// World frames that came since the last call, with when they came (client).
@@ -2693,6 +2735,13 @@ impl LanSession {
                         .take(64)
                         .collect();
                     if !list.is_empty() {
+                        if parts[0] == "GRANT" {
+                            for p in field(&parts, 2).split(';').filter_map(PaxInfo::decode) {
+                                if list.contains(&p.person) && self.pax_info.len() < 256 {
+                                    self.pax_info.push(p);
+                                }
+                            }
+                        }
                         self.grants.push((list, parts[0] == "GRANT"));
                     }
                 }

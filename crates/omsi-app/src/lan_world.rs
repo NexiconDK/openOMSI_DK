@@ -608,10 +608,12 @@ impl LanWorld {
             // (the fork) to the people waiting, where that bus goes: its duty's terminus, or
             // what its sign shows
             let terminus = lan.peers().find(|p| p.pose.id == id).map(|p| p.pose.destination.clone());
-            let granted = humans
+            let handed = humans
                 .as_deref_mut()
                 .map(|h| h.hand_over(id, &ids, terminus.as_deref()))
                 .unwrap_or_default();
+            let granted: Vec<u32> = handed.iter().map(|h| h.person).collect();
+            let info: Vec<omsi_net::PaxInfo> = handed.iter().map(|h| omsi_net::PaxInfo { person: h.person, group: h.group, ride_km: h.ride_km, dest: h.dest.clone() }).collect();
             let denied: Vec<u32> = ids.iter().copied().filter(|i| !granted.contains(i)).collect();
             // (those waiting for another line are asked for again every ten seconds while
             // the bus stands there: told of only with somebody granted)
@@ -627,7 +629,7 @@ impl LanWorld {
                     }
                 );
             }
-            lan.answer_claim(id, &granted, &denied);
+            lan.answer_claim(id, &granted, &denied, &info);
             if let Some(v) = self.views.get_mut(&id) {
                 for g in &granted {
                     v.sent.remove(&(true, *g));
@@ -1275,10 +1277,12 @@ impl LanWorld {
         m.people.retain(|_, t| t.heard.elapsed() < forget);
         if let Some(h) = humans.as_deref_mut() {
             // the host's answers to our claims
+            let info: Vec<omsi_net::PaxInfo> = lan.take_pax_info();
             for (ids, granted) in lan.take_grants() {
                 for id in ids {
                     if granted {
-                        if h.grant(id) {
+                        let about = info.iter().find(|p| p.person == id).map(|p| omsi_sim::people::Handed { person: p.person, group: p.group, ride_km: p.ride_km, dest: p.dest.clone() });
+                        if h.grant(id, about.as_ref()) {
                             m.granted += 1;
                             log::info!("LAN: the host hands waiting passenger {id} over to our bus");
                         } else {
