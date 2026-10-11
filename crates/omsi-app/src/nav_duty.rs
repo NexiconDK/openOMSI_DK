@@ -815,7 +815,12 @@ pub(crate) fn draw_sheet_head(pen: &mut Pen, d: &DutyState, r: Rect, time: f64, 
     let status = d.status();
     let cw = pen.chip(status, x1, r.y + 27.0 * s, s);
     let tx = x0 + 28.0 * s;
-    pen.text_in("Duty", 18.0 * s, Weight::Bold, Rect::new(tx, r.y + 15.0 * s, (x1 - cw - 8.0 * s - tx).max(0.0), 24.0 * s), Align::Left, TEXT);
+    // (the fork) with the duty's name from the timetable (its tour, "143H01")
+    let title = match d.leg(d.trip).1.trim() {
+        "" => omsi_ui::tr("Duty").into_owned(),
+        tour => format!("{} {tour}", omsi_ui::tr("Duty")),
+    };
+    pen.text_in(&title, 18.0 * s, Weight::Bold, Rect::new(tx, r.y + 15.0 * s, (x1 - cw - 8.0 * s - tx).max(0.0), 24.0 * s), Align::Left, TEXT);
     let span = match (d.trips.first(), d.trips.last()) {
         (Some(a), Some(b)) => format!("{}  ·  {} – {}", tr_with(if d.trips.len() == 1 { "%{n} trip" } else { "%{n} trips" }, &[("n", d.trips.len().to_string())]), hhmm(a.departure), hhmm(b.end)),
         _ => String::new(),
@@ -926,12 +931,12 @@ pub(crate) mod tests {
         let a = trip("35", "Diakonissenkrankenhaus", 11.0 * 60.0 + 26.0, &[("Hauptbahnhof", 0.0, true), ("Depot gate", 1.0, false), ("Markt", 3.0, true), ("Kirchweg", 6.0, true), ("Rathaus", 9.0, true), ("Schule", 12.0, true), ("Park", 15.0, true), ("Diakonissenkrankenhaus", 20.0, true)]);
         let b = trip("35", "Hauptbahnhof", 12.0 * 60.0 + 1.0, &[("Diakonissenkrankenhaus", 0.0, true), ("Park", 5.0, true), ("Hauptbahnhof", 18.0, true)]);
         let c = trip("25", "Eichstedt", 12.0 * 60.0 + 33.0, &[("Hauptbahnhof", 0.0, true), ("Eichstedt", 28.0, true)]);
-        let tours = vec![("35".into(), "1".into(), 0), ("35".into(), "1".into(), 1), ("25".into(), "3".into(), 4)];
+        let tours = vec![("35".into(), "35H01".into(), 0), ("35".into(), "35H01".into(), 1), ("25".into(), "25H03".into(), 4)];
         (vec![a, b, c], tours)
     }
 
     pub(crate) fn state<'a>(trips: &'a [PlannedTrip], tours: &'a [(String, String, usize)], trip: usize, next_stop: usize, done: bool, delay: f64) -> DutyState<'a> {
-        DutyState { trips, tours, line: "35", tour: "1", trip, next_stop, at_stop: false, done, delay }
+        DutyState { trips, tours, line: "35", tour: "35H01", trip, next_stop, at_stop: false, done, delay }
     }
 
     fn names(rows: &[Row]) -> Vec<(String, StopState)> {
@@ -1016,7 +1021,7 @@ pub(crate) mod tests {
         assert_eq!(d.status().label(), "break, 8 min left");
         let rows = board(Some(&d), 4);
         assert!(matches!(&rows[0], Row::Head { line: Some(l), terminus, index: 3, .. } if l == "25" && terminus == "Eichstedt"));
-        assert_eq!(rows[1], Row::Change { line: "25".into(), tour: "3".into() });
+        assert_eq!(rows[1], Row::Change { line: "25".into(), tour: "25H03".into() });
         assert_eq!(names(&rows), [("Hauptbahnhof".to_string(), StopState::Now), ("Eichstedt".into(), StopState::Ahead)]);
         assert!(rows.iter().all(|r| !matches!(r, Row::Next { .. } | Row::More { .. })));
         assert!(matches!(rows.last(), Some(Row::Stop { last: true, .. })));
@@ -1031,7 +1036,7 @@ pub(crate) mod tests {
         let (trips, tours) = duty();
         let d = state(&trips, &tours, 1, 1, false, 0.0);
         let rows = board(Some(&d), 4);
-        assert_eq!(rows.last(), Some(&Row::Next { departure: (12.0 * 60.0 + 33.0) * 60.0, line: Some("25".into()), terminus: "Eichstedt".into(), pause: 14, change: Some(("25".into(), "3".into())) }));
+        assert_eq!(rows.last(), Some(&Row::Next { departure: (12.0 * 60.0 + 33.0) * 60.0, line: Some("25".into()), terminus: "Eichstedt".into(), pause: 14, change: Some(("25".into(), "25H03".into())) }));
         // a duty of one tour (no legs): the same line and tour throughout, never a change
         let one = DutyState { tours: &[], ..d };
         assert!(matches!(board(Some(&one), 4).last(), Some(Row::Next { change: None, .. })));
@@ -1087,7 +1092,7 @@ pub(crate) mod tests {
                 SheetRow::Change { line, tour } => format!("change {line}/{tour}"),
             })
             .collect();
-        assert_eq!(kinds, ["trip 1 Done", "break 15", "trip 2 Now", "Diakonissenkrankenhaus Done", "Park Now", "Hauptbahnhof Ahead", "break 14", "change 25/3", "trip 3 Ahead"]);
+        assert_eq!(kinds, ["trip 1 Done", "break 15", "trip 2 Now", "Diakonissenkrankenhaus Done", "Park Now", "Hauptbahnhof Ahead", "break 14", "change 25/25H03", "trip 3 Ahead"]);
         assert!(matches!(&rows[0], SheetRow::Trip { stops: 7, .. }));
         assert_eq!(sheet_focus(&rows), 44.0 + 24.0 + 44.0 + 23.0);
         assert_eq!(sheet_height(&rows), 3.0 * 44.0 + 3.0 * 24.0 + 3.0 * 23.0);

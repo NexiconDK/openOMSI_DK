@@ -37,6 +37,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Ny indstilling **Biler på kortet** (slået til fra start; i launcheren under navigatorens indstillinger og i spillets menu). Slået fra viser minimappet og bykortet kun busser, trolleybusser og sporvogne, ikke de blå prikker for bilerne. Virker, når **AI-køretøjer på kortet** er slået til, og kan skiftes mens du kører.
 - Et klik på minimappet åbner **bykortet** med et **vagt-panel** til venstre: alle ture med tider, pauser, linjeskift og den aktuelle tur med alle stop. Musehjulet ruller listen.
 - Ny indstilling **Klassisk navigator** (slået fra fra start; i launcheren under navigatorens indstillinger og i spillets menu): navigatoren og bykortet ser ud som før, uden vagt-tavlen, vagt-panelet og H-skiltene. Kan skiftes mens du kører.
+- Vagt-panelet på bykortet viser nu **vagtens navn** i overskriften, fx **Vagt 143H01** (navnet fra køreplanen).
 - Knappen med listen i bykortets top (grøn, når panelet vises) skjuler og viser vagt-panelet.
 - Bykortet tegner nu stoppestederne som **H-skilte** med navn og tid (de kørte stop nedtonet), og de andre busser og biler i **deres rigtige størrelse og form** med linjeskilt over busserne (din egen linje fremhævet). Med vagt-panelet åbent centreres kortet på den del, panelet ikke dækker. Også fra Luc-nbr's beta.
 
