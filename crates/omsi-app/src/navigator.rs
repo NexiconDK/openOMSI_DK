@@ -1118,7 +1118,8 @@ impl Navigator {
         let duty = f.duty.and_then(|d| crate::nav_duty::DutyState::of(d, f.time));
         let want_board = self.schedule && duty.is_some() && !self.classic;
         let handle = f.duty.is_some() && !f.stops.is_empty() && !self.classic;
-        let most = if self.expanded { usize::MAX } else { 4 };
+        // (folded: the stop it heads for and the one after it; unfolded, the whole trip)
+        let most = if self.expanded { usize::MAX } else { 2 };
         let (lay, board, ph) = if self.tall > 0.0 && !self.classic {
             let unit = base * f.ui_scale / crate::nav_panel::WIDTH;
             let ch = (pw * self.tall).clamp(crate::nav_panel::MIN_SIZE[1] * unit, (sh * 0.94).max(150.0)).round();

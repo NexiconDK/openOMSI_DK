@@ -29498,3 +29498,19 @@ _version: 2
 "How passengers choose their place: window seats, the pilot's seat for the elderly, groups who sit together. Off: a place at random, as in OMSI":
   de: "Wie Fahrgäste ihren Platz wählen: Fensterplätze, der Platz neben dem Fahrer für Ältere, Gruppen, die zusammen sitzen. Aus: ein Platz nach Zufall, wie in OMSI"
   da: "Hvordan passagerer vælger plads: vinduespladser, pilotsædet for ældre, grupper der sidder sammen. Fra: en tilfældig plads, som i OMSI"
+
+"planned %{time}":
+  de: "geplant %{time}"
+  da: "planlagt %{time}"
+
+"expected %{time}":
+  de: "erwartet %{time}"
+  da: "forventet %{time}"
+
+"sched. %{time}":
+  de: "Plan %{time}"
+  da: "plan. %{time}"
+
+"exp. %{time}":
+  de: "erw. %{time}"
+  da: "forv. %{time}"

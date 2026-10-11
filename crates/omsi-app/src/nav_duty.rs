@@ -306,7 +306,8 @@ fn stop_state(j: usize, now: usize) -> StopState {
 pub enum Row {
     /// The trip: its line (None: an empty run), where it goes, which of how many, when it
     /// gets there (during the break: when it leaves), and how the duty stands.
-    Head { line: Option<String>, terminus: String, index: usize, count: usize, time: f64, status: Status },
+    /// (the fork) `expected`: when it will get there, where that is off the plan.
+    Head { line: Option<String>, terminus: String, index: usize, count: usize, time: f64, expected: Option<f64>, status: Status },
     /// A stop: its planned time, when the bus will be there when that is off the timetable,
     /// its name, where it is for the bus, and whether it is the trip's last.
     Stop { planned: f64, expected: Option<f64>, name: String, state: StopState, last: bool },
@@ -333,7 +334,11 @@ pub fn board(state: Option<&DutyState>, ahead: usize) -> Vec<Row> {
     let Some(trip) = d.trips.get(k) else { return vec![Row::NoDuty] };
     let on_break = matches!(status, Status::Break(_));
     let terminus = trip.terminus.trim().to_string();
-    let mut rows = vec![Row::Head { line: d.shown_line(k), terminus: terminus.clone(), index: k + 1, count: d.trips.len(), time: if on_break { trip.departure } else { trip.end }, status }];
+    let head_expected = match status {
+        Status::Running(late) => Some(trip.end + late).filter(|e| hhmm(*e) != hhmm(trip.end)),
+        _ => None,
+    };
+    let mut rows = vec![Row::Head { line: d.shown_line(k), terminus: terminus.clone(), index: k + 1, count: d.trips.len(), time: if on_break { trip.departure } else { trip.end }, expected: head_expected, status }];
     if status == Status::Finished {
         rows.push(Row::Finished);
         return rows;
@@ -523,8 +528,8 @@ impl Pen<'_> {
 
     /// A stop on the rail: its pin at `x` with the rail through it (from the row above when
     /// there is a stop there, on down when there is one below; grey where the bus has been),
-    /// its name from `name_x`, and on the right its time when given (when the bus will be
-    /// there, where that is off the plan) and a tag on the trip's last stop.
+    /// its name from `name_x`, and on the right its planned time when given (and, off the
+    /// plan, when the bus will be there, both named) and a tag on the trip's last stop.
     #[allow(clippy::too_many_arguments)]
     fn stop(&mut self, r: Rect, x: f32, name_x: f32, name: &str, planned: Option<f64>, expected: Option<f64>, state: StopState, last: bool, above: bool, below: bool, s: f32) {
         let cy = r.center().y;
@@ -546,21 +551,30 @@ impl Pen<'_> {
                 self.p.circle(Vec2::new(x, cy), 2.5 * s, SHEET);
             }
         }
-        // the time on the right: one only - when the bus will be there, in the colour of how
-        // late or early, where that is off the plan; else the planned one
+        // the time on the right: the planned one; off the plan, "plan. 11:36  forv. 11:40" -
+        // when it was to be there and, in the colour of how late or early, when it will
         let tpx = 12.0 * s;
         let mut right = r.right();
         if let Some(planned) = planned {
-            let (text, weight, c) = match expected.filter(|e| hhmm(*e) != hhmm(planned)) {
-                Some(e) => (hhmm(e), Weight::Bold, punctuality(e - planned).ink()),
-                None => {
-                    let (weight, c) = time_style(state);
-                    (hhmm(planned), weight, c)
+            match expected.filter(|e| hhmm(*e) != hhmm(planned)) {
+                Some(e) => {
+                    let et = tr_with("exp. %{time}", &[("time", hhmm(e))]);
+                    let ew = self.width(&et, tpx, Weight::Bold);
+                    self.text_in(&et, tpx, Weight::Bold, Rect::new(right - ew - 2.0 * s, r.y, ew + 2.0 * s, r.h), Align::Right, punctuality(e - planned).ink());
+                    right -= ew + 7.0 * s;
+                    let pt = tr_with("sched. %{time}", &[("time", hhmm(planned))]);
+                    let pw = self.width(&pt, 11.0 * s, Weight::Medium);
+                    self.text_in(&pt, 11.0 * s, Weight::Medium, Rect::new(right - pw - 2.0 * s, r.y, pw + 2.0 * s, r.h), Align::Right, TEXT_DIM);
+                    right -= pw + 8.0 * s;
                 }
-            };
-            let tw = self.width(&text, tpx, weight);
-            self.text_in(&text, tpx, weight, Rect::new(right - tw - 2.0 * s, r.y, tw + 2.0 * s, r.h), Align::Right, c);
-            right -= tw + 8.0 * s;
+                None => {
+                    let text = hhmm(planned);
+                    let (weight, c) = time_style(state);
+                    let tw = self.width(&text, tpx, weight);
+                    self.text_in(&text, tpx, weight, Rect::new(right - tw - 2.0 * s, r.y, tw + 2.0 * s, r.h), Align::Right, c);
+                    right -= tw + 8.0 * s;
+                }
+            }
         }
         if last {
             let px = 10.0 * s;
@@ -606,14 +620,19 @@ pub(crate) fn draw_board(pen: &mut Pen, rows: &[Row], area: Rect, s: f32) {
         let h = row_height(row) * s;
         let r = Rect::new(x0, y, w, h);
         match row {
-            Row::Head { line, terminus, index, count, time, status } => {
+            Row::Head { line, terminus, index, count, time, expected, status } => {
                 let cy = r.y + 15.0 * s;
                 let pw = pen.plate(line.as_deref(), x0, cy, s);
                 let cw = pen.chip(*status, x1, cy, s);
                 let tx = x0 + pw + 8.0 * s;
                 pen.text_in(terminus, 14.0 * s, Weight::Bold, Rect::new(tx, cy - 10.0 * s, (x1 - cw - 8.0 * s - tx).max(0.0), 20.0 * s), Align::Left, TEXT);
                 let when = if matches!(status, Status::Break(_)) { "leaves %{time}" } else { "arrives %{time}" };
-                let sub = format!("{}  ·  {}", tr_with("trip %{k} of %{n}", &[("k", index.to_string()), ("n", count.to_string())]), tr_with(when, &[("time", hhmm(*time))]));
+                // (the fork) off the plan: when it was to get there and when it will
+                let when = match expected {
+                    Some(e) => format!("{}  ·  {}", tr_with("planned %{time}", &[("time", hhmm(*time))]), tr_with("expected %{time}", &[("time", hhmm(*e))])),
+                    None => tr_with(when, &[("time", hhmm(*time))]),
+                };
+                let sub = format!("{}  ·  {}", tr_with("trip %{k} of %{n}", &[("k", index.to_string()), ("n", count.to_string())]), when);
                 pen.text_in(&sub, 11.5 * s, Weight::Medium, Rect::new(x0, r.y + 28.0 * s, w, 16.0 * s), Align::Left, TEXT_DIM);
             }
             Row::Stop { planned, expected, name, state, last } => {
@@ -917,7 +936,8 @@ pub(crate) mod tests {
         let d = state(&trips, &tours, 0, 3, false, 40.0);
         let rows = board(Some(&d), 3);
         match &rows[0] {
-            Row::Head { line, terminus, index, count, time, status } => {
+            Row::Head { line, terminus, index, count, time, expected, status } => {
+                assert_eq!(expected.map(hhmm).as_deref(), None, "40 s late: the same minute");
                 assert_eq!(line.as_deref(), Some("35"));
                 assert_eq!(terminus, "Diakonissenkrankenhaus");
                 assert_eq!((*index, *count), (1, 3));
@@ -1153,7 +1173,7 @@ pub(crate) mod tests {
         let s = 2.0;
         let states = [state(&trips, &tours, 0, 3, false, 250.0), state(&trips, &tours, 1, 2, true, -480.0), DutyState { at_stop: true, ..state(&trips, &tours, 0, 0, false, -299.0) }];
         let (pw, map_h, bars) = (360.0 * s, 223.0 * s, 80.0 * s);
-        let boards: Vec<Vec<Row>> = states.iter().map(|d| board(Some(d), 4)).collect();
+        let boards: Vec<Vec<Row>> = states.iter().map(|d| board(Some(d), 2)).collect();
         let tall = boards.iter().map(|b| board_height(b) * s).fold(0.0, f32::max) + map_h + bars;
         let mut img = image::RgbaImage::from_pixel(((pw + 40.0) * 3.0) as u32, (tall + 40.0) as u32, image::Rgba([70, 84, 96, 255]));
         for (k, rows) in boards.iter().enumerate() {
