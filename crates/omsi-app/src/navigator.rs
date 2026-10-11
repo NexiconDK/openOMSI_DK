@@ -1354,7 +1354,7 @@ impl Navigator {
             let a = (angle_diff(self.cam_heading, pl.heading) as f32).to_radians();
             arrow(&mut ui, p, a, 7.5 * s, 1.25, Color::rgba(10, 10, 10, 0.8), PLAYER);
             let px = 9.5 * s;
-            let name = self.fonts.fit(&pl.name, px, Weight::Bold, 90.0 * s);
+            let name = self.fonts.fit(&pl.name, px, Weight::Bold, 130.0 * s);
             let w = self.fonts.width(&name, px, Weight::Bold) + 8.0 * s;
             let r = Rect::new(p.x - w * 0.5, p.y - 23.0 * s, w, 13.0 * s);
             if taken.iter().any(|o| rects_overlap(o, &r)) {
@@ -2887,7 +2887,7 @@ impl Navigator {
             }
             arrow(&mut ui, p, (pl.heading as f32).to_radians(), 8.5 * s, 1.3, Color::rgba(10, 10, 10, 0.9), PLAYER);
             let px = 11.0 * s;
-            let name = self.fonts.fit(&pl.name, px, Weight::Bold, 140.0 * s);
+            let name = self.fonts.fit(&pl.name, px, Weight::Bold, 190.0 * s);
             let tw = self.fonts.width(&name, px, Weight::Bold) + 9.0 * s;
             let r = Rect::new(p.x - tw * 0.5, p.y - 27.0 * s, tw, 15.0 * s);
             if taken.iter().any(|o| rects_overlap(o, &r)) {

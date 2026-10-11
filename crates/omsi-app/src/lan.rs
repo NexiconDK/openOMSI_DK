@@ -1739,6 +1739,16 @@ fn nav_player(pose: &Pose, name: &str, bus: (DVec3, f64), my_id: u32, bus_of: im
         },
     };
     let name = if name.trim().is_empty() { format!("player {}", pose.id) } else { name.trim().to_string() };
+    // (the fork) at the wheel of their bus: its line before the name, "123 - Bjorn", or
+    // "Not In Service - Bjorn" with none set; on foot or riding along, the name alone
+    let name = if pose.walker.is_none() && !pose.bus.trim().is_empty() {
+        match pose.line.trim() {
+            "" | "0" => format!("{} - {name}", omsi_ui::tr("Not In Service")),
+            line => format!("{line} - {name}"),
+        }
+    } else {
+        name
+    };
     Some(crate::navigator::NavPlayer { position, heading, name })
 }
 
@@ -3956,9 +3966,14 @@ mod tests {
         let mut pose = Pose { id: 3, ..Default::default() };
         let p = nav_player(&pose, " Anna ", bus, 2, third).unwrap();
         assert_eq!((p.position, p.heading, p.name.as_str()), (bus.0, 90.0, "Anna"));
+        // (the fork) at the wheel: the bus's line before the name, or not in service
+        pose.bus = "Vehicles/MAN_SD200/MAN_SD77.bus".into();
+        assert_eq!(nav_player(&pose, "Anna", bus, 2, third).unwrap().name, format!("{} - Anna", omsi_ui::tr("Not In Service")));
+        pose.line = " 131 ".into();
+        assert_eq!(nav_player(&pose, "Anna", bus, 2, third).unwrap().name, "131 - Anna");
         pose.walker = Some(omsi_net::Walker { x: 1.0, y: 2.0, z: 3.0, heading: 45.0, ..Default::default() });
         let p = nav_player(&pose, "", bus, 2, third).unwrap();
-        assert_eq!((p.position, p.heading, p.name.as_str()), (DVec3::new(1.0, 2.0, 3.0), 45.0, "player 3"));
+        assert_eq!((p.position, p.heading, p.name.as_str()), (DVec3::new(1.0, 2.0, 3.0), 45.0, "player 3"), "on foot: the name alone");
         pose.walker.as_mut().unwrap().aboard = Some(omsi_net::Aboard { owner: 7, ..Default::default() });
         assert_eq!(nav_player(&pose, "Anna", bus, 2, third).unwrap().position, DVec3::new(-50.0, 10.0, 0.0));
         pose.walker.as_mut().unwrap().aboard = Some(omsi_net::Aboard { owner: 2, ..Default::default() });
