@@ -1563,6 +1563,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
         "nav_cars" => s.nav_cars,
+        "lan_player_list" => s.lan_player_list,
         "tablet" => s.tablet,
         "nav_classic" => s.nav_classic,
         "shadows" => s.shadows,
@@ -1674,6 +1675,10 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
             }
             app.settings.nav_cars = on;
             Some(("nav_cars", bit))
+        }
+        "lan_player_list" => {
+            app.settings.lan_player_list = on;
+            Some(("lan_player_list", bit))
         }
         "tablet" => {
             app.settings.tablet = on;
@@ -2627,6 +2632,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "chat", "Chat in online games", "Shows the chat of a LAN session"),
         slider_row(app, "chat_size", "Chat size", "The chat's texts on top of the interface size (also Ctrl + the mouse wheel over the chat)", &pct),
         switch_row(app, "name_tags", "Other players' names above their buses", "Shows the names of the other players"),
+        switch_row(app, "lan_player_list", "Online: every player in the corner", "On: the session's code and a line a player - name, line and tour, the duty's hours. Off: one line, how many others and the code"),
         Some(opens("Reset all settings...", "Everything but the language, the key bindings and the game folder goes back to how it came", "reset")),
     ]
         .into_iter()

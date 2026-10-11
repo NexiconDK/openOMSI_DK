@@ -29602,3 +29602,47 @@ _version: 2
 "Now and then, with a player's bus standing at a stop near you, somebody late runs for it":
   de: "Ab und zu, wenn der Bus eines Spielers an einer Haltestelle in deiner Nähe steht, rennt jemand, der spät dran ist, zu ihm"
   da: "En gang imellem, når en spillers bus holder ved et stoppested nær dig, løber en, der er sent på den, efter den"
+
+"Online: every player in the corner":
+  de: "Online: jeder Spieler in der Ecke"
+  da: "Online: alle spillere i hjørnet"
+
+"On: the session's code and a line a player - name, line and tour, the duty's hours. Off: one line, how many others and the code":
+  de: "An: der Code der Sitzung und eine Zeile je Spieler - Name, Linie und Umlauf, die Dienstzeiten. Aus: eine Zeile, wie viele andere und der Code"
+  da: "Til: sessionens kode og en linje pr. spiller - navn, linje og tur, vagtens tidsrum. Fra: én linje med antal andre spillere og koden"
+
+"Online: in %{name}'s game":
+  de: "Online: im Spiel von %{name}"
+  da: "Online: i spillet hos %{name}"
+
+"Player %{n}: %{name} - free drive":
+  de: "Spieler %{n}: %{name} - freie Fahrt"
+  da: "Spiller %{n}: %{name} - fri kørsel"
+
+"Player %{n}: %{name} - Line %{line} & Tour %{tour}":
+  de: "Spieler %{n}: %{name} - Linie %{line} & Umlauf %{tour}"
+  da: "Spiller %{n}: %{name} - Linje %{line} & Tur %{tour}"
+
+"From %{from} - %{to}":
+  de: "von %{from} - %{to} Uhr"
+  da: "Fra kl. %{from} - %{to}"
+
+"Player %{name} joined with %{bus}":
+  de: "Spieler %{name} ist mit %{bus} beigetreten"
+  da: "Spiller %{name} er kommet ind med %{bus}"
+
+"Player %{name} joined":
+  de: "Spieler %{name} ist beigetreten"
+  da: "Spiller %{name} er kommet ind"
+
+"Player %{name} has left the game":
+  de: "Spieler %{name} hat das Spiel verlassen"
+  da: "Spiller %{name} har forladt spillet"
+
+"Player %{name} is back":
+  de: "Spieler %{name} ist zurück"
+  da: "Spiller %{name} er tilbage"
+
+"Player %{name} was sent away by the host":
+  de: "Spieler %{name} wurde vom Host entfernt"
+  da: "Spiller %{name} blev smidt ud af værten"

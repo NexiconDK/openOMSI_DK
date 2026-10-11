@@ -307,7 +307,7 @@ impl Offscreen<'_> {
                 lines.push(format!("No duty: {e}"));
             }
             if let Some(l) = lan_off.as_ref() {
-                lines.extend(lan::hud_lines(l, remotes_off, Some(p)));
+                lines.extend(lan::hud_lines(l, remotes_off, Some(p), lan::HudInfo::default()));
             }
             let viewport = settings.hud_viewport((w, h));
             let overlay_start = scene.overlays.len();

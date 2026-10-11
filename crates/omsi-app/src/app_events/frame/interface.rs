@@ -116,7 +116,8 @@ impl App {
         }
         self.menus.notices.retain(|n| n.left > 0.0);
         if let Some(lan) = self.net.lan.as_ref() {
-            lines.extend(lan::hud_lines(lan, &self.net.remotes, self.player.as_ref()));
+            let info = lan::HudInfo { duty: self.session.duty.as_ref(), schedule: self.session.schedule.as_ref(), list: self.settings.lan_player_list };
+            lines.extend(lan::hud_lines(lan, &self.net.remotes, self.player.as_ref(), info));
             lines.extend(self.sound.voice.as_ref().and_then(|v| v.hud_line()));
         }
         // (the fork) where the tablet page is to be opened
@@ -314,6 +315,7 @@ impl App {
             self.net.remotes.chat.disabled = !self.settings.chat;
             let chat = (self.net.lan.is_some() && self.settings.chat).then(|| ui::ChatView {
                 lines: &self.net.remotes.chat.lines,
+                born: &self.net.remotes.chat.born,
                 typing: self.net.remotes.chat.typing.as_deref(),
                 error: self.net.remotes.chat.error(),
             });

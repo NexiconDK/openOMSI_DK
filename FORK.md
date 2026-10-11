@@ -71,6 +71,9 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Hurtigere: skyggen regnes nu kun ud for lygter, hvis lys kan nå forbi din bus. Før blev hvert billedpunkt tjekket mod alle bilers lygter i byen, hvilket kostede om natten.
 
 ### Multiplayer
+- **Spillerlisten i hjørnet:** øverst står **Online: koden** til sessionen. Hos gæsterne står **Online: i spillet hos Mathias**. Under den står én linje pr. spiller, også dig selv, i den rækkefølge I kom ind: **Spiller 2: bjorn - Linje 135 & Tur 135S05 - Fra kl. 14:12 - 22:40**, eller **fri kørsel**, når en spiller ikke har nogen vagt. Ny indstilling **Online: alle spillere i hjørnet** (slået til fra start; i launcheren ved chatten og i spillets menu). Slået fra står der kun den korte linje som før: "Online: 1 anden spiller  KODE".
+- Beskederne om spillere i chatten er på dansk: **Spiller bjorn er kommet ind med Urbino_18_…**, **Spiller bjorn har forladt spillet** (også når forbindelsen er tabt), **Spiller bjorn er tilbage**.
+- **Chatten forsvinder af sig selv:** hver linje toner ud 30 sekunder efter, den kom. Holder du musen over chatten eller trykker / for at skrive, kommer hele historikken frem igen.
 - Loggen fyldes ikke længere op, når et andet program på computeren (fx Steam, hvis standardport er 27015) banker på værtens port hele tiden. Det skrives kun de første gange og derefter ved 10, 100, 1000 osv.
 - På minimappet og bykortet står de andre spilleres **linje foran deres navn**, fx **123 - Bjorn**, eller **Ikke i rute - Bjorn**, når de ikke har nogen linje. Går de til fods eller kører med i en andens bus, står kun navnet.
 - Destinationsskiltet (matrix) på de andre spilleres busser viser nu linje og destination. Før forblev skiltet ofte sort, fordi bussens script troede, at det allerede havde tegnet skiltet.

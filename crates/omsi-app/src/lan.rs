@@ -562,6 +562,9 @@ impl RemoteVehicle {
 #[derive(Default)]
 pub struct Chat {
     pub lines: Vec<String>,
+    /// (the fork) When each line came (as `lines`): a line goes from the screen
+    /// `ui::CHAT_FADE_AFTER` after it (the history stays, with the cursor over the chat).
+    pub born: Vec<Instant>,
     /// The line being typed: '/' or a click on the chat opens it, Enter sends it, Escape
     /// drops it.
     pub typing: Option<String>,
@@ -580,9 +583,11 @@ pub struct Chat {
 impl Chat {
     fn push(&mut self, line: String) {
         self.lines.push(line);
+        self.born.push(Instant::now());
         let over = self.lines.len().saturating_sub(crate::ui::CHAT_KEEP);
         if over > 0 {
             self.lines.drain(..over);
+            self.born.drain(..over.min(self.born.len()));
         }
     }
 
@@ -3418,7 +3423,7 @@ pub fn tick(
         }
         game.chat.push(match e {
             LanEvent::Chat { name, text, .. } => format!("{name}: {}", crate::ui::filter_chat(&text)),
-            LanEvent::Notice(n) => format!("* {n}"),
+            LanEvent::Notice(n) => format!("* {}", notice_text(&n)),
         });
     }
     game.status_t -= dt;
@@ -3809,12 +3814,132 @@ pub fn chat_send(lan: &mut LanSession, game: &mut LanGame, text: &str) {
 // ---------------------------------------------------------------------------------------
 // what the HUD shows
 
+/// (the fork) A notice of the session in the interface's language: who came with what bus,
+/// who left (or lost the connection), who is back, who was sent away. The host words them in
+/// English for everybody; another notice stays as it came.
+pub fn notice_text(n: &str) -> String {
+    let say = |key: &str, name: &str, bus: &str| omsi_ui::tr(key).replace("%{name}", name.trim()).replace("%{bus}", bus.trim());
+    if let Some((name, bus)) = n.split_once(" joined with ") {
+        return say("Player %{name} joined with %{bus}", name, bus);
+    }
+    for (end, key) in [
+        (" joined", "Player %{name} joined"),
+        (" left", "Player %{name} has left the game"),
+        (" lost the connection", "Player %{name} has left the game"),
+        (" is back", "Player %{name} is back"),
+        (" was sent away by the host", "Player %{name} was sent away by the host"),
+    ] {
+        if let Some(name) = n.strip_suffix(end).filter(|s| !s.trim().is_empty()) {
+            return say(key, name, "");
+        }
+    }
+    n.to_string()
+}
+
+/// (the fork) "Online: <code>" (the host; a client "Online: in Mathias's game") and a line a
+/// player, us among them, in the order they joined.
+fn player_list(lan: &LanSession, info: HudInfo) -> Vec<String> {
+    let mut lines = Vec::new();
+    match lan.role {
+        Role::Host => lines.push(format!("Online: {}", lan.code().map(|c| c.encode()).unwrap_or_default())),
+        Role::Client => {
+            let host = lan.welcome.as_ref().map(|w| w.host_name.clone()).unwrap_or_default();
+            lines.push(omsi_ui::tr("Online: in %{name}'s game").replace("%{name}", &host));
+        }
+    }
+    let ours = info.duty.and_then(|d| {
+        let line = d.trips.get(d.trip_index).map(|t| t.line.trim()).filter(|l| !l.is_empty()).unwrap_or(d.line.as_str());
+        let hours = d.trips.first().zip(d.trips.last()).map(|(a, b)| (a.departure, b.end));
+        Some(((line.to_string(), d.tour.clone()), hours))
+    });
+    let mut all: Vec<u32> = lan.peers().map(|p| p.pose.id).collect();
+    all.push(lan.my_id);
+    all.sort_unstable();
+    for (n, id) in all.iter().enumerate() {
+        let line = if *id == lan.my_id {
+            match ours.as_ref() {
+                Some(((l, t), hours)) => player_line(n + 1, &lan.my_name, Some((l, t)), *hours),
+                None => player_line(n + 1, &lan.my_name, None, None),
+            }
+        } else {
+            let Some(p) = lan.peers().find(|p| p.pose.id == *id) else { continue };
+            let duty = p.pose.tour.split_once('/');
+            let hours = duty.zip(info.schedule).and_then(|((l, t), s)| tour_hours(s, l, t));
+            player_line(n + 1, &p.pose.name, duty, hours)
+        };
+        lines.push(line);
+    }
+    if let Some(w) = lan.warnings.first() {
+        lines.push(format!("Online: {w}"));
+    }
+    lines
+}
+
+/// (the fork) What the HUD's LAN lines need besides the session: our duty, the timetable (for
+/// the others' duties' hours) and whether every player has a line of their own (the setting
+/// `lan_player_list`; off: the one line as before).
+#[derive(Default, Clone, Copy)]
+pub struct HudInfo<'a> {
+    pub duty: Option<&'a omsi_sim::timetable_run::PlayerDuty>,
+    pub schedule: Option<&'a crate::schedule::Schedule>,
+    pub list: bool,
+}
+
+/// (the fork) A duty's line as its sign has it: "Linje 143" (the timetable's file) is 143.
+fn line_shown(line: &str) -> &str {
+    line.trim().rsplit(' ').next().unwrap_or("")
+}
+
+/// (the fork) When tour `tour` of `line` starts and ends (s of the day), from the timetable;
+/// looked up once per tour.
+fn tour_hours(schedule: &crate::schedule::Schedule, line: &str, tour: &str) -> Option<(f64, f64)> {
+    thread_local! {
+        static HOURS: std::cell::RefCell<std::collections::HashMap<(String, String), Option<(f64, f64)>>> = Default::default();
+    }
+    HOURS.with(|h| {
+        *h.borrow_mut().entry((line.to_string(), tour.to_string())).or_insert_with(|| {
+            let stops = schedule.tour_stops(line, tour);
+            let from = stops.iter().map(|s| s.3).fold(f64::INFINITY, f64::min);
+            let to = stops.iter().map(|s| s.3).fold(f64::NEG_INFINITY, f64::max);
+            (from <= to).then_some((from, to))
+        })
+    })
+}
+
+/// (the fork) One player's line in the list: "Spiller 2: bjorn - Linje 135 & Tur 135S05 -
+/// Fra kl. 14:12 - 22:40", or with no duty "fri kørsel". `duty`: "line/tour" (as the poses
+/// carry it), `hours`: its first departure and last arrival.
+fn player_line(n: usize, name: &str, duty: Option<(&str, &str)>, hours: Option<(f64, f64)>) -> String {
+    let tr = |key: &str, vars: &[(&str, String)]| {
+        let mut t = omsi_ui::tr(key).into_owned();
+        for (k, v) in vars {
+            t = t.replace(&format!("%{{{k}}}"), v);
+        }
+        t
+    };
+    let name = if name.trim().is_empty() { "?" } else { name.trim() };
+    match duty.filter(|(l, t)| !l.trim().is_empty() || !t.trim().is_empty()) {
+        None => tr("Player %{n}: %{name} - free drive", &[("n", n.to_string()), ("name", name.into())]),
+        Some((line, tour)) => {
+            let head = tr("Player %{n}: %{name} - Line %{line} & Tour %{tour}", &[("n", n.to_string()), ("name", name.into()), ("line", line_shown(line).into()), ("tour", tour.trim().into())]);
+            match hours {
+                Some((a, b)) => format!("{head} - {}", tr("From %{from} - %{to}", &[("from", crate::nav_duty::hhmm(a)), ("to", crate::nav_duty::hhmm(b))])),
+                None => head,
+            }
+        }
+    }
+}
+
 /// The HUD's LAN lines: the session and its code, who is connected, what they drive and
 /// where they are, what differs between the host's world and ours, and the chat line.
-pub fn hud_lines(lan: &LanSession, _game: &LanGame, _player: Option<&Player>) -> Vec<String> {
+pub fn hud_lines(lan: &LanSession, _game: &LanGame, _player: Option<&Player>, info: HudInfo) -> Vec<String> {
     // One line: who is there is written above their buses (`name_tags`), what they say is in
     // the chat. The long list of every player's bus, place and doors that stood here filled
-    // half the screen in a session of a few players.
+    // half the screen in a session of a few players. (the fork: with `lan_player_list`, the
+    // code, then a line a player - who, what duty, its hours)
+    if info.list && (lan.role == Role::Host || (lan.connected && lan.rejected.is_none())) {
+        return player_list(lan, info);
+    }
     let mut lines = Vec::new();
     let players = lan.peer_count();
     let others = match players {
@@ -3955,6 +4080,30 @@ mod tests {
         // (the same file name in another folder is another bus)
         assert!(!offers(&list, "Vehicles/Mod_SD200/MAN_SD77.bus"));
         assert!(!offers(&offered_keys(&[]), "Vehicles/MAN_SD200/MAN_SD77.bus"));
+    }
+
+    /// (the fork) The session's notices in the interface's words: who came with what bus, who
+    /// left or lost the connection; anything else as it came.
+    #[test]
+    fn notices_are_said_as_the_interface_has_them() {
+        let tr = |k: &str, name: &str, bus: &str| omsi_ui::tr(k).replace("%{name}", name).replace("%{bus}", bus);
+        assert_eq!(notice_text("bjorn joined with Urbino_18_Actia_3D_DAF_ZF_A"), tr("Player %{name} joined with %{bus}", "bjorn", "Urbino_18_Actia_3D_DAF_ZF_A"));
+        assert_eq!(notice_text("OMSI Fan left"), tr("Player %{name} has left the game", "OMSI Fan", ""));
+        assert_eq!(notice_text("bjorn lost the connection"), tr("Player %{name} has left the game", "bjorn", ""));
+        assert_eq!(notice_text("bjorn joined"), tr("Player %{name} joined", "bjorn", ""));
+        assert_eq!(notice_text("asked the server for its administration"), "asked the server for its administration");
+    }
+
+    /// (the fork) A player's line: name, the duty's line as its sign has it and its tour, the
+    /// hours; free drive without a duty.
+    #[test]
+    fn a_players_line_names_the_duty_and_its_hours() {
+        let l = player_line(2, "bjorn", Some(("Linje 135", "135S05")), Some((14.0 * 3600.0 + 12.0 * 60.0, 22.0 * 3600.0 + 40.0 * 60.0)));
+        assert!(l.contains("bjorn") && l.contains("135S05") && l.contains("14:12") && l.contains("22:40") && !l.contains("Linje 135 "), "{l}");
+        assert!(l.contains(" 135 ") || l.contains(" 135&") || l.contains("135 &"), "the line's number alone: {l}");
+        let free = player_line(4, "Brian", None, None);
+        assert!(free.contains("Brian") && free.contains('4'), "{free}");
+        assert_eq!(player_line(4, "Brian", Some(("", "")), None), free, "no line nor tour: free drive");
     }
 
     /// The maps show another player with their bus, on foot where they walk, riding in a

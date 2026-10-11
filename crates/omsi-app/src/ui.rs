@@ -251,6 +251,16 @@ fn render_text(font: &FontVec, text: &str, px: f32, color: [u8; 4]) -> omsi_text
 /// scroll back.
 const CHAT_SHOWN: usize = 8;
 pub const CHAT_KEEP: usize = 200;
+/// (the fork) A chat line leaves the screen this long after it came (s), fading out over
+/// the last `CHAT_FADE` of it; with the cursor over the chat, or typing, all show.
+pub const CHAT_FADE_AFTER: f32 = 30.0;
+const CHAT_FADE: f32 = 3.0;
+
+/// (the fork) How much of a chat line `age` seconds old shows: all, fading, gone - in six
+/// steps (each a text drawn anew: one every frame of the fading was 180 for a line).
+pub fn chat_alpha(age: f32) -> f32 {
+    (((CHAT_FADE_AFTER - age) / CHAT_FADE).clamp(0.0, 1.0) * 6.0).ceil() / 6.0
+}
 
 /// A notification from the server (`notify`): a card over the navigator that goes by itself.
 #[derive(Clone, Debug, PartialEq)]
@@ -309,6 +319,8 @@ pub fn push_notice(list: &mut Vec<Notice>, n: Notice) {
 pub struct ChatView<'a> {
     /// Every line, oldest first ("Name: text" or "* notice").
     pub lines: &'a [String],
+    /// (the fork) When each line came (as `lines`; empty: all as new).
+    pub born: &'a [std::time::Instant],
     /// The line being typed (the input box is open).
     pub typing: Option<&'a str>,
     /// Why the last line was not sent.
@@ -692,7 +704,14 @@ impl Ui {
                 while i > 0 && rows.len() < CHAT_SHOWN {
                     i -= 1;
                     let line = &c.lines[i];
-                    let color = if line.starts_with("* ") { [255, 226, 140, 230] } else { [255, 255, 255, 230] };
+                    // (the fork) a line of a while ago is gone, unless the history is looked at
+                    // (the older ones before it went sooner)
+                    let fade = if show_box { 1.0 } else { c.born.get(i).map(|b| chat_alpha(b.elapsed().as_secs_f32())).unwrap_or(1.0) };
+                    if fade <= 0.0 {
+                        break;
+                    }
+                    let a = (230.0 * fade) as u8;
+                    let color = if line.starts_with("* ") { [255, 226, 140, a] } else { [255, 255, 255, a] };
                     for (k, t) in wrap_rows(line, width, indent, &measure).into_iter().enumerate().rev() {
                         if rows.len() == CHAT_SHOWN {
                             break;
@@ -2727,6 +2746,20 @@ mod tests {
         assert_eq!(ui.menu_pane_scroll.unwrap().1[0], 2794.0);
         ui.shift_hitboxes(-1920.0);
         assert_eq!(ui.menu_ctl[0], Some([600.0, 110.0, 860.0, 130.0]));
+    }
+
+    /// (the fork) A chat line shows whole for most of its 30 s, fades in a few steps over the
+    /// last three, and is gone after.
+    #[test]
+    fn a_chat_line_fades_after_thirty_seconds() {
+        assert_eq!(super::chat_alpha(0.0), 1.0);
+        assert_eq!(super::chat_alpha(26.9), 1.0);
+        let fading: Vec<f32> = [27.2, 28.0, 29.0, 29.9].iter().map(|a| super::chat_alpha(*a)).collect();
+        assert!(fading.windows(2).all(|w| w[0] >= w[1]) && fading.iter().all(|a| *a > 0.0 && *a <= 1.0), "{fading:?}");
+        let steps: std::collections::BTreeSet<u32> = (0..300).map(|k| (super::chat_alpha(27.0 + k as f32 * 0.01) * 6.0).round() as u32).collect();
+        assert!(steps.len() <= 6, "few steps: {steps:?}");
+        assert_eq!(super::chat_alpha(30.0), 0.0);
+        assert_eq!(super::chat_alpha(400.0), 0.0);
     }
 
     #[test]
