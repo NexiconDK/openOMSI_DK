@@ -166,15 +166,9 @@ impl SeatMap {
             let best: Vec<usize> = seats.into_iter().filter(|&k| self.score(k, taken, elderly) == top).collect();
             return Some(best[pick % best.len()]);
         }
-        // a standing place away from the others: the one with the most room round it
+        // a standing place: any of them, as Omsi.exe takes it
         let from = if standing.is_empty() { free.to_vec() } else { standing };
-        let room = |k: usize| -> i32 {
-            let near = (0..places.len()).filter(|&j| j != k && taken.get(j).copied().unwrap_or(false) && (places[j].pos - places[k].pos).length() < 0.9).count();
-            -(near as i32)
-        };
-        let top = from.iter().map(|&k| room(k)).max()?;
-        let best: Vec<usize> = from.into_iter().filter(|&k| room(k) == top).collect();
-        Some(best[pick % best.len()])
+        Some(from[pick % from.len()])
     }
 
     /// How much a passenger likes seat `k`: a pair to themselves, by the window; not the
@@ -561,9 +555,9 @@ mod tests {
             taken[k] = true;
         }
         assert_eq!(m.choose(&free(&taken), &taken, &places, true, false, false, 0), Some(1));
-        // standing: the place with nobody close
-        taken[10] = true;
-        assert_eq!(m.choose(&free(&taken), &taken, &places, false, false, false, 1), Some(9));
+        // standing wanted: a standing place
+        let k = m.choose(&free(&taken), &taken, &places, false, false, false, 1).unwrap();
+        assert!(!places[k].seated);
     }
 
     #[test]
