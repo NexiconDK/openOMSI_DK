@@ -432,6 +432,10 @@ pub fn serve(port: u16, session: u64, args: &Args) {
         .spawn(move || {
             // (one thread per connection, so only so many at once)
             let open = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            // (the fork) failed connections by address: something else on the computer (Steam,
+            // whose game port 27015 is) knocked every 5 s for hours, a log line each time
+            type Failed = std::collections::HashMap<Option<std::net::IpAddr>, u32>;
+            let failed: Arc<Mutex<Failed>> = Default::default();
             for conn in listener.incoming() {
                 let Ok(stream) = conn else { continue };
                 if open.load(std::sync::atomic::Ordering::Relaxed) >= MAX_CONNECTIONS {
@@ -439,11 +443,19 @@ pub fn serve(port: u16, session: u64, args: &Args) {
                     continue;
                 }
                 open.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let (ready, held) = (ready.clone(), open.clone());
+                let (ready, held, failed) = (ready.clone(), open.clone(), failed.clone());
                 let spawned = std::thread::Builder::new().name("lan-mods-conn".into()).spawn(move || {
                     let peer = stream.peer_addr().ok();
                     if let Err(e) = handle(stream, session, &ready) {
-                        log::info!("LAN mods: connection from {peer:?} ended: {e}");
+                        let n = {
+                            let mut f = failed.lock().unwrap_or_else(|e| e.into_inner());
+                            let n = f.entry(peer.map(|p| p.ip())).or_insert(0);
+                            *n += 1;
+                            *n
+                        };
+                        if quiet_after(n) {
+                            log::info!("LAN mods: connection from {peer:?} ended: {e}{}", if n > 1 { format!(" ({n} times from there; told again at the next power of ten)") } else { String::new() });
+                        }
                     }
                     held.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                 });
@@ -453,6 +465,12 @@ pub fn serve(port: u16, session: u64, args: &Args) {
             }
         })
         .ok();
+}
+
+/// (the fork) Whether the `n`th failed connection from one address is logged: the first
+/// three, then 10, 100, 1000 ...
+fn quiet_after(n: u32) -> bool {
+    n <= 3 || (n >= 10 && 10u32.pow(n.ilog10()) == n)
 }
 
 /// Connections the mods server serves at once.
@@ -915,6 +933,13 @@ pub fn fetch(args: &mut Args, host: SocketAddr, session: u64, progress: &mut dyn
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// (the fork) A program that knocks again and again is logged now and then, not each time.
+    #[test]
+    fn repeated_failed_connections_are_logged_now_and_then() {
+        let told: Vec<u32> = (1..=2000).filter(|n| super::quiet_after(*n)).collect();
+        assert_eq!(told, [1, 2, 3, 10, 100, 1000]);
+    }
 
     #[test]
     fn paths_that_are_refused() {

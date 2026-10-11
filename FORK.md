@@ -71,6 +71,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Hurtigere: skyggen regnes nu kun ud for lygter, hvis lys kan nå forbi din bus. Før blev hvert billedpunkt tjekket mod alle bilers lygter i byen, hvilket kostede om natten.
 
 ### Multiplayer
+- Loggen fyldes ikke længere op, når et andet program på computeren (fx Steam, hvis standardport er 27015) banker på værtens port hele tiden. Det skrives kun de første gange og derefter ved 10, 100, 1000 osv.
 - På minimappet og bykortet står de andre spilleres **linje foran deres navn**, fx **123 - Bjorn**, eller **Ikke i rute - Bjorn**, når de ikke har nogen linje. Går de til fods eller kører med i en andens bus, står kun navnet.
 - Destinationsskiltet (matrix) på de andre spilleres busser viser nu linje og destination. Før forblev skiltet ofte sort, fordi bussens script troede, at det allerede havde tegnet skiltet.
 - Skiltet på de andre spilleres busser bruger nu den rigtige skrift. Før kunne destinationen stå som mærkelige tegn (eller slet ikke), fordi skrifttypernes numre blev kopieret fra den anden spillers computer, hvor de ligger i en anden rækkefølge.
@@ -92,6 +93,9 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 
 ### Server
 - På en **dedikeret server** venter der nu folk ved alle stoppesteder, efterhånden som deres afgange nærmer sig. Før kom der kun passagerer ved de stoppesteder, der havde en afgang i serverens første kvarter, og resten stod tomme hele aftenen. Ændringen kommer fra openOMSI PR #1964 (veryinsanee). Når du er vært fra dit eget spil, virkede det allerede.
+
+### Rat og controllere
+- Uden rat eller controller tilsluttet leder spillet nu efter nye hvert 5. sekund i det første minut og derefter én gang i minuttet, i stedet for hvert 5. sekund hele tiden. Et rat, der sættes i, findes stadig med det samme. Loggen skriver kun, når der findes noget nyt.
 
 ### Opdateringer
 - openOMSI DK opdaterer sig selv fra denne fork og ikke fra den officielle openOMSI, så ændringerne bliver.

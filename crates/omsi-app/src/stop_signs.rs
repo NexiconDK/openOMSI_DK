@@ -519,9 +519,9 @@ fn extent(style: Style, kind: Kind, size: f32) -> f32 {
 /// (the fork) [`sign`] made once per style, kind and size: the city map draws every stop of
 /// the trip each frame, each sign some hundred small shapes made anew.
 fn sign_cached(style: Style, kind: Kind, size: f32) -> std::rc::Rc<Vec<Shape>> {
-    use std::collections::HashMap;
+    type Signs = std::collections::HashMap<(Style, Kind, u32), std::rc::Rc<Vec<Shape>>>;
     thread_local! {
-        static SIGNS: std::cell::RefCell<HashMap<(Style, Kind, u32), std::rc::Rc<Vec<Shape>>>> = Default::default();
+        static SIGNS: std::cell::RefCell<Signs> = Default::default();
     }
     SIGNS.with(|c| {
         let mut c = c.borrow_mut();

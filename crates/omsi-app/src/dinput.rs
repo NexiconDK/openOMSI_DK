@@ -190,6 +190,10 @@ impl Device {
     }
 }
 
+/// (the fork) With no controller found, how long the game keeps looking every 5 s (then
+/// once a minute).
+const EMPTY_FAST_FOR: Duration = Duration::from_secs(60);
+
 /// The devices, and the thread that finds them.
 pub(crate) struct DirectInput {
     di: IDirectInput8W,
@@ -582,7 +586,11 @@ impl DirectInput {
             }
             let mut seen = HID_CHANGES.load(Ordering::Relaxed);
             let mut last = Instant::now();
+            let started = Instant::now();
             let mut empty = initially_empty;
+            // (the fork) what the last look found, logged only when it changes: with no device
+            // the log had a line every 5 s for hours
+            let mut told: Option<String> = None;
             // (a device plugged in raises several notifications: look once they settle)
             let mut pending: Option<Instant> = None;
             loop {
@@ -615,9 +623,11 @@ impl DirectInput {
                 }
                 if window.is_none() && last.elapsed() > Duration::from_secs(3) {
                     pending = Some(Instant::now() - Duration::from_secs(1));
-                } else if empty && last.elapsed() > Duration::from_secs(5) {
+                } else if empty && last.elapsed() > Duration::from_secs(if started.elapsed() < EMPTY_FAST_FOR { 5 } else { 60 }) {
                     // Some older wheel drivers appear after the first enumeration
-                    // without sending a HID arrival notification.
+                    // without sending a HID arrival notification. (the fork) Every 5 s for the
+                    // first minute, then once a minute: a session without any controller
+                    // looked every 5 s for hours, and an enumeration can hitch a game.
                     pending = Some(Instant::now() - Duration::from_secs(1));
                 }
                 if pending.is_some_and(|t| t.elapsed() > Duration::from_millis(300)) {
@@ -625,7 +635,11 @@ impl DirectInput {
                     last = Instant::now();
                     let v = list(&di);
                     empty = v.is_empty();
-                    log::info!("game controllers found: {}", v.iter().map(|d| d.1.as_str()).collect::<Vec<_>>().join(", "));
+                    let names = v.iter().map(|d| d.1.as_str()).collect::<Vec<_>>().join(", ");
+                    if told.as_deref() != Some(names.as_str()) {
+                        log::info!("game controllers found: {names}");
+                        told = Some(names);
+                    }
                     let mut found = f2.lock().unwrap();
                     // A second enumeration must not overwrite a removal before poll consumes it.
                     let mut removed_paths = found.take().map(|r| r.removed_paths).unwrap_or_default();
