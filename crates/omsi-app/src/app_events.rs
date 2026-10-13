@@ -99,6 +99,8 @@ impl ApplicationHandler for App {
             }
             WindowEvent::Focused(false) => {
                 self.finish_vr_nav_edit();
+                // (Alt+Tab is no tap of Alt: the quick menu stays shut)
+                self.alt_tap_spoilt();
                 self.input.window_focused = false;
                 if let Some(ctl) = self.input.controllers.as_mut() {
                     ctl.set_focus(false);
@@ -294,6 +296,11 @@ impl ApplicationHandler for App {
                 // while the plugins' panels have the mouse its clicks are theirs, none the bus's
                 if self.plugin_focus() {
                     self.plugin_click(state == ElementState::Pressed);
+                    return;
+                }
+                self.alt_tap_spoilt();
+                // ... and the game's own panels' (the Alt quick menu)
+                if self.game_panel_click(state == ElementState::Pressed) {
                     return;
                 }
                 if self.input.touch.enabled {

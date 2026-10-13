@@ -115,6 +115,7 @@ mod server;
 mod player;
 mod plugin_io;
 mod plugin_ui;
+mod game_panels;
 mod plugins;
 mod services;
 mod situation;
@@ -627,6 +628,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
             hover_part: None,
             hover_hand: false,
             game_menu: None,
+            game_panels: Default::default(),
             menu_top: None,
             menu_scroll_drag: false,
             dd_scroll_drag: None,

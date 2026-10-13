@@ -294,6 +294,8 @@ impl App {
                     self.service_msg = Some(("Click a street on the map: the bus is put there".into(), 6.0));
                 }
             }
+            // (OMSI 2's quick menu, by name for the plugins and the input script)
+            "quick_menu" => crate::game_panels::quick_menu::toggle(self),
             "driver" => self.open_list(crate::game_lists::ListKind::Drivers),
             "number" => self.open_list(crate::game_lists::ListKind::Numbers),
             "dest" => self.open_list(crate::game_lists::ListKind::Destinations),

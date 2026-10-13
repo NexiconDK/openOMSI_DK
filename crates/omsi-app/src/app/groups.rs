@@ -323,6 +323,8 @@ pub(crate) struct MenuState {
     pub(crate) hover_hand: bool,
     /// The game menu (Escape, OMSI's `open_mainmenue`): the chosen line of it.
     pub(crate) game_menu: Option<usize>,
+    /// (the fork, from openOMSI) The game's own panels: OMSI 2's quick menu behind a tap of Alt.
+    pub(crate) game_panels: crate::game_panels::GamePanels,
     /// The first line of the game menu (or chooser) shown, when a finger has scrolled it
     /// (in lines, fractional while dragged); `None`: the chosen line is kept in view.
     pub(crate) menu_top: Option<f32>,

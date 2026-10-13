@@ -29836,3 +29836,39 @@ _version: 2
 "Player %{name} was sent away by the host":
   de: "Spieler %{name} wurde vom Host entfernt"
   da: "Spiller %{name} blev smidt ud af værten"
+
+"Change vehicle":
+  de: "Fahrzeug wechseln"
+  da: "Skift køretøj"
+
+"Remove vehicle":
+  de: "Fahrzeug entfernen"
+  da: "Fjern køretøj"
+
+"Reset vehicle":
+  de: "Fahrzeug zurücksetzen"
+  da: "Nulstil køretøj"
+
+"Destination":
+  de: "Ziel"
+  da: "Destination"
+
+"Refuel / wash":
+  de: "Tanken / Waschen"
+  da: "Tank op / vask"
+
+"Route arrows":
+  de: "Routenpfeile"
+  da: "Rutepile"
+
+"Statistics":
+  de: "Statistik"
+  da: "Statistik"
+
+"Personnel file":
+  de: "Personalakte"
+  da: "Personalemappe"
+
+"Alt or Esc closes the menu; the game goes on.":
+  de: "Alt oder Esc schließt das Menü; das Spiel läuft weiter."
+  da: "Alt eller Esc lukker menuen; spillet kører videre."

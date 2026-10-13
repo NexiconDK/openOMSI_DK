@@ -28,6 +28,8 @@ pub(crate) const SCENERY_OBJECT_REACH: f32 = 50.0;
 impl App {
     /// A key of the window, or of an `OMSI_INPUT` script.
     pub(crate) fn on_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, pressed: bool, repeat: bool) {
+        // (Alt tapped alone opens OMSI 2's quick menu: `game_panels`)
+        self.alt_tap(code, pressed, repeat);
         if self.xr.vr_nav_edit.is_some() {
             self.vr_nav_edit_key(code, pressed, repeat);
             return;
@@ -45,6 +47,10 @@ impl App {
             }
             // and gives the mouse back to the bus when the plugins' panels have it
             if self.release_plugin_focus() {
+                return;
+            }
+            // and closes the game's quick menu
+            if self.close_game_panel() {
                 return;
             }
         }
