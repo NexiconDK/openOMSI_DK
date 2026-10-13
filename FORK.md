@@ -84,7 +84,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Ved et stoppested får en anden spillers bus nu kun de ventende, der skal med dens linje (eller ikke venter på en bestemt linje), ligesom værtens egen bus. Før fik den alle, der ventede ved stoppestedet, også dem til andre linjer, så den anden spillers bus blev fyldt, mens værtens fik langt færre.
 
 ### Passagerer
-- **Passagerer der løber efter bussen** (fra openOMSI PR #2073 af JDCustard, MIT-licens, i vores egen, lettere udgave). Kun ved **spillernes busser** (din egen og de andre spilleres over LAN), og kun når bussen **holder stille** ved et stoppested nær dig. Så kommer der en gang imellem en, der er sent på den, og **løber** efter bussen: med længere skridt, bøjede knæ og albuer, lænet fremover. Det er en, der går på fortovet i nærheden, eller en, der kommer bagfra, uden for synsvidde, så du ser dem komme i spejlet. Kører du fra dem, bliver de stående et øjeblik og går videre. Ved en anden spillers bus løber de hen til stoppestedet, hvor hans spil tager dem med. AI-busser får ingen løbere.
+- **Passagerer der løber efter bussen** (fra openOMSI PR #2073 af JDCustard, MIT-licens, i vores egen, lettere udgave). Kun ved **spillernes busser** (din egen og de andre spilleres over LAN), og kun når bussen **holder stille** ved et stoppested nær dig. Så kommer der en gang imellem en, der er sent på den, og **løber** efter bussen: med længere skridt, bøjede knæ og albuer, lænet fremover. Det er en, der går på fortovet i nærheden, eller en, der kommer bagfra, uden for synsvidde, så du ser dem komme i spejlet. Kører du fra dem, bliver de stående et øjeblik og går videre. Ved en anden spillers bus løber de hen til stoppestedet, hvor hans spil tager dem med. AI-busser får kun løbere, når de holder ved stoppestedet med **åbne døre**, og en spiller (værten eller en anden spiller over LAN) er **højst 50 m** fra bussen. Så venter AI-bussen op til 12 sekunder på løberen.
   Ny indstilling **Passagerer der løber efter bussen**: Fra, En gang imellem (5 %, standard), Tit (15 %) eller Meget tit (30 %) pr. stop. Findes i launcheren under Gameplay → Passagerer og i spillets menu. Spillet tjekker det kun 4 gange i sekundet, og kun hvis en spillers bus holder stille. Ellers laves der intet.
 - Ny indstilling **Mennesker på gaden**: Ingen, Få, Normal, Mange eller Rigtig mange. Den bestemmer, hvor mange der går på fortovene, uafhængigt af antallet af passagerer ved stoppestederne. Findes i launcheren under Gameplay → Passagerer og i spillets menu, og virker med det samme. Skruer du ned, forsvinder de overskydende, når du ikke kan se dem.
 - I din egen bus sætter passagererne sig, hvis der er en ledig plads. På din vagt står 7 ud af 10 dog op, hvis de kun skal under **1 km**. Er den ønskede slags plads optaget, tager de den anden. Ændringen kommer fra openOMSI PR #1394.
@@ -97,10 +97,17 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
   - Jo større lyst til at sidde, jo flere sætter sig på korte ture, og jo oftere flytter de, der står, hen på en ledig plads.
 
 ### Server
+- På en dedikeret server følger køreplanens busser nu serverens ur, dens hastighed og en admins ændring af klokken. Før kørte de videre fra starttidspunktet, uanset hvad klokken blev sat til (openOMSI PR #1970 af veryinsanee).
 - På en **dedikeret server** venter der nu folk ved alle stoppesteder, efterhånden som deres afgange nærmer sig. Før kom der kun passagerer ved de stoppesteder, der havde en afgang i serverens første kvarter, og resten stod tomme hele aftenen. Ændringen kommer fra openOMSI PR #1964 (veryinsanee). Når du er vært fra dit eget spil, virkede det allerede.
 
 ### Rat og controllere
 - Uden rat eller controller tilsluttet leder spillet nu efter nye hvert 5. sekund i det første minut og derefter én gang i minuttet, i stedet for hvert 5. sekund hele tiden. Et rat, der sættes i, findes stadig med det samme. Loggen skriver kun, når der findes noget nyt.
+
+### Rettelser fra openOMSI
+- **Bussignaler:** et særligt bussignal kunne vise rødt og grønt på samme tid, eller gå i stå på rødt ved starten af sin cyklus, så busserne holdt for evigt (fx på Grand Paris-Moulon og Saint Servan). Begge dele er rettet (openOMSI PR #2264 og #2265 af YanisK33, issue #2266). I vores udgave sammenlignes lampernes navne uden at lave en ny kopi for hver lampe i hvert billede.
+- **Til fods under et tag:** står du op under en overdækning eller i en indendørs busterminal, ender du ikke længere oppe på taget. Du står på gulvet, og kameraet følger med (openOMSI PR #2201 af KYChung1287).
+- **Køreplanens busser skifter fra gang til gang:** hver tur fik før den samme bus fra garagen i hver session. Nu trækkes bussen tilfældigt pr. session, som i OMSI, og ens for alle spillere i et LAN-spil (openOMSI commit 9daf66d).
+- **HOF-filer til busserne:** når du installerer et mod-kort, kopierer launcheren kortets HOF-filer (fra `ailists.cfg`) ind i de busmapper, der allerede har HOF-filer. Intet bliver overskrevet, og OMSI-mappen bliver ikke rørt. Under Mods er der også en knap til at tilføje HOF-filer til busserne manuelt (openOMSI PR #2082 af dxox57).
 
 ### Opdateringer
 - openOMSI DK opdaterer sig selv fra denne fork og ikke fra den officielle openOMSI, så ændringerne bliver.

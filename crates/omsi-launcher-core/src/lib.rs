@@ -11,8 +11,9 @@ pub mod index;
 pub mod install;
 pub mod instances;
 pub mod mods;
+mod hof_sync;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -439,6 +440,8 @@ pub struct ModsStatus {
     /// What an earlier, interrupted install left and was removed now.
     pub cleaned: Vec<String>,
     pub jobs: Vec<install::Progress>,
+    /// Problems while adding newly installed maps' depot files to existing vehicle folders.
+    pub hof_warnings: Vec<String>,
     /// Every mod, one by one (see `mods`).
     pub installed: Vec<mods::Mod>,
 }
@@ -588,6 +591,8 @@ pub fn install_inbox_blocking() -> Vec<install::Progress> {
 pub fn mods_status() -> Result<ModsStatus> {
     let content = content_dir().ok_or_else(|| anyhow!("no game binary configured, so no content folder"))?;
     let cleaned = install::cleanup_stale(&data_dir(), Some(&content));
+    hof_sync::sync_map_hofs_to_vehicle_folders();
+    let hof_warnings = hof_sync::warnings();
     let folders = omsi_cfg::CONTENT_FOLDERS
         .iter()
         .map(|f| {
@@ -611,6 +616,7 @@ pub fn mods_status() -> Result<ModsStatus> {
         free_bytes: install::free_space(&content).unwrap_or(0),
         cleaned,
         jobs: install::jobs(),
+        hof_warnings,
         installed: mods::list(&content),
     })
 }
@@ -670,6 +676,7 @@ pub struct EntryInfo {
 
 pub fn list_maps() -> Result<Vec<MapInfo>> {
     root()?;
+    hof_sync::sync_map_hofs_to_vehicle_folders();
     let lang = content_language();
     let mut out = Vec::new();
     let mut keys = Vec::new();
@@ -689,6 +696,10 @@ pub fn list_maps() -> Result<Vec<MapInfo>> {
         log_empty("maps", "global.cfg");
     }
     Ok(out)
+}
+
+pub fn add_hofs_to_vehicle_folders(files: &[PathBuf]) -> Result<String> {
+    hof_sync::add_hofs_to_vehicle_folders(files)
 }
 
 /// Say in launcher.log where a list that came out empty was looked for: each folder of
@@ -3036,6 +3047,16 @@ pub fn pick_file(title: &str) -> Option<PathBuf> {
         let _ = title;
         None
     }
+}
+
+/// Native multi-file picker for depot files (None on Android; the storage browser is used there).
+pub fn pick_hofs(title: &str, filter: &str) -> Option<Vec<PathBuf>> {
+    #[cfg(not(target_os = "android"))]
+    {
+        rfd::FileDialog::new().set_title(title).add_filter(filter, &["hof"]).pick_files()
+    }
+    #[cfg(target_os = "android")]
+    { let _ = (title, filter); None }
 }
 
 /// A phone runs one program: the launcher hands the game's command line over here and the

@@ -1738,9 +1738,18 @@ impl TrafficLightController {
                     // rest: the main road stays green round it until a request comes
                     // (Winsenburg's win-4: replayed once, it ran through yellow and red
                     // with nobody waiting and flickered between green and yellow, #1722).
+                    let no_progress = ((to as f64 - p.time as f64).rem_euclid(cycle)).abs() < 1e-6;
                     self.rewound = (!p.if_request && to > 1e-6 && to < p.time - 1e-6).then_some(k);
                     self.time = (to as f64).rem_euclid(cycle);
                     self.passed.clear();
+                    // A jump at the cycle boundary can target zero (for example TCSP17's
+                    // `[traffic_light_jump] 4 84 1 0`). At cycle position zero that is a
+                    // no-op: without remembering this event, it fires again at distance
+                    // zero every frame and the whole controller stays frozen at zero.
+                    // (openOMSI PR #2265 by YanisK33, MIT)
+                    if no_progress {
+                        self.passed.push(k);
+                    }
                     if left <= 0.0 {
                         return;
                     }
@@ -3119,6 +3128,29 @@ mod tests {
             c.advance(0.1);
         }
         assert_eq!(c.state(0), 9, "the clock left the replayed green");
+    }
+
+    #[test]
+    fn jump_to_zero_at_cycle_boundary_does_not_freeze_the_program() {
+        // Grand Paris-Moulon's TCSP17 ends its 84 s cycle with a request-conditioned jump
+        // from 84 to 0, and also jumps from 64 to 0 when no light-4 request is present.
+        // The jump at 64 lands on the cycle-boundary jump. That second jump makes no progress
+        // and must only be processed once, so the bus light can reach its next green.
+        // (openOMSI PR #2265)
+        let mut lights = vec![Vec::new(); 7];
+        lights[2] = vec![(0, 29.0), (6, 12.0), (9, 2.0), (0, 25.0), (6, 12.0), (9, 2.0), (0, 1.0)];
+        let mut c = TrafficLightController::from_program(
+            lights.into_iter().map(|p| (p, None)).collect(),
+            Some(84.0),
+            &[],
+            &[[4.0, 64.0, 1.0, 0.0], [4.0, 84.0, 1.0, 0.0]],
+        );
+        c.time = 63.9;
+        c.advance(0.2);
+        assert!((c.time - 0.1).abs() < 1e-5, "controller clock froze at {}", c.time);
+
+        c.advance(29.0);
+        assert_eq!(c.state(2), 6, "the bus light reaches its next green");
     }
 
     #[test]

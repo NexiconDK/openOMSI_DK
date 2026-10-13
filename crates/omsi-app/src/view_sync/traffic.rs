@@ -292,7 +292,7 @@ impl Traffic {
                 None => (omsi_sim::traffic::UNLINKED_PHASE, false),
             };
             let (r, y, g) = TrafficLightController::lamps(state);
-            let value = |lamp: &crate::scene::LightObject, var: &str| -> f32 {
+            let raw_value = |lamp: &crate::scene::LightObject, var: &str| -> f32 {
                 // Custom signals can shift phases or blink the standard channels (Numazu
                 // pedestrian lamps). Use their script outputs whenever they are available.
                 let scripted = lamp.script.as_ref().and_then(|script| {
@@ -348,6 +348,15 @@ impl Traffic {
                     }
                 }
             }
+            // A scripted lamp can leave both standard channels on at once. A road signal
+            // must never show green together with red; keep the stop aspect in that case.
+            // (openOMSI PR #2264 by YanisK33, MIT; the fork: the name compared as it is, not a
+            // lower-case copy of it for every lamp and variable each frame)
+            let red_on = raw_value(lamp, "red") >= 0.5;
+            let value = |lamp: &crate::scene::LightObject, var: &str| -> f32 {
+                let v = raw_value(lamp, var);
+                if red_on && is_green(var) { 0.0 } else { v }
+            };
             if !lamp.texts.is_empty() {
                 if let Some(script) = lamp.script.as_ref() {
                     let mut s = script.lock();
@@ -410,9 +419,10 @@ impl Traffic {
                                 let s = script.lock();
                                 if s.program.frame.is_empty() { None } else { s.var(v) }
                             });
-                            scripted
+                            let raw = scripted
                                 .or_else(|| v.trim().parse::<f32>().ok())
-                                .or_else(|| crate::scene::standard_traffic_lamp(v, r, y, g, request))
+                                .or_else(|| crate::scene::standard_traffic_lamp(v, r, y, g, request));
+                            raw.map(|value| if red_on && is_green(v) { 0.0 } else { value })
                         };
                         let (alpha, light) = slots.values(&known);
                         renderer.set_params(scene, *inst, &alpha, visible, &[]);
@@ -564,6 +574,27 @@ impl Traffic {
                     renderer.set_interior(scene, *inst, p.interior);
                 }
             }
+        }
+    }
+}
+
+/// (the fork) A lamp variable that is a green light ("green", "gruen", "grün"), whatever its
+/// case - without a copy of the name.
+fn is_green(var: &str) -> bool {
+    let v = var.trim();
+    // (as the pull request's `to_ascii_lowercase` compared them: ASCII letters in any case)
+    ["green", "gruen", "grün"].iter().any(|g| v.eq_ignore_ascii_case(g))
+}
+
+#[cfg(test)]
+mod green_tests {
+    #[test]
+    fn green_lamps_are_known_in_any_case() {
+        for v in ["green", " Green ", "GRUEN", "grün", "GRüN"] {
+            assert!(super::is_green(v), "{v}");
+        }
+        for v in ["red", "yellow", "greenish", "rot"] {
+            assert!(!super::is_green(v), "{v}");
         }
     }
 }

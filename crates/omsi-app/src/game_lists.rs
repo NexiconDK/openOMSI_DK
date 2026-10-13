@@ -2415,7 +2415,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         pick("full_sign_at", "OPTAGET from", "How full the bus is before its sign says OPTAGET"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
         pick("pedestrians", "People on the streets", "How many people walk the pavements"),
-        pick("pax_runners", "Passengers running for the bus", "Now and then, with a player's bus standing at a stop near you, somebody late runs for it"),
+        pick("pax_runners", "Passengers running for the bus", "Now and then somebody late runs for a player's bus standing at a stop, or for a timetable bus with its doors open and a player within 50 m"),
         pick("pax_sit", "Passengers' wish to sit", "How passengers choose their place: window seats, the pilot's seat for the elderly, groups who sit together. Off: a place at random, as in OMSI"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),

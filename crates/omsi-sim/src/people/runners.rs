@@ -1,6 +1,7 @@
 //! Somebody late for the bus (from openOMSI PR #2073 by JDCustard, MIT; the fork's own
-//! version). Only a player's bus - ours, or on the host another LAN player's - and only once
-//! it stands at a stop: then, now and then (the setting `pax_runners`), somebody runs for it -
+//! version). A player's bus - ours, or on the host another LAN player's - once it stands at a
+//! stop, and a timetable bus standing there with a door open and a player within 50 m of it:
+//! then, now and then (the setting `pax_runners`), somebody runs for it -
 //! somebody walking near on the stop's side of the street, else somebody from 25 to 60 m along
 //! the pavement out of the player's sight (behind the bus first, where the driver sees them
 //! come in the mirror). They run to the doors; the bus leaving without them, they stand a
@@ -22,6 +23,8 @@ pub const RUNNER_SPEED: (f32, f32) = (3.0, 3.6);
 pub const RUNNER_HOLD_MAX: f32 = 12.0;
 /// Seconds somebody left behind stands looking after the bus.
 pub const RUNNER_MISSED: f32 = 2.0;
+/// A timetable bus has somebody run for it only with a player this close (m).
+pub const RUNNER_AI_NEAR: f64 = 50.0;
 /// How often the stops are looked at for a player's bus standing there (s): four times a
 /// second, not every frame.
 pub const RUNNER_EVERY: f64 = 0.25;
@@ -119,17 +122,17 @@ impl PeopleSim {
         let stops = &self.stops;
         self.runner_rolls.retain(|(s, b)| stops.get(s).is_some_and(|st| st.buses.iter().any(|x| x.0 == *b)));
         let chance = runner_chance(self.runner_chance);
-        // (no player's bus standing: nothing more to look at - the stops not at all)
-        if chance <= 0.0 || !buses.iter().any(|b| players_bus(b.id) && b.speed.abs() < 0.5) {
+        // (no bus that may have a runner standing: nothing more to look at - the stops not at all)
+        if chance <= 0.0 || !buses.iter().any(|b| self.runner_bus(b)) {
             return;
         }
-        // the players' buses standing in the box of a stop near the player
+        // the buses that may have one, standing in the box of a stop
         let mut standing: Vec<(i64, BusId)> = self
             .stops
             .iter()
-            .filter(|(_, s)| s.near)
-            .flat_map(|(id, s)| s.buses.iter().filter(|(b, in_box)| *in_box && players_bus(*b)).map(move |(b, _)| (*id, *b)))
-            .filter(|(_, b)| bus_ix.get(b).is_some_and(|k| buses[*k].speed.abs() < 0.5))
+            .filter(|(_, s)| !s.buses.is_empty())
+            .flat_map(|(id, s)| s.buses.iter().filter(|(_, in_box)| *in_box).map(move |(b, _)| (*id, *b)))
+            .filter(|(_, b)| bus_ix.get(b).is_some_and(|k| self.runner_bus(&buses[*k])))
             .collect();
         standing.sort_unstable_by_key(|(id, b)| (*id, matches!(b, BusId::Ai(_))));
         for key in standing {
@@ -140,6 +143,13 @@ impl PeopleSim {
                 self.spawn_runner(world, net, key.0, key.1, buses, bus_ix);
             }
         }
+    }
+
+    /// Whether bus `bn` may have somebody run for it now: standing still, and a player's bus -
+    /// or a timetable bus with a door open and a player (us, or another LAN player) within
+    /// `RUNNER_AI_NEAR` of it.
+    fn runner_bus(&self, bn: &BusNow) -> bool {
+        bn.speed.abs() < 0.5 && (players_bus(bn.id) || (bn.entry_open.iter().any(|o| *o) && !self.far_from_players(bn.pos, RUNNER_AI_NEAR)))
     }
 
     /// Somebody running for bus `bus` standing at stop `id`: somebody walking near, else
@@ -187,8 +197,9 @@ impl PeopleSim {
         let k = self.take_spot(id)?;
         let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
         let run = lerp(RUNNER_SPEED, self.rand_f() as f32);
-        // (another player's bus: to the waiting place at a run, that player's game takes them in)
-        let ours = bus == BusId::Player;
+        // (another player's bus: to the waiting place at a run, that player's game takes them
+        // in; ours and a timetable bus: to its doors - the timetable's waits for them a while)
+        let ours = !matches!(bus, BusId::Ai(k) if remote_bus_player(k).is_some());
         let mut pax = Pax::new(walk, self.rand_f());
         pax.stop = Some(id);
         pax.spot = Some(k);
