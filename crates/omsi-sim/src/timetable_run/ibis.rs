@@ -428,6 +428,13 @@ pub fn display_line(line: &str) -> &str {
     }
 }
 
+/// (the fork) Whether depot file `hof` has a destination of that very name: its ident, or a
+/// line of its sign (what another player's game sends, `lan::line_and_destination`).
+pub fn hof_names_terminus(hof: &omsi_vehicle::Hof, name: &str) -> bool {
+    let name = name.trim();
+    !name.is_empty() && hof.termini.iter().any(|t| t.texture_id.trim().eq_ignore_ascii_case(name) || t.strings.iter().any(|s| s.trim().eq_ignore_ascii_case(name)))
+}
+
 pub(crate) fn find_terminus(hof: &omsi_vehicle::Hof, wanted: &str) -> Option<usize> {
     termini_named(hof, wanted).first().copied()
 }

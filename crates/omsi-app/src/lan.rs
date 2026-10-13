@@ -486,6 +486,11 @@ pub struct RemoteVehicle {
     hof: Option<Arc<omsi_vehicle::Hof>>,
     /// The line / destination shown last.
     shown: (String, String),
+    /// (the fork) When it was set, and how often since: set again a few times
+    /// (`SHOW_AGAIN`) - set as the copy was made, before its scripts' first frame, a
+    /// Solaris' matrix stood blank for good.
+    shown_at: Instant,
+    shown_again: u8,
     /// Their bus type is not installed here: ours stands in for it.
     pub stand_in: bool,
     pub last: Pose,
@@ -2087,6 +2092,19 @@ pub fn my_pose(
     }
 }
 
+/// (the fork) Seconds after a destination came that it is set again on the copy.
+const SHOW_AGAIN: [f32; 3] = [1.0, 5.0, 20.0];
+
+/// (the fork) The depot file of the bus here that has destination `name`: the files of its
+/// folder and the shared `HOFs` folder (read only when ours has not got it).
+fn remote_hof_with(ty: &omsi_sim::VehicleType, name: &str) -> Option<Arc<omsi_vehicle::Hof>> {
+    omsi_vehicle::hof::depot_files(ty.def.dir())
+        .iter()
+        .filter_map(|p| omsi_vehicle::Hof::load(p).ok())
+        .find(|h| omsi_sim::timetable_run::hof_names_terminus(h, name))
+        .map(Arc::new)
+}
+
 /// The string variables the vehicle's `[texttexture]` displays show: the model's, in its
 /// order, then those of its rear sections' displays that the model has not (a side
 /// destination sign on an articulated bus's rear section stood blank for the others).
@@ -2720,6 +2738,8 @@ fn new_remote(
         horn: false,
         hof,
         shown: (String::new(), String::new()),
+        shown_at: Instant::now(),
+        shown_again: 0,
         stand_in,
         last: pose.clone(),
         made_as: (pose.bus.clone(), pose.paint.clone()),
@@ -3502,7 +3522,33 @@ pub fn tick(
         };
         // line and destination on the displays
         let want = (pose.line.clone(), pose.destination.clone());
-        if want != rv.shown && !want.1.is_empty() {
+        let fresh = want != rv.shown && !want.1.is_empty();
+        if fresh {
+            rv.shown_at = Instant::now();
+            rv.shown_again = 0;
+            // (the fork) a destination our depot file for the bus does not have: the bus's
+            // other depot files are looked through for it (they drive with theirs - the
+            // copy took ours, and their sign stood blank)
+            if !rv.hof.as_deref().is_some_and(|h| omsi_sim::timetable_run::hof_names_terminus(h, &want.1)) {
+                if let Some(h) = remote_hof_with(&rv.vehicle.ty, &want.1) {
+                    log::info!("LAN: player {} '{}' shows {:?}: depot file {} has it", pose.id, pose.name, want.1, h.path.display());
+                    rv.hof = Some(h.clone());
+                    rv.vehicle.host.hof = Some(h);
+                } else {
+                    log::info!("LAN: player {} '{}' shows {:?}, which no depot file of {} here has", pose.id, pose.name, want.1, rv.vehicle.ty.def.path.display());
+                }
+            }
+        }
+        // (the fork) and again a few times after, once the copy's scripts have run
+        let again = !fresh && !rv.shown.1.is_empty() && SHOW_AGAIN.get(rv.shown_again as usize).is_some_and(|s| rv.shown_at.elapsed().as_secs_f32() >= *s);
+        if again {
+            rv.shown_again += 1;
+            if let Some(i) = rv.vehicle.ty.program.str_var("Linie") {
+                rv.vehicle.state.str_vars[i as usize] = rv.shown.0.clone();
+            }
+            crate::schedule::set_ai_destination(&mut rv.vehicle, rv.hof.as_deref(), &rv.shown.0, &rv.shown.1, &[]);
+        }
+        if fresh {
             if let Some(i) = rv.vehicle.ty.program.str_var("Linie") {
                 rv.vehicle.state.str_vars[i as usize] = want.0.clone();
             }
