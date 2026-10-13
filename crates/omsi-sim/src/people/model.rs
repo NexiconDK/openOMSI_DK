@@ -251,8 +251,6 @@ pub struct PeopleSim {
     pub next_id: u32,
     /// Seconds since the start.
     pub time: f64,
-    pub wall_cells: HashMap<(i32, i32, i32), Vec<(Block, f64, f64)>>,
-    pub wall_key: (usize, usize, usize, f64),
     /// Passenger cabins by vehicle files (the front vehicle and its coupled parts).
     pub cabins: HashMap<Vec<PathBuf>, Option<Arc<Cabin>>>,
     pub player_cabin: Option<Arc<Cabin>>,

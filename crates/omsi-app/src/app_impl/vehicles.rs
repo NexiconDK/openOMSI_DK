@@ -196,31 +196,15 @@ impl App {
             self.service_msg = Some(("There is no other vehicle to drive".into(), 3.0));
             return;
         }
-        let Some(mut now) = self.player.take() else {
-            // on foot without a bus: the first placed one's wheel
-            self.take_placed(0);
-            return;
-        };
-        if let (Some(a), Some(mut ss)) = (self.sound.audio.as_ref(), now.sounds.take()) {
-            ss.stop_all(a);
-        }
-        let mut next = self.session.placed.remove(0);
-        if let Some(a) = self.sound.audio.as_ref() {
-            next.load_sounds(a);
-        }
-        // the riders stay in the bus left; the people know the new one's cabin
-        if let Some(h) = self.session.humans.as_mut() {
-            h.player_bus_swapped(now.uid, next.uid, &mut next.vehicle);
-        }
-        next.vehicle.host.auto_clutch = if self.settings.auto_clutch { 1.0 } else { 0.0 };
-        self.session.placed.push(now);
-        let name = format!("{} {}", next.vehicle.ty.def.manufacturer, next.vehicle.ty.def.type_name);
-        if let Some(cam) = self.camera.as_ref() {
-            self.camera = Some(next.camera(&self.view, cam));
-        }
-        self.player = Some(next);
-        self.cam.look = (0.0, 0.0);
-        self.service_msg = Some((format!("Now driving: {}", name.trim()), 4.0));
+        // (the fork) the next one by the same way as a vehicle chosen from the list: on foot
+        // the walker is taken off and the view goes to the driver's seat - before, the walker
+        // stayed and the camera with them, the new bus driven from afar
+        self.take_placed(0);
+    }
+
+    /// (the fork) The player sits at the wheel of a vehicle (not on foot, not without one).
+    pub(crate) fn in_vehicle(&self) -> bool {
+        self.player.is_some() && self.session.on_foot.is_none()
     }
 
     /// Put the bus on the street nearest the world point `at` (the city map's Ctrl+click),

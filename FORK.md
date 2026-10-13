@@ -95,6 +95,23 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
   - I din bus sætter en, der står og skal et stykke endnu, sig på en plads, der bliver ledig, mens bussen kører (én ad gangen).
   - **Nu og da** (højst hvert 2½ minut) rejser en yngre passager sig for en ældre, der ikke fik en siddeplads.
   - Jo større lyst til at sidde, jo flere sætter sig på korte ture, og jo oftere flytter de, der står, hen på en ledig plads.
+- **Kun busser, der faktisk kommer:** folk ved et stoppested vil kun med en bus, der afgår derfra inden for de næste **20 minutter** (før 15). Ingen står og venter kl. 11 på en bus kl. 23. Stiller du klokken mere end 10 minutter, går dem, hvis bus ikke længere kommer snart, deres vej.
+- **Stoppestedets "exit"-tal bliver respekteret:** hvor mange der skal af ved et stop, læses nu fra stoppestedsobjektet via køreplanens navn på stoppet. Før faldt det ofte tilbage til et standardtal, når navnet på objektet var anderledes. Et stop med **0** (fx et servicestop) bliver aldrig valgt som destination. Et stop, hvor alle destinationer har 0, har ingen ventende.
+- **Fodgængere sidder ikke fast:** folk til fods støder ikke længere ind i sceneriet (lygtepæle, hegn og tilfældige objekter), hvor de før kunne sidde fast. De holder sig stadig fri af køretøjerne. Det sparer også arbejde i hvert billede.
+- **Ingen skridt tilbage før udgangen:** passagerer, der venter ved en lukket udgang, træder frem, når den åbner. Før gik de ofte et punkt tilbage og vendte om. En, der allerede er på vej mod udgangen, går videre fremad i stedet for tilbage til punktet bag sig.
+
+### Køreplanens busser
+- AI-busser **slukker motoren** ved endestationen, 6 sekunder efter turen er slut, mens de venter på næste tur. Før kørte motoren videre.
+- Når du **stiller klokken**, forsvinder AI-busserne og kommer igen, hvor køreplanen har dem på det nye tidspunkt. Det sker, når du har sluppet skyderen eller knapperne et øjeblik. Små ændringer lægges nu sammen, så fem gange +1 minut også tæller, og en skyder trukket over flere timer giver kun én omstart.
+
+### Spillet
+- **Skift køretøj** (Alt-menuen) viser nu en liste over de køretøjer, der står i verden, med det nærmeste først og afstanden. Det, du vælger, overtager du. Skift fra Esc-menuen virker nu også, når du går til fods: du sættes ved rattet i stedet for at blive stående.
+- **Teleport** (til et punkt på kortet eller til et startpunkt) virker kun, når du sidder i køretøjet, da det er køretøjet, der flyttes.
+- Knapperne **Solopgang** og **Solnedgang** under Verden → Tid stiller klokken til den rigtige solopgang og solnedgang for dagen og kortets placering (fra kortets timezone.txt) i stedet for 06:00 og 18:00 hele året.
+
+### Launcher
+- Når du vælger en bus, vælges en **tilfældig bemaling** (standardbemalingen er en af dem), som vises og køres med, i stedet for altid standardbemalingen.
+- Køretøjers **beskrivelser** bliver ikke længere skåret af ved en linje i firkantede parenteser (fx "[Tekniske data]"), og beskrivelser gemt som UTF-8 vises med de rigtige bogstaver (æ, ø, å).
 
 ### Server
 - På en dedikeret server følger køreplanens busser nu serverens ur, dens hastighed og en admins ændring af klokken. Før kørte de videre fra starttidspunktet, uanset hvad klokken blev sat til (openOMSI PR #1970 af veryinsanee).

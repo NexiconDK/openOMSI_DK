@@ -131,6 +131,28 @@ impl SunPlace {
     }
 }
 
+impl SunPlace {
+    /// (the fork) The clock times (seconds of the day) the sun rises and sets on the clock's
+    /// day at this place - its upper edge on the horizon, refraction counted (-0.833
+    /// degrees), by the same course of the sun as `sun_position`. None on a day the sun does
+    /// not rise or does not set (polar night and day).
+    pub fn sun_rise_set(&self, clock: &SimClock) -> Option<(f64, f64)> {
+        let doy = clock.day_of_year as f64;
+        let decl = (23.44f64).to_radians() * ((2.0 * std::f64::consts::PI * (284.0 + doy) / 365.0).sin());
+        let lat = self.latitude.to_radians();
+        let cos_h0 = ((-0.833f64).to_radians().sin() - lat.sin() * decl.sin()) / (lat.cos() * decl.cos()).max(1e-9);
+        if !(-1.0..=1.0).contains(&cos_h0) {
+            return None;
+        }
+        let h0 = cos_h0.acos().to_degrees() / 15.0;
+        // (the summer time of the day's noon)
+        let noon = SimClock { time: 12.0 * 3600.0, ..clock.clone() };
+        let shift = self.timezone + self.dst_hours(&noon) - self.longitude / 15.0;
+        let at = |solar: f64| ((solar + shift) * 3600.0).rem_euclid(86400.0);
+        Some((at(12.0 - h0), at(12.0 + h0)))
+    }
+}
+
 static PLACE: std::sync::RwLock<Option<std::sync::Arc<SunPlace>>> = std::sync::RwLock::new(None);
 
 /// The loaded map's place (see [`SunPlace`]); every sun position is computed for it.
@@ -388,5 +410,33 @@ mod tests {
         assert_eq!(d.envir_tint[1], Vec3::ONE);
         // by night the stock sun is black: nothing to compare with, no tint
         assert_eq!(Daylight::compute(&clock_at(1.0), Some(&warm)).envir_tint[0], Vec3::ONE);
+    }
+}
+
+#[cfg(test)]
+mod rise_set_tests {
+    use super::*;
+
+    /// Berlin (the default place, UTC+1, no summer time): the sun rises before 04:00 and
+    /// sets after 20:15 at midsummer, rises after 08:00 and sets before 16:15 at midwinter;
+    /// at the sunrise found the sun stands on the horizon. Summer time moves both an hour.
+    #[test]
+    fn sunrise_and_sunset_follow_the_day_of_the_year() {
+        let mut place = SunPlace::default();
+        let clock = |doy: i32| SimClock { year: 2026, day_of_year: doy, ..SimClock::default() };
+        let (rise, set) = place.sun_rise_set(&clock(172)).unwrap();
+        assert!(rise > 3.5 * 3600.0 && rise < 4.0 * 3600.0, "{}", rise / 3600.0);
+        assert!(set > 20.25 * 3600.0 && set < 20.75 * 3600.0, "{}", set / 3600.0);
+        let (w_rise, w_set) = place.sun_rise_set(&clock(355)).unwrap();
+        assert!(w_rise > 8.0 * 3600.0 && w_rise < 8.5 * 3600.0, "{}", w_rise / 3600.0);
+        assert!(w_set > 15.75 * 3600.0 && w_set < 16.25 * 3600.0, "{}", w_set / 3600.0);
+        let alt = sun_position(&SimClock { time: w_rise, ..clock(355) }, &place).0;
+        assert!(alt.abs() < 1.0, "{alt}");
+        place.dst.push((20260301, 20261031, 0.0, 0.0, 1.0));
+        let (s_rise, s_set) = place.sun_rise_set(&clock(172)).unwrap();
+        assert!((s_rise - rise - 3600.0).abs() < 1.0 && (s_set - set - 3600.0).abs() < 1.0);
+        // the north of Norway at midsummer: no sunset
+        let north = SunPlace { latitude: 70.0, ..SunPlace::default() };
+        assert!(north.sun_rise_set(&clock(172)).is_none());
     }
 }

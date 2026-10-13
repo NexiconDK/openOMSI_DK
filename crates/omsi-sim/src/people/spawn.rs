@@ -78,8 +78,6 @@ impl PeopleSim {
             rng: 0x1234_5678_9ABC_DEF1,
             next_id: 1,
             time: 0.0,
-            wall_cells: HashMap::new(),
-            wall_key: (0, 0, 0, 0.0),
             cabins: HashMap::new(),
             player_cabin: None,
             player_next_stop: None,

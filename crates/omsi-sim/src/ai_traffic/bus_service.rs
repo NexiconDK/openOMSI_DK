@@ -300,6 +300,12 @@ impl BusService {
     /// minute later, and on again twenty seconds before it leaves. The buses took their
     /// breaks at the termini with the engines running (#1404).
     pub fn engine_running(&self, day_time: f64) -> bool {
+        // (the fork) at the end of its trip - at the terminus, waiting for the timetable to
+        // give it its next trip or take it off - it stops its engine too, six seconds after
+        // it got there (it ran on there for good)
+        if self.phase == Phase::TripDone {
+            return self.phase_t as f64 <= ENGINE_OFF_AFTER;
+        }
         let standing = matches!(self.phase, Phase::Boarding | Phase::Waiting);
         !(standing
             && self.leave_at - self.arrived_at > ENGINE_OFF_WAIT
@@ -665,6 +671,12 @@ mod tests {
         b.leave_at = 1300.0;
         b.phase = super::Phase::Running;
         assert!(b.engine_running(1010.0), "driving");
+        // (the fork) at the end of its trip: off after six seconds
+        b.phase = super::Phase::TripDone;
+        b.phase_t = 2.0;
+        assert!(b.engine_running(1010.0), "just at the terminus");
+        b.phase_t = 7.0;
+        assert!(!b.engine_running(1010.0), "standing at the terminus");
     }
 
     use super::*;

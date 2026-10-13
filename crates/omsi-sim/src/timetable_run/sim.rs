@@ -98,7 +98,7 @@ struct RunningTrip {
 }
 
 /// How long before a trip is due at a stop the people for it turn up there (s).
-pub const PAX_SPAWN_AHEAD: f64 = 15.0 * 60.0;
+pub const PAX_SPAWN_AHEAD: f64 = 20.0 * 60.0;
 
 /// How far from a route a bus stop may stand when the route is only a part of the trip (a
 /// stop of the missing part would otherwise be put on the nearest point of this one).

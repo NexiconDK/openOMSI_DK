@@ -932,7 +932,7 @@ impl State {
                 if !self.vehicles.iter().any(|v| v.file == self.choice.bus) {
                     if let Some(v) = self.vehicles.first() {
                         self.choice.bus = v.file.clone();
-                        self.choice.paint.clear();
+                        self.choice.paint = random_paint(&v.paints, launcher_random());
                         self.choice.hof = self.default_hof();
                     }
                 }
@@ -1228,7 +1228,9 @@ impl State {
             return;
         }
         self.choice.bus = file.to_string();
-        self.choice.paint.clear();
+        // (the fork) a livery of the bus by chance - its default among them - shown in the
+        // showroom and driven, instead of always the default
+        self.choice.paint = self.bus().map(|v| random_paint(&v.paints, launcher_random())).unwrap_or_default();
         self.choice.number.clear();
         // (a hand-picked depot file stays when the new bus has one of that name)
         let keep = self.choice.hof_manual && self.bus().is_some_and(|v| v.hofs.iter().any(|h| h.eq_ignore_ascii_case(&self.choice.hof)));
@@ -1544,4 +1546,30 @@ mod crash_tests {
 
 fn read_settings_file() -> Option<String> {
     std::fs::read_to_string(core::data_dir().join("settings.cfg")).ok()
+}
+
+/// (the fork) One of a bus's liveries by `r`: its default (empty) or one of `paints`, each
+/// as likely.
+pub(crate) fn random_paint(paints: &[String], r: u64) -> String {
+    match (r % (paints.len() as u64 + 1)) as usize {
+        0 => String::new(),
+        k => paints[k - 1].clone(),
+    }
+}
+
+/// (the fork) A number by chance for the launcher's choices (the clock's nanoseconds, mixed).
+fn launcher_random() -> u64 {
+    let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0);
+    omsi_script::mix_seed(n)
+}
+
+#[cfg(test)]
+mod paint_tests {
+    #[test]
+    fn a_new_bus_gets_any_of_its_liveries() {
+        let paints = vec!["Red".to_string(), "Blue".to_string()];
+        let got: std::collections::HashSet<String> = (0..3).map(|r| super::random_paint(&paints, r)).collect();
+        assert_eq!(got.len(), 3, "the default and both liveries");
+        assert_eq!(super::random_paint(&[], 7), "");
+    }
 }

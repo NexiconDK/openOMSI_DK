@@ -1151,7 +1151,11 @@ fn parse_dsc(text: &str) -> Dsc {
     let mut section = "";
     for line in text.lines() {
         let t = line.trim();
-        if t.starts_with('[') && t.ends_with(']') {
+        // (the fork) in the description only `[end]` or the file's next section ends it: a
+        // line of its own in brackets ("[Technical data]") is part of the text - it cut the
+        // description off there
+        let keyword = ["[name]", "[friendlyname]", "[description]", "[end]"].iter().any(|k| t.eq_ignore_ascii_case(k));
+        if t.starts_with('[') && t.ends_with(']') && (section != "description" || keyword) {
             section = if t.eq_ignore_ascii_case("[name]") || t.eq_ignore_ascii_case("[friendlyname]") {
                 "name"
             } else if t.eq_ignore_ascii_case("[description]") {
@@ -1185,6 +1189,16 @@ fn encoding_latin1(b: &[u8]) -> String {
     if b.len() >= 2 && b[0] == 0xFE && b[1] == 0xFF {
         let u: Vec<u16> = b[2..].chunks_exact(2).map(|c| u16::from_be_bytes([c[0], c[1]])).collect();
         return String::from_utf16_lossy(&u);
+    }
+    // (the fork) a description saved as UTF-8 (with its mark or without), read as Latin-1,
+    // came out as nonsense where it had its first letter past ASCII
+    if let Some(rest) = b.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+        return String::from_utf8_lossy(rest).into_owned();
+    }
+    if !b.is_ascii() {
+        if let Ok(s) = std::str::from_utf8(b) {
+            return s.to_string();
+        }
     }
     b.iter().map(|&c| c as char).collect()
 }
@@ -3231,6 +3245,11 @@ mod tests {
         let w = super::parse_dsc("[name]\r\nGround Fog\r\n\r\n[description]\r\nHeavy ground fog limits the maximum visibility dangerously!\r\n[end]\r\n");
         assert_eq!(w.name, vec!["Ground Fog"]);
         assert_eq!(w.description, "Heavy ground fog limits the maximum visibility dangerously!");
+        // (the fork) a line in brackets inside the description is text
+        let b = super::parse_dsc("[description]\r\nA bus.\r\n[Technical data]\r\nLength 12 m\r\n[end]\r\n");
+        assert_eq!(b.description, "A bus.\n[Technical data]\nLength 12 m");
+        assert_eq!(super::encoding_latin1("Ø".as_bytes()), "Ø");
+        assert_eq!(super::encoding_latin1(&[0xD8]), "Ø");
         let p = std::path::Path::new("/x/maps/Spandau/global.cfg");
         assert_eq!(super::dsc_candidates(p, "ENG"), vec![std::path::PathBuf::from("/x/maps/Spandau/global_ENG.dsc")]);
         assert_eq!(super::dsc_candidates(p, "FRA").len(), 2);

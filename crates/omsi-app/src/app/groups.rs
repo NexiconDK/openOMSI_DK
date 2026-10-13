@@ -415,6 +415,9 @@ pub(crate) struct SessionState {
     /// How far the clock was set since the timetable was last put out again (s; see
     /// `shift_clock`).
     pub(crate) clock_jump: f64,
+    /// (the fork) When the clock was last set (`clock_jump` still to be put out): the
+    /// timetable follows once the setting has settled (`settle_clock_jump`).
+    pub(crate) clock_jump_at: Option<std::time::Instant>,
     /// The bus whose seat (`settings::bus_seats`) `settings.seat` holds now.
     pub(crate) seat_bus: String,
     /// The player out of the seat, walking about (`on_foot`).

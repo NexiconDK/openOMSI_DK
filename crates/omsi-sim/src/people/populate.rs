@@ -3,6 +3,10 @@
 
 use super::*;
 
+/// (the fork) A jump of the clock larger than this (seconds) is the clock set by hand, not
+/// the game going on.
+pub const CLOCK_JUMP: f64 = 600.0;
+
 impl PeopleSim {
     /// Put people at the bus stops near `center`: at the start everywhere, later only at
     /// stops out of sight (the others fill with people walking up).
@@ -103,12 +107,7 @@ impl PeopleSim {
         // the destinations: the stops the trips from here go on to, as likely as people
         // get off there; each with the termini of the buses that go there
         let lines: Vec<(String, HashSet<String>)> = self.stop_targets.as_ref().and_then(|m| m.get(&id)).cloned().unwrap_or_default();
-        let weights: Vec<f32> = lines
-            .iter()
-            .map(|(n, _)| {
-                world.bus_stops().iter().find(|s| s.3.trim() == n.trim()).map(|s| world.stop_exit_weight(s.0)).unwrap_or(0.5)
-            })
-            .collect();
+        let weights: Vec<f32> = lines.iter().map(|(n, _)| self.dest_weight(world, n)).collect();
         let total: f32 = weights.iter().sum();
         let dests: Vec<(String, f32)> = if total > 0.0 {
             lines.iter().zip(&weights).map(|((n, _), w)| (n.clone(), w / total)).collect()
@@ -146,6 +145,26 @@ impl PeopleSim {
             dests,
             lines,
         }
+    }
+
+    /// (the fork) How many get off at the stop the timetable calls `name`: its stop
+    /// objects' exit number (string 3 of the cube, `stop_exit_weight`). Found first by the
+    /// timetable's own name of each object (`stop_names`) - the cube's label can read
+    /// otherwise, and before such a stop fell back to 0.5, so a service stop with 0 was
+    /// drawn like any other -, then by the label, then by the id the targets use where the
+    /// timetable does not know the object. Of a stop with more objects (both sides) the
+    /// largest number; 0 everywhere: nobody goes there.
+    fn dest_weight(&self, world: &dyn World, name: &str) -> f32 {
+        let name = name.trim();
+        let by_table = self.stop_names.as_ref().map(|m| m.iter().filter(|(_, n)| n.trim() == name).map(|(id, _)| world.stop_exit_weight(*id)).fold(None, |a: Option<f32>, w| Some(a.map_or(w, |a| a.max(w))))).flatten();
+        if let Some(w) = by_table {
+            return w;
+        }
+        let by_label = world.bus_stops().iter().filter(|s| s.3.trim() == name).map(|s| world.stop_exit_weight(s.0)).fold(None, |a: Option<f32>, w| Some(a.map_or(w, |a| a.max(w))));
+        if let Some(w) = by_label {
+            return w;
+        }
+        name.parse::<i64>().ok().map_or(0.5, |id| world.stop_exit_weight(id))
     }
 
     /// The stops near the player fill with people (sub_61bf94, every frame): a stop coming
@@ -216,8 +235,10 @@ impl PeopleSim {
                 let mean = (s.enter_max + s.enter_min) / 2.0;
                 // (0x61bf94: with a timetable, times the share of the trips due there - at a
                 // stop no trip leaves from, nobody)
-                let none_due = self.due_dests.as_ref().is_some_and(|d| d.get(&id).is_none_or(|set| set.is_empty()));
-                let served = if self.stop_targets.is_some() && (s.lines.is_empty() || none_due) { 0.0 } else { 1.0 };
+                // (the fork: a trip due whose stops ahead all have an exit number of 0 is none)
+                let none_due = self.due_dests.as_ref().is_some_and(|d| d.get(&id).is_none_or(|set| !s.dests.iter().any(|(n, w)| *w > 0.0 && set.contains(n.trim()))));
+                // (the fork: nor at a stop whose every destination has an exit number of 0)
+                let served = if self.stop_targets.is_some() && (s.lines.is_empty() || s.dests.is_empty() || none_due) { 0.0 } else { 1.0 };
                 let w = (self.density.max(0.0) * mean * s.factor * served).round().max(0.0) as usize;
                 forced.unwrap_or(w).min(s.spots.len())
             };
@@ -257,8 +278,38 @@ impl PeopleSim {
         due: impl FnOnce(f64) -> HashMap<i64, HashSet<String>>,
     ) {
         if (day_time - self.due_at).abs() >= 60.0 {
+            // (the fork) the clock set anew - not a minute gone by: the people waiting for a
+            // trip that is no longer due soon go (they waited at 11 for the bus of 23)
+            let jumped = self.due_at.is_finite() && (day_time - self.due_at).abs() > CLOCK_JUMP;
             self.due_dests = Some(due(day_time));
             self.due_at = day_time;
+            if jumped {
+                self.leave_undue();
+            }
+        }
+    }
+
+    /// (the fork) The people waiting at a stop (or walking to it) for a destination no trip
+    /// due there soon goes to leave it. Those going nowhere by bus stay.
+    pub fn leave_undue(&mut self) {
+        let Some(due) = self.due_dests.as_ref() else { return };
+        let undue: Vec<usize> = (0..self.people.len())
+            .filter(|&i| match &self.people[i].state {
+                State::Pax(p) => {
+                    p.inside.is_none()
+                        && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop)
+                        && match (p.stop, p.dest.as_deref()) {
+                            (Some(stop), Some(d)) => !due.get(&stop).is_some_and(|set| set.contains(d.trim())),
+                            _ => false,
+                        }
+                }
+                _ => false,
+            })
+            .collect();
+        for &i in undue.iter().rev() {
+            self.release(i);
+            let p = self.people.swap_remove(i);
+            self.retire(&p);
         }
     }
 

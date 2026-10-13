@@ -44,6 +44,9 @@ pub(crate) enum ListKind {
     Hofs,
     /// The map's entry points (the launcher's "Start at"), to put the bus at.
     Spots,
+    /// (the fork) The vehicles standing in the world (placed, or left for another), nearest
+    /// first: the one chosen is driven.
+    Vehicles,
     /// Placing a vehicle: its manufacturer, then its type (the manufacturer's key), its
     /// livery, then its depot file (bus file; bus file and livery).
     PlaceMaker,
@@ -531,6 +534,14 @@ pub(crate) fn items(app: &App, kind: &ListKind) -> Vec<(String, String)> {
                 out.push((tr("This bus has no depot files (.hof)"), "back".into()));
             }
         }
+        ListKind::Vehicles => {
+            for (k, label) in vehicles_nearest(app) {
+                out.push((label, format!("take {k}")));
+            }
+            if out.is_empty() {
+                out.push((tr("There is no other vehicle to drive"), "back".into()));
+            }
+        }
         ListKind::Spots => {
             if let Some(w) = app.world.as_ref() {
                 // (the map's entry points, as the launcher's "Start at" lists them)
@@ -747,6 +758,7 @@ pub(crate) fn menu_extras(
         ListKind::RouteNumbers => (MenuKind::List, Some((tr("Route number"), String::new())), None),
         ListKind::Hofs => (MenuKind::List, head("Depot file (HOF)..."), None),
         ListKind::Spots => (MenuKind::List, head("Teleport to a start point..."), None),
+        ListKind::Vehicles => (MenuKind::List, head("Change vehicle..."), None),
         ListKind::PlaceMaker | ListKind::PlaceType(_) | ListKind::PlaceLivery(_) | ListKind::PlaceHof(..) => (MenuKind::List, head("Place a vehicle..."), None),
         ListKind::Admin => (MenuKind::List, Some((tr("Administration"), String::new())), None),
     }
@@ -926,7 +938,18 @@ pub(crate) fn run_move(app: &mut App, kind: &ListKind, action: &str, mv: Move) -
             }
             None
         }
+        ListKind::Vehicles => {
+            if let Ok(k) = arg.trim().parse::<usize>() {
+                app.close_game_menu();
+                app.take_placed(k);
+            }
+            None
+        }
         ListKind::Spots => {
+            if !app.in_vehicle() {
+                app.service_msg = Some(("Get into the vehicle first: the teleport moves the vehicle you drive".into(), 4.0));
+                return None;
+            }
             if app.net.lan.as_ref().is_some_and(|l| l.role == omsi_net::Role::Client) {
                 app.service_msg = Some(("In a LAN session only the host moves vehicles on the map".into(), 4.0));
                 return None;
@@ -2735,8 +2758,12 @@ fn world_pages(app: &App) -> Vec<Page> {
             }
             time.extend(slider_row(app, "hour", "Hour", "Set the hour of the day directly", &|v| format!("{:02}", v as i64)));
             time.extend(slider_row(app, "minute", "Minute", "Set the minute directly", &|v| format!("{:02}", v as i64)));
-            for (name, hm, secs) in [("Morning", "06:00", 6 * 3600), ("Noon", "12:00", 12 * 3600), ("Evening", "18:00", 18 * 3600), ("Night", "23:00", 23 * 3600)] {
-                time.push(button(name, hm, "Jump to this time of day.", &format!("clock_set {secs}")));
+            // (the fork) sunrise and sunset as they are on the clock's day at the map's
+            // place (its timezone.txt), not 06:00 and 18:00 all the year
+            let (rise, set) = omsi_sim::daylight::place().sun_rise_set(&app.clock).map_or((6 * 3600, 18 * 3600), |(r, s)| (r.round() as i64, s.round() as i64));
+            let hm = |secs: i64| format!("{:02}:{:02}", secs / 3600, (secs / 60) % 60);
+            for (name, secs) in [("Sunrise", rise), ("Noon", 12 * 3600), ("Sunset", set), ("Night", 23 * 3600)] {
+                time.push(button(name, &hm(secs), "Jump to this time of day.", &format!("clock_set {secs}")));
             }
             if let (Some(_), Some(p)) = (app.session.duty.as_ref(), app.player.as_ref()) {
                 let d = p.vehicle.host.tt_delay as f64;
@@ -3321,4 +3348,28 @@ mod tests {
         assert!(!super::numeric_ibis_line("10-"));
         assert!(!super::numeric_ibis_line("EXP"));
     }
+}
+
+/// (the fork) The vehicles standing in the world, nearest the player first: (their index in
+/// `placed`, "type - 120 m").
+fn vehicles_nearest(app: &App) -> Vec<(usize, String)> {
+    let here = app.session.on_foot.as_ref().map(|f| f.pos).or_else(|| app.player.as_ref().map(|p| p.vehicle.position));
+    let mut list: Vec<(usize, f64, String)> = app
+        .session
+        .placed
+        .iter()
+        .enumerate()
+        .map(|(k, p)| {
+            let d = here.map_or(0.0, |h| (p.vehicle.position - h).truncate().length());
+            let name = format!("{} {}", p.vehicle.ty.def.manufacturer.trim(), p.vehicle.ty.def.type_name.trim());
+            (k, d, name.trim().to_string())
+        })
+        .collect();
+    list.sort_by(|a, b| a.1.total_cmp(&b.1));
+    list.into_iter()
+        .map(|(k, d, name)| {
+            let far = if d >= 1000.0 { format!("{:.1} km", d / 1000.0) } else { format!("{:.0} m", d) };
+            (k, format!("{name} - {far}"))
+        })
+        .collect()
 }

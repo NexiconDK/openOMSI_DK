@@ -29872,3 +29872,19 @@ _version: 2
 "Alt or Esc closes the menu; the game goes on.":
   de: "Alt oder Esc schließt das Menü; das Spiel läuft weiter."
   da: "Alt eller Esc lukker menuen; spillet kører videre."
+
+"Sunrise":
+  de: "Sonnenaufgang"
+  da: "Solopgang"
+
+"Sunset":
+  de: "Sonnenuntergang"
+  da: "Solnedgang"
+
+"Change vehicle...":
+  de: "Fahrzeug wechseln..."
+  da: "Skift køretøj..."
+
+"Get into the vehicle first: the teleport moves the vehicle you drive":
+  de: "Erst ins Fahrzeug steigen: der Teleport versetzt das gefahrene Fahrzeug"
+  da: "Sæt dig ind i køretøjet først: teleporten flytter det køretøj, du kører"

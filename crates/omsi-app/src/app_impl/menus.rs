@@ -284,6 +284,9 @@ impl App {
                     self.service_event("reset", self.menu_by(), None);
                 }
             }
+            "teleport" | "tplist" if !self.in_vehicle() => {
+                self.service_msg = Some(("Get into the vehicle first: the teleport moves the vehicle you drive".into(), 4.0));
+            }
             "teleport" => {
                 self.close_game_menu();
                 if let Some(n) = self.menus.navigator.as_mut() {
@@ -328,6 +331,8 @@ impl App {
                 self.close_game_menu();
                 self.switch_vehicle();
             }
+            // (the fork) the vehicles standing in the world, nearest first, to choose from
+            "vehicles" => self.open_list(crate::game_lists::ListKind::Vehicles),
             "later" | "earlier" | "later10" | "earlier10" => {
                 self.close_game_menu();
                 if self.net.lan.as_ref().map(|l| l.role == omsi_net::Role::Client).unwrap_or(false) {

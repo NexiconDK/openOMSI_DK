@@ -98,7 +98,9 @@ pub(crate) fn click(app: &mut crate::App, id: &str) {
     app.menus.game_panels.quick = None;
     match id {
         // (the game menu's own actions; those that open a list open the menu with it)
-        "place" | "switch" | "remove" | "reset" | "repair" | "refuel" | "wash" | "dest" => {
+        // (the fork) the vehicles standing in the world, nearest first, the one chosen driven
+        "switch" => app.open_list(crate::game_lists::ListKind::Vehicles),
+        "place" | "remove" | "reset" | "repair" | "refuel" | "wash" | "dest" => {
             if !app.page_action(id) {
                 log::warn!("quick menu: no action {id}");
             }

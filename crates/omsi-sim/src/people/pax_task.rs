@@ -624,8 +624,20 @@ impl PeopleSim {
                     // walking: on from the point walked to, towards the new door (Omsi.exe
                     // changes only the target and the door)
                     pp.pt_target = target;
+                } else if pp.st == 6 && target == pp.pt_target {
+                    // (the fork) waiting short of their exit, the same exit still: they stay
+                    // and step up to it when it opens. Before, the nearest point was looked
+                    // for again every second - often the one behind them, so they went back
+                    // a point and turned round to the exit they had stood at.
                 } else if target != pp.pt_target || pp.st != 7 {
-                    pp.pt = bn.cabin.omsi_nearest(here, &all, false, false, None, None);
+                    let nearest = bn.cabin.omsi_nearest(here, &all, false, false, None, None);
+                    let (start, link) = start_ahead(&bn.cabin, here, nearest, target);
+                    pp.pt = start;
+                    if let Some(l) = link {
+                        pp.link = Some(l);
+                        pp.step_pack = bn.cabin.link_pack.get(l).copied().flatten();
+                        pp.room = bn.cabin.link_room.get(l).copied().unwrap_or(2.0);
+                    }
                     pp.pt_target = target;
                     pp.st = 5;
                 }
@@ -679,5 +691,33 @@ impl PeopleSim {
             }
             _ => p.state = State::Standing,
         }
+    }
+}
+
+/// (the fork) Where somebody setting off for `target` in a cabin walks first: the nearest
+/// path point - unless they already stand past it on the link to the next point of the way,
+/// then that next point (and its link). The nearest point behind them made them step back
+/// to it and turn round.
+pub(crate) fn start_ahead(cabin: &Cabin, here: Vec3, nearest: Option<usize>, target: Option<usize>) -> (Option<usize>, Option<usize>) {
+    let (Some(a), Some(t)) = (nearest, target) else { return (nearest, None) };
+    if a == t {
+        return (nearest, None);
+    }
+    let Some((n, l)) = cabin.route_next(a, t) else { return (nearest, None) };
+    let pts = &cabin.graph.points;
+    let (Some(pa), Some(pn)) = (pts.get(a), pts.get(n)) else { return (nearest, None) };
+    let ab = *pn - *pa;
+    let len2 = ab.length_squared();
+    if len2 < 1e-4 {
+        return (nearest, None);
+    }
+    let v = here - *pa;
+    let t = v.dot(ab) / len2;
+    // on the link (beside it by under 0.5 m, on its level) and a little way along it
+    let off = (v - ab * t.clamp(0.0, 1.0)).truncate().length();
+    if t > 0.05 && off < 0.5 && (here.z - (pa.z + ab.z * t.clamp(0.0, 1.0))).abs() < 0.6 {
+        (Some(n), Some(l))
+    } else {
+        (nearest, None)
     }
 }

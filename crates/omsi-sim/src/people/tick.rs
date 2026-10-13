@@ -263,8 +263,7 @@ impl PeopleSim {
         let near_blocks: Vec<Block> = blocks.into_iter().filter(|b| walkers.iter().any(|w| b.near(w.pos, 25.0))).collect();
         let mut g = walkers.clone();
         crowd::step(&mut g, &near_blocks, &CrowdParams::default(), dt as f64);
-        let mut ground: Vec<(usize, Walker)> = g.into_iter().enumerate().collect();
-        self.keep_out_of_walls(world, &who, &mut ground);
+        let ground: Vec<(usize, Walker)> = g.into_iter().enumerate().collect();
         let mut moved = vec![false; self.people.len()];
         for (k, w) in ground {
             let i = who[k];

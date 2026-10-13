@@ -594,6 +594,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
             envir: None,
             weather: None,
             clock_jump: 0.0,
+            clock_jump_at: None,
             seat_bus: String::new(),
             on_foot: None,
             safe_pose: None,

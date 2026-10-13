@@ -995,3 +995,28 @@ fn the_trips_due_at_the_stops_follow_the_clock() {
     assert!(!none_due(&h, 2));
     assert_eq!(h.due_at, 8.5 * 3600.0);
 }
+
+/// (the fork) Somebody already past a path point on the way to their exit walks on to the
+/// next point, not back to the one behind them; one beside the aisle (a seat) starts at
+/// the nearest point.
+#[test]
+fn on_the_way_out_nobody_steps_back_a_point() {
+    let dir = std::env::temp_dir().join(format!("omsi-start-ahead-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("test.bus"), "[boundingbox]\n2.5\n12\n3\n0\n0\n1.5\n\n[passengercabin]\ncabin.cfg\n\n[paths]\npaths.cfg\n").unwrap();
+    std::fs::write(dir.join("paths.cfg"), "[pathpnt]\n1.1\n4\n0.4\n\n[pathpnt]\n0\n4\n0.5\n\n[pathpnt]\n0\n-3\n0.5\n\n[pathpnt]\n1.1\n-3\n0.4\n\n[pathlink]\n0\n1\n\n[pathlink]\n1\n2\n\n[pathlink]\n2\n3\n").unwrap();
+    std::fs::write(dir.join("cabin.cfg"), "[entry]\n0\n\n[exit]\n3\n\n[passpos]\n-0.5\n0\n0.9\n0.45\n0\n").unwrap();
+    let def = omsi_vehicle::Vehicle::load(&dir.join("test.bus")).unwrap();
+    let cabin = Cabin::load_train(&[(&def, Vec3::ZERO, f32::INFINITY)]).expect("cabin");
+    std::fs::remove_dir_all(&dir).ok();
+    let pts = &cabin.graph.points;
+    let find = |x: f32, y: f32| pts.iter().position(|p| (p.x - x).abs() < 0.01 && (p.y - y).abs() < 0.01).unwrap();
+    let (p1, p2, exit) = (find(0.0, 4.0), find(0.0, -3.0), find(1.1, -3.0));
+    // in the aisle 1.5 m past point 1 towards the rear door: on to point 2
+    let (start, link) = super::pax_task::start_ahead(&cabin, Vec3::new(0.0, 2.5, 0.5), Some(p1), Some(exit));
+    assert_eq!(start, Some(p2));
+    assert!(link.is_some());
+    // standing at point 1 itself, or beside the aisle: point 1
+    assert_eq!(super::pax_task::start_ahead(&cabin, Vec3::new(0.0, 4.0, 0.5), Some(p1), Some(exit)).0, Some(p1));
+    assert_eq!(super::pax_task::start_ahead(&cabin, Vec3::new(-1.2, 2.5, 0.5), Some(p1), Some(exit)).0, Some(p1));
+}

@@ -28,6 +28,8 @@ impl App {
             let d = (t - self.clock.time + 43_200.0).rem_euclid(86_400.0) - 43_200.0;
             self.shift_clock(d);
         }
+        // (the fork) the timetable after the clock was set, once it has settled
+        self.settle_clock_jump();
         // the graphics device is gone (a driver reset, an external card unplugged):
         // nothing can be drawn again - end the session the ordinary way, so that the
         // summary, the personnel file and the LAN goodbye are not lost

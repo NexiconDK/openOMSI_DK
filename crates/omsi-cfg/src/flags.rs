@@ -252,7 +252,6 @@ flags! {
     OMSI_DEBUG_VARS_EVERY: Num, Debug, Use, "-", "With OMSI_DEBUG_VARS: log them every this many seconds through the drive.";
     OMSI_DEBUG_VAR_SYNC: Text, Debug, Use, "-", "LAN: log this variable, ours every two seconds and theirs as it comes.";
     OMSI_DEBUG_VIEW_LAMPS: Bool, Debug, Frame, "off", "Log the view lamps value per frame.";
-    OMSI_DEBUG_WALLS: Bool, Debug, Use, "off", "Log the walls a walking player slides along.";
     OMSI_DEBUG_WARP: Bool, Debug, Use, "off", "Log crossings whose ground was moved by more than a metre.";
     OMSI_DEBUG_WHEELS: Bool, Debug, Use, "off", "Log where the wheel meshes of every vehicle type turn.";
     OMSI_DRIVER_HANDS: Text, Test, Use, "-", "left,right: both driver hands held at these angles (grip close-ups).";

@@ -70,19 +70,44 @@ impl App {
         let h = (t / 3600.0) as u32;
         self.service_msg = Some((format!("Clock: {h:02}:{:02}", ((t / 60.0) as u32) % 60), 3.0));
         self.session.clock_jump += secs;
-        // (held Page Up/Down: once they are let go)
-        if self.input.clock_hold == 0.0 {
-            self.timetable_after_clock_jump();
+        // (the fork) the timetable follows once the clock has been left alone a moment
+        // (`settle_clock_jump`): a slider dragged or the minute buttons clicked a few times
+        // add up - before, each step was weighed alone, and five one-minute steps, each
+        // under two minutes, never put the buses out again (or each hour of a dragged
+        // slider did, every one)
+        self.session.clock_jump_at = Some(std::time::Instant::now());
+    }
+
+    /// (the fork) Once a frame: the clock set by two minutes or more all told and left alone
+    /// for `CLOCK_SETTLE`: the timetable's buses go and come for the new time. Small moves
+    /// that do not add up to that within `CLOCK_FORGET` are forgotten (a script nudging the
+    /// clock). Held Page Up/Down: once they are let go.
+    pub(crate) fn settle_clock_jump(&mut self) {
+        const CLOCK_SETTLE: f32 = 0.4;
+        const CLOCK_FORGET: f32 = 10.0;
+        let Some(at) = self.session.clock_jump_at else { return };
+        if self.input.clock_hold > 0.0 {
+            return;
+        }
+        let age = at.elapsed().as_secs_f32();
+        if self.session.clock_jump.abs() >= crate::schedule::RESTART_JUMP {
+            if age >= CLOCK_SETTLE {
+                self.timetable_after_clock_jump();
+            }
+        } else if age >= CLOCK_FORGET {
+            self.session.clock_jump = 0.0;
+            self.session.clock_jump_at = None;
         }
     }
 
     /// After the clock was set by more than two minutes: the timetable's buses put out again
     /// for the new time (`Schedule::restart`).
     pub(crate) fn timetable_after_clock_jump(&mut self) {
-        let jump = std::mem::take(&mut self.session.clock_jump);
-        if jump.abs() < crate::schedule::RESTART_JUMP {
+        if self.session.clock_jump.abs() < crate::schedule::RESTART_JUMP {
             return;
         }
+        self.session.clock_jump = 0.0;
+        self.session.clock_jump_at = None;
         if let (Some(s), Some(w), Some(t), Some(r), Some(scene)) = (self.session.schedule.as_mut(), self.world.as_ref(), self.session.traffic.as_mut(), self.renderer.as_ref(), self.scene.as_mut()) {
             let day_time = t.day_time;
             s.restart(w, t, &mut self.gfx.sim_view.traffic, r, scene, day_time);

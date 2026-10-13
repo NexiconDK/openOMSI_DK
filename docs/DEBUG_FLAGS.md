@@ -93,7 +93,6 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_DEBUG_VARS_EVERY` | num | - | use | app | With OMSI_DEBUG_VARS: log them every this many seconds through the drive. |
 | `OMSI_DEBUG_VAR_SYNC` | text | - | use | app | LAN: log this variable, ours every two seconds and theirs as it comes. |
 | `OMSI_DEBUG_VIEW_LAMPS` | bool | off | frame | render | Log the view lamps value per frame. |
-| `OMSI_DEBUG_WALLS` | bool | off | use | sim | Log the walls a walking player slides along. |
 | `OMSI_DEBUG_WARP` | bool | off | use | app | Log crossings whose ground was moved by more than a metre. |
 | `OMSI_DEBUG_WHEELS` | bool | off | use | app | Log where the wheel meshes of every vehicle type turn. |
 | `OMSI_DUMP_CUT` | text | - | use | app | Directory: write each tile's road-cut alpha masks as images. |
