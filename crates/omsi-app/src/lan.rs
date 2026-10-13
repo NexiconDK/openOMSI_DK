@@ -491,6 +491,9 @@ pub struct RemoteVehicle {
     /// Solaris' matrix stood blank for good.
     shown_at: Instant,
     shown_again: u8,
+    /// (the fork) It is within `SIGN_NEAR` of us (the camera): coming that near, its sign is
+    /// drawn again here.
+    near: bool,
     /// Their bus type is not installed here: ours stands in for it.
     pub stand_in: bool,
     pub last: Pose,
@@ -2095,6 +2098,9 @@ pub fn my_pose(
 /// (the fork) Seconds after a destination came that it is set again on the copy.
 const SHOW_AGAIN: [f32; 3] = [1.0, 5.0, 20.0];
 
+/// (the fork) Another player's bus coming this near us (m) has its sign drawn again here.
+const SIGN_NEAR: f64 = 200.0;
+
 /// (the fork) The depot file of the bus here that has destination `name`: the files of its
 /// folder and the shared `HOFs` folder (read only when ours has not got it).
 fn remote_hof_with(ty: &omsi_sim::VehicleType, name: &str) -> Option<Arc<omsi_vehicle::Hof>> {
@@ -2740,6 +2746,7 @@ fn new_remote(
         shown: (String::new(), String::new()),
         shown_at: Instant::now(),
         shown_again: 0,
+        near: false,
         stand_in,
         last: pose.clone(),
         made_as: (pose.bus.clone(), pose.paint.clone()),
@@ -3541,8 +3548,37 @@ pub fn tick(
         }
         // (the fork) and again a few times after, once the copy's scripts have run
         let again = !fresh && !rv.shown.1.is_empty() && SHOW_AGAIN.get(rv.shown_again as usize).is_some_and(|s| rv.shown_at.elapsed().as_secs_f32() >= *s);
-        if again {
-            rv.shown_again += 1;
+        // (the fork) coming within 200 m of us: the sign drawn again, whatever happened to it
+        // while it was far (left at 250 m, so that one driving along the edge does not draw
+        // it again and again)
+        let d = frame.listener.map(|l| (rv.vehicle.position - l).truncate().length());
+        let came_near = match d {
+            Some(d) if !rv.near && d <= SIGN_NEAR => {
+                rv.near = true;
+                true
+            }
+            Some(d) if rv.near && d > SIGN_NEAR + 50.0 => {
+                rv.near = false;
+                false
+            }
+            _ => false,
+        };
+        if came_near && !fresh && !rv.shown.1.is_empty() {
+            log::info!(
+                "LAN: player {} '{}' within {:.0} m: their sign drawn here - {}{} (depot file {})",
+                pose.id,
+                pose.name,
+                d.unwrap_or(0.0),
+                if rv.shown.0.is_empty() { String::new() } else { format!("line {} ", rv.shown.0) },
+                rv.shown.1,
+                rv.hof.as_deref().map_or("none".to_string(), |h| h.name.clone())
+            );
+        }
+        if came_near && !fresh && rv.shown.1.is_empty() {
+            log::info!("LAN: player {} '{}' within {:.0} m: their game sends no destination (line {:?})", pose.id, pose.name, d.unwrap_or(0.0), pose.line);
+        }
+        if again || (came_near && !fresh && !rv.shown.1.is_empty()) {
+            rv.shown_again += again as u8;
             if let Some(i) = rv.vehicle.ty.program.str_var("Linie") {
                 rv.vehicle.state.str_vars[i as usize] = rv.shown.0.clone();
             }
