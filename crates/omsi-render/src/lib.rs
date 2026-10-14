@@ -6273,6 +6273,12 @@ impl Renderer {
         // the whole square around a lamp's reach, and in a full cell whoever came first. For
         // telling a change of the grid apart from what the picture always did.
         let old_grid = omsi_cfg::flags::OMSI_LIGHT_GRID_OLD.is_set();
+        // (the fork) how often a full cell had to let one lamp in at another's cost, and how
+        // often it had no room for a lamp at all: with `OMSI_DEBUG_LIGHT_GRID` both are
+        // logged per frame - a cell's thirty-two places running out is what used to draw the
+        // lit fog in boxes, and the numbers say whether it still happens.
+        let mut swapped = 0u32;
+        let mut turned_away = 0u32;
         let mut grid = std::mem::take(&mut scene.grid_scratch);
         grid.clear();
         grid.resize(side * side * LIGHT_CELL_CAP, u32::MAX);
@@ -6316,32 +6322,57 @@ impl Renderer {
                     match cell.iter().position(|v| *v == u32::MAX) {
                         Some(slot) => cell[slot] = idx,
                         None if old_grid => {
+                            turned_away += 1;
                             if omsi_cfg::flags::OMSI_DEBUG_LIGHT_GRID.is_set() {
                                 log::info!("light grid: cell ({x}, {y}) full, light at ({:.1}, {:.1}) radius {:.0} left out", p.x, p.y, l.radius);
                             }
                         }
                         None => {
-                            // (the fork) the cell is full: its dimmest lamp gives way to a
-                            // brighter one. The lamps came in the order they were gathered,
-                            // so whichever was last was the one left out, however bright.
-                            let mine = scores[idx as usize];
+                            // (the fork) the cell is full: the lamp that lights *this cell*
+                            // least gives way to one that lights it more.
+                            //
+                            // Weighed for the cell - the lamp's strength over its distance to
+                            // it ([`cell_worth`]) - and not by strength alone. Every headlamp
+                            // of every bus in sight is as strong as the next, so a full cell
+                            // kept whichever of them happened to reach it first and turned
+                            // the rest away, and which ones those were differed from one cell
+                            // to the next. `lamp_airlight` (lamp_air.wgsl) takes a lamp in
+                            // the one cell holding the view ray's point nearest to it, so a
+                            // lamp turned away from a cell is missing from the lit fog there
+                            // and nowhere else - and the difference stood in the picture as
+                            // hard-edged boxes of light a cell to a side, in front of the bus
+                            // and in front of the AI buses (what openOMSI took for the beam's
+                            // own shape, 58d963ac and 2da18118, before putting both back,
+                            // eb830952). Weighed this way, the lamp a cell turns away is the
+                            // one it would have seen least of, and the next cell along turns
+                            // away about the same one: no edge.
+                            let mid = cell0 + Vec2::splat(LIGHT_CELL * 0.5);
+                            let mine = cell_worth(&gpu_lights, &scores, idx as usize, mid);
                             let weakest = cell
                                 .iter()
                                 .enumerate()
-                                .map(|(k, v)| (k, scores[*v as usize]))
+                                .map(|(k, v)| (k, cell_worth(&gpu_lights, &scores, *v as usize, mid)))
                                 .filter(|(_, s)| *s < mine)
                                 .min_by(|a, b| a.1.total_cmp(&b.1));
                             match weakest {
-                                Some((slot, _)) => cell[slot] = idx,
-                                None if omsi_cfg::flags::OMSI_DEBUG_LIGHT_GRID.is_set() => {
-                                    log::info!("light grid: cell ({x}, {y}) full of brighter lamps, light at ({:.1}, {:.1}) radius {:.0} {} left out", p.x, p.y, l.radius, if l.direction.length_squared() > 0.5 { "spot" } else { "point" });
+                                Some((slot, _)) => {
+                                    cell[slot] = idx;
+                                    swapped += 1;
                                 }
-                                None => {}
+                                None => {
+                                    turned_away += 1;
+                                    if omsi_cfg::flags::OMSI_DEBUG_LIGHT_GRID.is_set() {
+                                        log::info!("light grid: cell ({x}, {y}) full of lamps lighting it more, light at ({:.1}, {:.1}) radius {:.0} {} left out", p.x, p.y, l.radius, if l.direction.length_squared() > 0.5 { "spot" } else { "point" });
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+        if omsi_cfg::flags::OMSI_DEBUG_LIGHT_GRID.is_set() {
+            log::info!("light grid: {} lamps in {} cells of {} places, {swapped} swapped out of a full cell, {turned_away} turned away", gpu_lights.len() - scene.interior_lights.len(), side * side, LIGHT_CELL_CAP);
         }
         if gpu_lights.is_empty() {
             gpu_lights.push(GpuPointLight {
@@ -7768,9 +7799,24 @@ fn drawn_by(l: &PointLight, enhanced: bool) -> bool {
             }
 }
 
-/// (the fork) How much a lamp matters where a grid cell has no room left: how bright it is.
+/// (the fork) How much light a lamp has to give, where a grid cell has no room left: its
+/// strength times its colour. [`cell_worth`] shares it out over the distance.
 fn light_score(l: &PointLight) -> f32 {
     l.intensity * (l.color[0] + l.color[1] + l.color[2]).max(0.0)
+}
+
+/// (the fork) How much the lamp at index `i` matters to the grid cell whose middle is `mid`:
+/// its strength ([`light_score`]) over the distance, as its irradiance there goes. Held off
+/// zero by a cell's own width, so that a lamp inside the cell does not outweigh every other
+/// by a thousand times.
+///
+/// This is what a full cell goes by. By strength alone, the lamps that are equally strong -
+/// every headlamp of every bus in the picture - came down to which reached the cell first,
+/// which differed between neighbouring cells and drew the lit fog in boxes (see the full
+/// cell's arm in `prepare_lights`).
+fn cell_worth(lights: &[GpuPointLight], scores: &[f32], i: usize, mid: Vec2) -> f32 {
+    let at = Vec2::new(lights[i].pos[0], lights[i].pos[1]);
+    scores[i] / (mid.distance_squared(at) + LIGHT_CELL * LIGHT_CELL)
 }
 
 /// (the fork) Whether the lamp at `lp` with reach `radius` lights any part of the grid cell
@@ -9747,6 +9793,44 @@ mod light_grid_tests {
                 assert!(cell_lit(at, radius, c0), "({:.1}, {:.1}) left out", p.x, p.y);
             }
         }
+    }
+
+    fn at_x(xs: &[f32]) -> Vec<GpuPointLight> {
+        xs.iter()
+            .map(|x| GpuPointLight { pos: [*x, 0.0, 0.0, 0.0], color: [0.0; 4], dir: [0.0; 4], extra: [0.0; 4] })
+            .collect()
+    }
+
+    /// A full cell goes by what each lamp gives *it*, not by how strong the lamp is: the
+    /// headlamps of every bus in the picture are equally strong, and weighed by strength
+    /// alone a full cell came down to which of them reached it first. That differed from one
+    /// cell to the next, and a lamp missing from a cell is missing from the lit fog there
+    /// alone - the hard-edged boxes of light ahead of a bus.
+    #[test]
+    fn a_full_cell_turns_away_the_lamp_it_sees_least_of() {
+        let lights = at_x(&[0.0, 30.0, 60.0, 200.0]);
+        let scores = vec![3.0; lights.len()];
+        let worth = |mid: Vec2| -> Vec<f32> { (0..lights.len()).map(|i| cell_worth(&lights, &scores, i, mid)).collect() };
+        let here = worth(Vec2::ZERO);
+        // equally strong, so the nearest counts most and the lamp 200 m off least
+        assert!(here[0] > here[1] && here[1] > here[2] && here[2] > here[3], "{here:?}");
+        // and the cell a step along agrees on which lamp it would see least of: the set a
+        // full cell keeps changes by the one lamp that hardly lights either of them
+        let least = |w: &[f32]| w.iter().enumerate().min_by(|a, b| a.1.total_cmp(b.1)).unwrap().0;
+        for step in [1.0f32, 2.0, 3.0] {
+            let next = worth(Vec2::new(LIGHT_CELL * step, 0.0));
+            assert_eq!(least(&here), least(&next), "cell {step} along");
+        }
+    }
+
+    /// Strength still counts: a street lamp's own cell holds it over a dim one beside it.
+    #[test]
+    fn a_full_cell_keeps_the_stronger_of_two_lamps_as_near() {
+        let lights = at_x(&[2.0, -2.0]);
+        let scores = vec![0.2, 6.0];
+        let a = cell_worth(&lights, &scores, 0, Vec2::ZERO);
+        let b = cell_worth(&lights, &scores, 1, Vec2::ZERO);
+        assert!(b > a, "{b} not over {a}");
     }
 }
 

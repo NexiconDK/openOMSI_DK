@@ -5,6 +5,23 @@
 // A headlamp's intensity towards `t` (from the lamp) by the angles of a road lamp, not
 // around its axis: wide across, brightest just under the lamp's horizon where it reaches
 // far down the road, weak straight down, and with a low beam a sharp cut-off above it.
+// (the fork) What a beam puts into the air, against what it puts on the road.
+//
+// `headlamp` gives a profile of its own peak: 1 along the beam's axis, and a wide plateau
+// (`wide`) out to 45 degrees across. On a surface that is right - the road is lit by the
+// lamp's own fall-off - but every cubic metre of air inside that whole plateau then scatters
+// as if it held the beam's peak, which is far more light than a low beam really sends out
+// sideways. In fog the air in front of the bus went white over a wide area, and the edge of
+// what the picture could still hold was the hard, straight line of a "box" of light - also
+// in front of the AI buses, and in openOMSI too (it took the boxes for the beam's shape and
+// changed the light on the road for them twice, 58d963ac and 2da18118, before putting that
+// back and writing that what looked square was the glow, eb830952).
+//
+// 0.4 is what the picture asks for, found by eye against 0.15, 0.3, 0.5 and 1 in thick fog.
+// `OMSI_FOG_LAMP_GAIN` weighs the lamps in the air over again without a new build.
+// (Only the beams: a street lamp in its housing scatters as it did.)
+const BEAM_AIR: f32 = 0.4;
+
 // (the fork) 1 with `OMSI_HEADLAMP_SOFT` (`headlamp_tuning` writes it into the shader):
 // the knee of the low beam's fall-off is rounded instead of cut off flat.
 const HEADLAMP_SOFT: f32 = 0.0;
@@ -107,12 +124,34 @@ fn lamp_airlight(c: vec3<f32>, d: vec3<f32>, start: f32, len: f32, jitter: f32) 
                 let l = lights[li];
                 let to_l = l.pos.xyz - c;
                 let t0 = dot(to_l, d);
-                // the ray's point nearest to the lamp: taken in this cell only
-                let tc = clamp(t0, start, end);
-                if (tc < t || tc > t_out) {
+                let range = l.extra.w;
+                // The lamp is taken once along the ray: in the cell holding the ray's point
+                // nearest to it.
+                //
+                // (the fork) Unless the lamp stands within a couple of cells of the eye and
+                // reaches well past it, and then it is taken in the ray's first cell. The
+                // point nearest to a lamp a few metres from the eye - the bus's own headlamps
+                // - lies a few metres along the ray, and that is a different cell for every
+                // direction the eye looks; where one of those cells had no room left for the
+                // lamp, its light was gone from the fog for those pixels alone, a hard-edged
+                // box standing in front of the bus. The first cell is the one the eye itself
+                // stands in, the same cell for every pixel of the picture. A lamp reaching a
+                // cell and a half past the eye is listed there (`cell_lit`, lib.rs), and
+                // which cell takes it changes nothing in the sum: the stretch `[ta, tb]`
+                // below is the ray's own, not the cell's.
+                let out_there = length(to_l);
+                let own_first = out_there < 2.0 * cell && out_there + 1.5 * cell < range;
+                let tc = select(clamp(t0, start, end), start, own_first);
+                if (own_first) {
+                    // (`k != 0` and not `tc` against the cell's own stretch: a ray leaving
+                    // its first cell at once - the eye standing on a cell's edge - has two
+                    // cells holding `start`, and the lamp would be counted in both)
+                    if (k != 0u) {
+                        continue;
+                    }
+                } else if (tc < t || tc > t_out) {
                     continue;
                 }
-                let range = l.extra.w;
                 let h = length(to_l - d * t0);
                 if (h >= range) {
                     continue;
@@ -173,7 +212,7 @@ fn lamp_airlight(c: vec3<f32>, d: vec3<f32>, start: f32, len: f32, jitter: f32) 
                     }
                     // (the step's length and the inverse square are in `acc` already: this
                     // takes back the `/ hh` the sum below ends with)
-                    half = hh;
+                    half = hh * BEAM_AIR;
                 } else {
                     let pa = atan((ta - t0) / hh);
                     let pb = atan((tb - t0) / hh);

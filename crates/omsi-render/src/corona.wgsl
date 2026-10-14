@@ -291,8 +291,18 @@ fn corona_shape(in: CoronaOut) -> vec3<f32> {
     let fan_uv = clamp(vec2<f32>(0.0, 1.0) + min(r, 1.0) * vec2<f32>(sin(a), -cos(a)), vec2<f32>(0.0), vec2<f32>(1.0));
     let tb = textureSample(t_corona, s_corona, fan_uv).r;
     if (in.beam > 0.5) {
-        let inside = select(0.0, 1.0, r <= 1.0 && phi <= in.cone.y);
-        return vec3<f32>(tb * inside);
+        // (the fork) the fan was cut out of its square flat - inside or outside, 1 or 0 - so
+        // every cone ended in an arc at its reach and in two straight lines along its outer
+        // angle: a hard-edged wedge of light standing out of each lamp. Fog has no edges, so
+        // neither has the fan: it goes out over the last fifth of its reach and over the
+        // outer third of its spread (a third of the spread at the least, where the inner cone
+        // leaves next to none). The edge showed because it was straight, not because it was
+        // sharp, so a fade a pixel wide would not do - and `fwidth` is out of the question
+        // here, `corona_shape` being called from inside branches.
+        let fade = max(0.34 * span, 0.15 * in.cone.y);
+        let out_far = 1.0 - smoothstep(0.8, 1.0, r);
+        let out_wide = 1.0 - smoothstep(in.cone.y - fade, in.cone.y, phi);
+        return vec3<f32>(tb * out_far * out_wide * out_wide);
     }
     return t;
 }
