@@ -744,17 +744,17 @@ impl Host for VehicleHost {
         if file.trim().is_empty() {
             return;
         }
-        self.fired_file_triggers.push((name.to_string(), file.to_string()));
+        keep_last(&mut self.fired_file_triggers, (name.to_string(), file.to_string()));
     }
     fn sound_trigger(&mut self, name: &str, _id: NameId) {
-        self.fired_triggers.push(name.to_string());
+        keep_last(&mut self.fired_triggers, name.to_string());
     }
     fn sound_trigger_vars(&mut self, name: &str, id: NameId, vars: &[f32]) {
         self.sound_trigger(name, id);
         if !self.snapshot_triggers.is_empty() {
             let key = name.to_ascii_lowercase();
             if self.snapshot_triggers.contains(&key) {
-                self.fired_trigger_vars.push((key, vars.to_vec()));
+                keep_last(&mut self.fired_trigger_vars, (key, vars.to_vec()));
             }
         }
     }
@@ -769,6 +769,22 @@ impl Host for VehicleHost {
         }
         self.messages.push(text.to_string());
     }
+}
+
+/// (the fork) The most sound triggers of a frame kept (`keep_last`): whoever plays them
+/// takes the whole list every frame, but a vehicle nobody listens to - out of earshot, or a
+/// game with no sound device at all - had nothing take it, so the lists grew for the rest of
+/// the session. A snapshot trigger keeps a copy of every script variable with it, and a
+/// blinker or a door fires several times a second. Coming back into earshot, the car then
+/// played thousands of them in one frame.
+const KEEP_TRIGGERS: usize = 64;
+
+/// `v` with `item` added, the oldest dropped once it holds [`KEEP_TRIGGERS`].
+fn keep_last<T>(v: &mut Vec<T>, item: T) {
+    if v.len() >= KEEP_TRIGGERS {
+        v.remove(0);
+    }
+    v.push(item);
 }
 
 #[cfg(test)]

@@ -30,7 +30,7 @@ const HEADER: usize = 11;
 /// What one datagram holds at most (within `MAX_DATAGRAM`, with room to spare).
 const ROOM: usize = 1300;
 /// How often changes go out (s), and how many ticks between key frame slices.
-const EVERY: f32 = 0.1;
+pub const EVERY: f32 = 0.1;
 const KEY_EVERY: u32 = 5;
 const STRINGS_KEY_EVERY: u32 = 10;
 /// A string longer than this goes cut (a display's text, a path).

@@ -70,6 +70,27 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Din bus kaster nu skygge for lyset fra køretøjer bag dig: deres forlygter lyser ikke længere vejen, bilerne og husene **foran** din bus op, som om din bus ikke var der (det så ud som forlygter i forruden). Gælder alle grafikindstillinger, når du sidder i bussen.
 - Hurtigere: skyggen regnes nu kun ud for lygter, hvis lys kan nå forbi din bus. Før blev hvert billedpunkt tjekket mod alle bilers lygter i byen, hvilket kostede om natten.
 
+### Ydelse (testbuild)
+Første runde rettelser fra gennemgangen af hele koden. Du skal ikke ændre nogen indstilling: det virker af sig selv.
+
+**Om natten**
+- **Lysgitteret:** hver lygte bliver nu kun skrevet ind i de felter, den faktisk lyser i. Før blev en lygte skrevet ind i hele den firkant, dens rækkevidde dækkede, uden hensyn til retning. Et fjernlys rækker 225 m og stod derfor i over 300 felter, mest bag og ved siden af bilen, hvor det ikke lyser noget. Nu bruges lygtens kegle: et fjernlys står i under halvdelen af de felter, dens cirkel dækker. Hvert felt har plads til 32 lygter, og når det er fuldt, giver den svageste lygte nu plads til en stærkere, i stedet for at den sidst ankomne altid blev smidt ud.
+- **Køretøjslygter:** lygterne på en bil længere væk end 1100 m bliver ikke længere regnet ud. De kunne alligevel ikke nå ind i lysgitteret omkring kameraet. Baglygter og andre glimt ses stadig på al afstand.
+- **Forlygternes placering** på bussen (hvor de sidder, og hvor langt de to kegler er fra hinanden) regnes nu ud én gang pr. bustype i stedet for for hver bil i hvert billede.
+- **Spejle:** et spejl viser et lille billede, og det tegnes nu kun 500 m ud og uden de mindste detaljer (fire gange større krav end på skærmen). Før blev hvert spejl stillet op med samme detaljegrad og samme sigtbarhed som hele skærmen.
+- **Lyslisten deles** nu mellem skærmen og spejlene, som koden hele tiden har sagt, den gjorde. Fordi spejle og skærm regnede hver sin liste, blev hele lysgitteret (512 KB) sendt til grafikkortet igen for hver visning, hvert billede.
+
+**Hak og frysninger**
+- **Skift af opløsning** bygger ikke længere scenen op fra bunden. Før blev alle objekters data lagt i nye buffere, alle afgrænsninger regnet om, og alle mellembilleder smidt væk, hver gang billedstørrelsen ændrede sig. Det sker, når den automatiske opløsning skruer ned, altså præcis når FPS falder: trinnet, der skulle give FPS tilbage, kostede selv et hak.
+- **Lyden venter ikke længere på sig selv.** Spillet spurgte op mod tusind gange pr. billede, om en lyd stadig spiller, og hvert spørgsmål kunne vente på, at lydtråden blev færdig med at blande en hel lydblok. Nu svares der med det samme fra en liste for sig.
+- **Sporing af lydhændelser:** de voksede uden grænse for biler længere væk end 300 m, fordi ingen hentede dem. En af listerne gemmer en kopi af alle scriptvariabler pr. hændelse. Nu ryddes de altid, og de kan højst indeholde 64. Det fjerner også det "bump", der kom, når en bil kom tilbage i nærheden og afspillede hele puklen i ét billede.
+
+**Hele tiden**
+- **Stille lyde** bliver ikke længere regnet om prøve for prøve. En fjern bus holder sine motorlyde i gang på -30 til -40 dB, og de blev blandet alligevel. De følger stadig tiden, så en løkke kommer tilbage i samme fase.
+- **Scriptopslag:** "skriver scriptet til denne variabel?" blev afgjort ved at gennemgå hvert eneste trin i hele bussens script, flere gange pr. billede pr. bus ved et stoppested. Nu slås det op i en liste, der laves én gang.
+- **Skærmens opdateringsfrekvens** blev slået op i skærmdriveren i hvert billede. Nu højst én gang i sekundet.
+- **LAN:** din bus' data bliver nu kun samlet sammen de gange, de faktisk skal sendes (10 gange i sekundet). Ved 144 FPS blev 130 af 144 omgange samlet og smidt væk. Og listen over, hvilke variabler de andre spilleres skilte og rullegardiner skrives gennem, laves nu én gang pr. bus i stedet for i hvert billede (den gennemgik hele modellens masker og materialer og sorterede dem).
+
 ### Multiplayer
 - **Spillerlisten i hjørnet:** øverst står **Online: koden** til sessionen. Hos gæsterne står **Online: i spillet hos Mathias**. Under den står én linje pr. spiller, også dig selv, i den rækkefølge I kom ind: **Spiller 2: bjorn - Linje 135 & Tur 135S05 - Fra kl. 14:12 - 22:40**, eller **fri kørsel**, når en spiller ikke har nogen vagt. Ny indstilling **Online: alle spillere i hjørnet** (slået til fra start; i launcheren ved chatten og i spillets menu). Slået fra står der kun den korte linje som før: "Online: 1 anden spiller  KODE".
 - Beskederne om spillere i chatten er på dansk: **Spiller bjorn er kommet ind med Urbino_18_…**, **Spiller bjorn har forladt spillet** (også når forbindelsen er tabt), **Spiller bjorn er tilbage**.

@@ -64,8 +64,24 @@ impl Frustum {
         } else {
             camera.far
         };
+        // (the fork) a mirror shows a small picture of what is behind: it is not drawn as
+        // far as the window. Its own view cost as much to put together as the window's -
+        // every object of the map tested against the same detail and the same distance.
+        let fog_far = if is_mirror(f) { fog_far.min(MIRROR_FAR) } else { fog_far };
         Frustum { view, tan_x, tan_y, cos_x, cos_y, fog_far }
     }
+}
+
+/// (the fork) A mirror's picture reaches this far (m) and asks this much more of an object's
+/// size on the screen than the window does. A bus 500 m behind is a pixel or two in a
+/// mirror, and the smallest scenery nothing at all.
+const MIRROR_FAR: f32 = 500.0;
+const MIRROR_DETAIL: f32 = 4.0;
+
+/// (the fork) Whether the view is a mirror: not the window, not a headset's eye, and drawn
+/// into a texture it leaves out of its own picture (`render_to_texture`).
+fn is_mirror(f: &FrameCtx) -> bool {
+    !f.with_overlays && !f.xr_view && f.exclude_texture.is_some()
 }
 
 impl Renderer {
@@ -80,6 +96,8 @@ impl Renderer {
         let fov_y = camera.fov_deg.to_radians().max(1e-3);
         let max_obj_dist = self.options.max_obj_dist;
         let min_obj_size = lighting.min_obj_size.max(self.options.min_obj_size);
+        // (the fork) and only the larger things are drawn in it (see `is_mirror`)
+        let min_obj_size = if is_mirror(f) { min_obj_size.max(0.001) * MIRROR_DETAIL } else { min_obj_size };
         // (a copy: the culling closures run on the worker pool, the renderer is not shared)
         let shadow_blobs = self.shadow_blobs;
         // (instance, distance along the view direction, the camera is inside its bounds)

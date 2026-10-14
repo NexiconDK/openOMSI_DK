@@ -123,7 +123,12 @@ impl Renderer {
             && !env.no_puddle_reflections;
         let reflection_frame = !enhanced && puddles_wanted && self.reflection_pass.is_some();
         let masked_frame = enhanced || reflection_frame;
-        let (grid, lamp_shadows) = self.prepare_lights(scene, cam_rel, enhanced_frame, lighting.lamp_shadows && with_overlays && projection.is_none() && self.shadow_pipelines.len() > 6);
+        // (the fork) the window and its mirrors share one light list, as the comment on
+        // `prepare_lights` says they do: with the view's own flag the mirrors built the
+        // vanilla list and the window the enhanced one, so the two never matched and every
+        // view sent the whole grid (512 KB) and the lights to the card again
+        let enhanced_lights = lighting.enhanced && self.hdr_pass.is_some() && !env.no_enhanced;
+        let (grid, lamp_shadows) = self.prepare_lights(scene, cam_rel, enhanced_lights, lighting.lamp_shadows && with_overlays && projection.is_none() && self.shadow_pipelines.len() > 6);
         self.prepare_coronas(scene, lighting.night, lighting.inside.as_ref().filter(|v| point_in_vehicle_box(camera.position, v)));
         self.prepare_smoke(scene, camera.position);
         // ambient occlusion only for the real picture, not for the mirrors
@@ -134,16 +139,22 @@ impl Renderer {
         // the enhanced path's shading is costly: the depth prepass keeps it to the visible
         // surface (without multisampling, see `share_depth`)
         let prepass_on = ao_on || puddles_wanted || glass_on || (enhanced && (with_overlays || xr_view));
-        if prepass_on && self.ensure_ao(width, height) {
-            // a new AO texture: the camera bind group must point at it
-            scene.dirty = true;
-            scene.model_buf = None;
-            self.hdr_targets.clear();
+        // (the fork) A new AO texture or traced-lighting texture: the camera bind group must
+        // point at it - and nothing more. The scene itself has not changed, but every
+        // instance's transforms and parameters were built again into new buffers, all
+        // bounds and cull blocks worked out again, and the HDR targets of every size thrown
+        // away (they are kept per size and hold nothing of the AO's). The picture's size
+        // changes whenever the automatic render scale steps, which is when the frame rate is
+        // already falling: the step meant to win frames back cost a hitch of its own.
+        let fresh_scene = scene.model_buf.is_none() || scene.draw_buf.is_none();
+        if prepass_on && self.ensure_ao(width, height) && !fresh_scene {
+            self.rebuild_camera_bind_group(scene);
         }
-        if rt_frame && self.rt.as_mut().is_some_and(|rt| rt.ensure_targets(&self.device, width, height)) {
-            // the camera bind group must point at the new lighting texture
-            scene.dirty = true;
-            scene.model_buf = None;
+        if rt_frame
+            && self.rt.as_mut().is_some_and(|rt| rt.ensure_targets(&self.device, width, height))
+            && !fresh_scene
+        {
+            self.rebuild_camera_bind_group(scene);
         }
         if masked_frame {
             self.hdr_targets(width, height);

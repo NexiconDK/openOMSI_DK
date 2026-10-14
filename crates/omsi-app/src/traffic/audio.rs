@@ -31,12 +31,21 @@ impl Traffic {
         }
         let near = 250.0;
         for c in &mut self.sim.cars {
+            // (the fork) what its scripts fired goes with the frame, heard or not: left on a
+            // car out of earshot, the lists grew all session (`keep_last` caps them now),
+            // and coming back it played the backlog in one frame
+            let fired: Vec<String> = std::mem::take(&mut c.vehicle.host.fired_triggers);
+            let fired_vars: Vec<(String, Vec<f32>)> = std::mem::take(&mut c.vehicle.host.fired_trigger_vars);
+            let fired_files: Vec<(String, String)> =
+                std::mem::take(&mut c.vehicle.host.fired_file_triggers);
             let d = (c.vehicle.position - listener).length();
             // (the bus ridden in is heard from inside, by `update_riding_audio`)
             if d > near * 1.2 || riding == Some(c.id) {
                 if let Some(mut s) = self.sounds.remove(&c.id) {
                     s.stop_all(audio);
                 }
+                // (nobody listens: no variable snapshots are taken either)
+                c.vehicle.host.snapshot_triggers.clear();
                 continue;
             }
             if !self.sounds.contains_key(&c.id) && d < near {
@@ -97,10 +106,6 @@ impl Traffic {
                     }
                 }
             }
-            let fired: Vec<String> = std::mem::take(&mut c.vehicle.host.fired_triggers);
-            let fired_vars: Vec<(String, Vec<f32>)> = std::mem::take(&mut c.vehicle.host.fired_trigger_vars);
-            let fired_files: Vec<(String, String)> =
-                std::mem::take(&mut c.vehicle.host.fired_file_triggers);
             c.vehicle.host.street_cond = street_cond;
             c.vehicle.set_engine_var("StreetCond", street_cond);
             if let Some(ss) = self.sounds.get_mut(&c.id) {

@@ -108,6 +108,13 @@ impl Default for Listener {
 
 struct Shared {
     voices: Mutex<Vec<Voice>>,
+    /// (the fork) The ids of the voices that have not ended, for [`AudioEngine::is_playing`]:
+    /// the mixer holds the voice list for the whole block it mixes, and `is_playing` - asked
+    /// once or twice per sound of every vehicle within earshot, a thousand times in a frame -
+    /// waited for that block and then walked the whole list. This set is held only for the
+    /// moment it is read or changed. (Locked after `voices` where both are taken, never
+    /// before it.)
+    live: Mutex<std::collections::HashSet<VoiceId>>,
     /// New parameters for voices, taken in by the mixer at the start of its next block
     /// (with the time they were given, for the Doppler shift). The game sets every voice's
     /// parameters every frame; through the voice list's lock each of those calls waited
@@ -137,6 +144,7 @@ impl Shared {
     fn new(rate: u32, channels: usize, muted: bool, capture: bool) -> Shared {
         Shared {
             voices: Mutex::new(Vec::new()),
+            live: Mutex::new(std::collections::HashSet::new()),
             updates: Mutex::new(Vec::new()),
             listener: Mutex::new(Listener::default()),
             reverb: Mutex::new(Reverb::default()),
@@ -222,6 +230,13 @@ impl Shared {
                 (left, right) = pan_gains(&listener, d);
             }
             let target_gain = (v.params.gain * spatial_gain * listener.master).max(0.0);
+            // (the fork) a clip voice that is silent and was silent is moved on without being
+            // resampled: a far AI bus keeps its loops alive at -30 to -40 dB, and every one
+            // of them was interpolated sample by sample for nothing
+            if v.stream.is_none() && target_gain < INAUDIBLE && v.cur_gain < INAUDIBLE {
+                skip_clip(v, frames, dev_rate);
+                continue;
+            }
             if let Some(sb) = v.stream.clone() {
                 let lp_alpha = if v.params.lowpass_hz > 0.0 {
                     1.0 - (-2.0 * std::f32::consts::PI * v.params.lowpass_hz / dev_rate as f32).exp()
@@ -320,6 +335,14 @@ impl Shared {
                 v.pos += step;
             }
         }
+        // (the fork) the voices that ended leave the live set (`Shared::live`); nothing is
+        // locked or allocated on the blocks where none did
+        if voices.iter().any(|v| v.finished) {
+            let mut live = self.live.lock();
+            for v in voices.iter().filter(|v| v.finished) {
+                live.remove(&v.id);
+            }
+        }
         voices.retain(|v| !v.finished);
         drop(voices);
         if listener.reverb_mix > 0.001 && listener.reverb_time > 0.05 {
@@ -369,6 +392,10 @@ fn apply_params(v: &mut Voice, params: VoiceParams, now: std::time::Instant, lis
     }
     v.params = params;
 }
+
+/// (the fork) A gain this low (-80 dB) is silence: the voice goes on in time but is not
+/// mixed (see the mix loop). Sound sets keep an entry alive down to -100 dB.
+const INAUDIBLE: f32 = 1.0e-4;
 
 /// At most this many clip voices are mixed at once (OMSI's `[sound_maxcount]` default).
 pub const MAX_VOICES: usize = 200;
@@ -737,6 +764,7 @@ impl AudioEngine {
 
     fn play_at(&self, clip: Arc<Clip>, params: VoiceParams, start: f64) -> VoiceId {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        self.shared.live.lock().insert(id);
         self.shared.voices.lock().push(Voice {
             id,
             clip,
@@ -755,6 +783,7 @@ impl AudioEngine {
     /// stream is closed.
     pub fn play_stream(&self, stream: Arc<crate::stream::StreamBuf>, params: VoiceParams) -> VoiceId {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        self.shared.live.lock().insert(id);
         self.shared.voices.lock().push(Voice {
             id,
             clip: Arc::new(Clip { sample_rate: 44100, channels: 2, samples: Vec::new() }),
@@ -803,18 +832,17 @@ impl AudioEngine {
         Some((v.params, v.params.gain * spatial))
     }
 
+    /// Whether the voice still plays. (the fork: from `Shared::live`, so it never waits for
+    /// the block being mixed.)
     pub fn is_playing(&self, id: VoiceId) -> bool {
-        self.shared
-            .voices
-            .lock()
-            .iter()
-            .any(|v| v.id == id && !v.finished)
+        self.shared.live.lock().contains(&id)
     }
 
     pub fn stop(&self, id: VoiceId) {
         if let Some(v) = self.shared.voices.lock().iter_mut().find(|v| v.id == id) {
             v.finished = true;
         }
+        self.shared.live.lock().remove(&id);
     }
 
     pub fn listener_position(&self) -> Vec3 {
@@ -935,6 +963,30 @@ mod tests {
         fn new_for_test_device_less() -> AudioEngine {
             AudioEngine::silent()
         }
+    }
+
+    /// (the fork) A silent looping voice is not mixed, but keeps its place in time, so it
+    /// comes back at the right phase; the voices that end leave the live set `is_playing`
+    /// reads.
+    #[test]
+    fn a_silent_voice_goes_on_in_time_without_being_mixed() {
+        let clip = Arc::new(Clip { sample_rate: 48_000, channels: 1, samples: vec![16_384; 5] });
+        let s = shared();
+        s.voices.lock().push(voice(clip.clone(), 0.0));
+        let mut out = vec![0.0f32; 10];
+        s.render(&mut out);
+        assert!(out.iter().all(|x| *x == 0.0), "{out:?}");
+        // 10 frames at the device rate through a 5-frame loop: back at the start
+        assert_eq!(s.voices.lock()[0].pos, 0.0);
+        // and it is still there, while one that ended is taken out of the live set
+        let mut ended = voice(clip, 1.0);
+        ended.id = 7;
+        ended.finished = true;
+        s.live.lock().insert(7);
+        s.voices.lock().push(ended);
+        s.render(&mut out);
+        assert!(!s.live.lock().contains(&7));
+        assert_eq!(s.voices.lock().len(), 1);
     }
 
     #[test]

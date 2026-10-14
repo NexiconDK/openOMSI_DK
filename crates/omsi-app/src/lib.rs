@@ -552,6 +552,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
             surface: None,
             streamer: None,
             spanned: false,
+            screen_hz: None,
             mirror_budget: 1.0,
             mirrors_seen: 2,
             mirror_turn: 0,

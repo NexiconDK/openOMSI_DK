@@ -134,6 +134,9 @@ pub(crate) struct GfxState {
     pub(crate) streamer: Option<tiles::Streamer>,
     /// The window spans the triple screen's three monitors: fullscreen would shrink it to one.
     pub(crate) spanned: bool,
+    /// (the fork) The screen's refresh rate and when it was last asked for: asking the
+    /// system costs a call into the display driver, which was made every frame.
+    pub(crate) screen_hz: Option<(u32, std::time::Instant)>,
     /// Mirror pictures due (see `MIRROR_RATE`), and which mirror is next.
     pub(crate) mirror_budget: f32,
     pub(crate) mirrors_seen: usize,

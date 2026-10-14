@@ -466,6 +466,28 @@ impl App {
         }
     }
 
+    /// (the fork) The screen's refresh rate, asked of the system at most once a second and
+    /// kept in between (a call into the display driver, which took a measurable share of a
+    /// frame on Windows and an X11 round trip on Linux - and was made every frame). A screen
+    /// that says less than 30 Hz, or says nothing, counts as 120.
+    fn screen_hz(&mut self) -> u32 {
+        if let Some((hz, at)) = self.gfx.screen_hz {
+            if at.elapsed().as_secs_f32() < 1.0 {
+                return hz;
+            }
+        }
+        let hz = self
+            .window
+            .as_ref()
+            .and_then(|w| w.current_monitor())
+            .and_then(|m| m.refresh_rate_millihertz())
+            .map(|mhz| (mhz as f64 / 1000.0).round() as u32)
+            .filter(|r| *r >= 30)
+            .unwrap_or(120);
+        self.gfx.screen_hz = Some((hz, Instant::now()));
+        hz
+    }
+
     /// The frame rate's limit: the rest of the frame's time slept.
     fn frame_pace(&mut self, now: Instant, shown_nothing: bool) {
         // max_fps (the original's [maxFPS]; OMSI_MAX_FPS for a test): the rest of
@@ -477,7 +499,7 @@ impl App {
         // machine (with V-sync off and no limit an M4 drew 300 frames a second in the
         // depot and ran hot); 1000 and more = no limit at all
         let max_fps = if max_fps == 0 {
-            self.window.as_ref().and_then(|w| w.current_monitor()).and_then(|m| m.refresh_rate_millihertz()).map(|mhz| (mhz as f64 / 1000.0).round() as u32).filter(|r| *r >= 30).unwrap_or(120)
+            self.screen_hz()
         } else if max_fps >= 1000 {
             0
         } else {

@@ -46,6 +46,10 @@ pub struct Program {
     pub script_vars: hashbrown::HashSet<String>,
     /// `[const]` values of the constfiles (lower-case names).
     consts: HashMap<String, f32>,
+    /// (the fork) Every variable some block stores into ([`Program::stores`]), worked out
+    /// once the first time it is asked for: the scan over every op of every block ran per
+    /// frame, per boarding bus, on programs of tens of thousands of ops.
+    stored: std::sync::OnceLock<hashbrown::HashSet<VarId>>,
     var_index: HashMap<String, VarId>,
     str_var_index: HashMap<String, StrVarId>,
     name_index: HashMap<String, NameId>,
@@ -138,9 +142,22 @@ impl Program {
         id
     }
 
-    /// Whether any block of the program stores into `var`.
+    /// Whether any block of the program stores into `var`. (the fork: from the set worked
+    /// out at the first call - the program is compiled whole before it runs, so no block is
+    /// added after one.)
     pub fn stores(&self, var: VarId) -> bool {
-        self.blocks.iter().any(|b| b.ops.iter().any(|op| matches!(op, Op::Store(v) if *v == var)))
+        self.stored
+            .get_or_init(|| {
+                self.blocks
+                    .iter()
+                    .flat_map(|b| b.ops.iter())
+                    .filter_map(|op| match op {
+                        Op::Store(v) => Some(*v),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .contains(&var)
     }
 
     /// (the fork) The variables the scripts store what one of the callbacks `names` (lower

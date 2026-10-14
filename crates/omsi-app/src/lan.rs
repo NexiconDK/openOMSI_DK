@@ -494,6 +494,12 @@ pub struct RemoteVehicle {
     /// (the fork) It is within `SIGN_NEAR` of us (the camera): coming that near, its sign is
     /// drawn again here.
     near: bool,
+    /// (the fork) The string variables of its `[texttexture]` displays and of its
+    /// `[matl_freetex]` slots, in the order the other game sends them, worked out when the
+    /// copy is made: the lists were gathered and looked up again for every copy in every
+    /// frame, and the freetex one walks every mesh and material of the model and sorts them.
+    text_ids: Vec<Option<omsi_script::StrVarId>>,
+    freetex_ids: Vec<Option<omsi_script::StrVarId>>,
     /// Their bus type is not installed here: ours stands in for it.
     pub stand_in: bool,
     pub last: Pose,
@@ -677,6 +683,10 @@ pub struct LanGame {
     /// Our vehicle's variable table (by its program), for `omsi_net::vars`.
     my_vars: Option<(usize, Arc<VarTable>)>,
     vars_log: f32,
+    /// (the fork) Seconds since our variables last went out: they go ten times a second
+    /// (`omsi_net::vars::EVERY`), and gathering them - every synced float and a copy of
+    /// every string of our bus - was done every frame and thrown away in between.
+    vars_acc: f32,
 }
 
 /// What the frame knows that LAN play needs.
@@ -2160,34 +2170,18 @@ fn freetex_values(v: &omsi_sim::VehicleInstance) -> Vec<String> {
         .collect()
 }
 
-/// Show another player's `[matl_freetex]` pictures on their bus here: their copy's scripts
-/// do not run the roller blind, which stood empty (the line number never showed).
-fn show_freetex(v: &mut omsi_sim::VehicleInstance, values: &[String]) {
+/// Show another player's `[matl_freetex]` pictures or display texts on their bus here
+/// (`ids`: `RemoteVehicle::freetex_ids` / `text_ids`, in the order they are sent): their
+/// copy's scripts do not run the roller blind, which stood empty (the line number never
+/// showed), nor write the displays.
+fn show_strings(v: &mut omsi_sim::VehicleInstance, ids: &[Option<omsi_script::StrVarId>], values: &[String]) {
     if values.is_empty() {
         return;
     }
-    for (name, value) in freetex_names(&v.ty).iter().zip(values) {
-        if let Some(i) = v.ty.program.str_var(name) {
-            if let Some(s) = v.state.str_vars.get_mut(i as usize) {
-                if s != value {
-                    *s = value.clone();
-                }
-            }
-        }
-    }
-}
-
-/// Show another player's display texts on their bus here (same files, same order).
-fn show_display_texts(v: &mut omsi_sim::VehicleInstance, texts: &[String]) {
-    if texts.is_empty() {
-        return;
-    }
-    for (name, text) in display_vars(v).iter().zip(texts) {
-        if let Some(i) = v.ty.program.str_var(name) {
-            if let Some(s) = v.state.str_vars.get_mut(i as usize) {
-                if s != text {
-                    *s = text.clone();
-                }
+    for (id, value) in ids.iter().zip(values) {
+        if let Some(s) = id.and_then(|i| v.state.str_vars.get_mut(i as usize)) {
+            if s != value {
+                s.clone_from(value);
             }
         }
     }
@@ -2726,6 +2720,10 @@ fn new_remote(
             format!("their vehicle files differ from ours (table {:08X}, ours {:08X}): lights and doors only", pose.table, table.hash)
         }
     );
+    // (the fork) the variables the displays and the freetex slots are written through,
+    // in the order the other game sends them
+    let text_ids: Vec<Option<omsi_script::StrVarId>> = display_vars(&vehicle).iter().map(|n| vehicle.ty.program.str_var(n)).collect();
+    let freetex_ids: Vec<Option<omsi_script::StrVarId>> = freetex_names(&vehicle.ty).iter().map(|n| vehicle.ty.program.str_var(n)).collect();
     Some(RemoteVehicle {
         vehicle,
         render,
@@ -2747,6 +2745,8 @@ fn new_remote(
         shown_at: Instant::now(),
         shown_again: 0,
         near: false,
+        text_ids,
+        freetex_ids,
         stand_in,
         last: pose.clone(),
         made_as: (pose.bus.clone(), pose.paint.clone()),
@@ -3143,11 +3143,15 @@ fn sync_vars(lan: &mut LanSession, game: &mut LanGame, player: Option<&Player>, 
             game.my_vars = Some((key, Arc::new(t)));
         }
         let t = game.my_vars.as_ref().map(|m| m.1.clone()).expect("just made");
-        let vars = &p.vehicle.state.vars;
-        let floats: Vec<f32> = t.floats.iter().map(|id| vars.get(*id as usize).copied().unwrap_or(0.0)).collect();
-        let strs = &p.vehicle.state.str_vars;
-        let strings: Vec<String> = t.strings.iter().map(|id| strs.get(*id as usize).cloned().unwrap_or_default()).collect();
-        lan.send_vars(t.hash, &t.floats, &floats, &t.strings, &strings, dt);
+        game.vars_acc += dt;
+        if game.vars_acc >= omsi_net::vars::EVERY {
+            let gap = std::mem::take(&mut game.vars_acc);
+            let vars = &p.vehicle.state.vars;
+            let floats: Vec<f32> = t.floats.iter().map(|id| vars.get(*id as usize).copied().unwrap_or(0.0)).collect();
+            let strs = &p.vehicle.state.str_vars;
+            let strings: Vec<String> = t.strings.iter().map(|id| strs.get(*id as usize).cloned().unwrap_or_default()).collect();
+            lan.send_vars(t.hash, &t.floats, &floats, &t.strings, &strings, gap);
+        }
         // `OMSI_DEBUG_VAR_SYNC=<variable>`: ours every two seconds, theirs as it came
         if let Some(name) = omsi_cfg::flags::OMSI_DEBUG_VAR_SYNC.var() {
             game.vars_log += dt;
@@ -3626,8 +3630,10 @@ pub fn tick(
             }
             None => drive_remote(rv, &pose, dt, false, frame.clock.map_or(0.0, |c| c.time), frame.full_sign),
         }
-        show_display_texts(&mut rv.vehicle, &pose.texts);
-        show_freetex(&mut rv.vehicle, &pose.freetex);
+        let (text_ids, freetex_ids) = (std::mem::take(&mut rv.text_ids), std::mem::take(&mut rv.freetex_ids));
+        show_strings(&mut rv.vehicle, &text_ids, &pose.texts);
+        show_strings(&mut rv.vehicle, &freetex_ids, &pose.freetex);
+        (rv.text_ids, rv.freetex_ids) = (text_ids, freetex_ids);
         let inside = frame.inside_of == Some(pose.id);
         sound_remote(rv, frame.audio, frame.listener, frame.muffled, inside);
     }
