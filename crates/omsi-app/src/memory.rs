@@ -51,6 +51,34 @@ pub(crate) fn physical_memory() -> Option<u64> {
     }
 }
 
+/// (the fork) The most the textures may take, in MB, on a graphics card of `vram` MB that
+/// the renderer itself puts at `card` MB of textures - what a set budget is held down to.
+///
+/// A card holds more than the textures: the meshes, the pictures drawn into (at 4x MSAA
+/// each of them four times over), the shadow maps, the mirrors, and the driver's own. So a
+/// setting may go a fifth above what the renderer reckoned for the card, but never past two
+/// fifths of the card itself.
+///
+/// Before, a set budget was let up to half the card and a fifth over that - 3751 MB of a
+/// 6 GB card, where the renderer had put that card at 1600. With five players on Ahlheim the
+/// textures stood at 3300 MB, past what the card could hold beside the rest, and the driver
+/// paged textures over the bus for every frame: 9 frames a second with 80 % of each frame
+/// spent waiting to present, on two machines whose settings file said `texture_memory 6000`.
+/// Taking the render scale down to 55 %, and the shadows and the ambient occlusion off, did
+/// nothing - which is the mark of it: none of that is what the card was short of.
+///
+/// An integrated card has no memory of its own to run out of (it shares the system's), so
+/// there the renderer's own figure and a fifth stands.
+fn texture_roof(card: u64, vram: u64) -> u64 {
+    if vram == 0 {
+        return card * 5 / 4;
+    }
+    let roof = (vram * 2 / 5).max(card);
+    // (a bigger card may take up to half of its own memory when it is set)
+    let limit = if vram > 2560 { card.max(vram / 2) } else { card };
+    (limit * 5 / 4).min(roof)
+}
+
 /// The texture budget in bytes: `OMSI_TEXTURE_MEMORY` (MB), else the setting, else an
 /// eighth of the machine's memory (2 GB on a 16 GB Mac - Ahlheim's main station needs
 /// about 1.5).
@@ -62,12 +90,11 @@ pub(crate) fn texture_budget(settings: &settings::Settings) -> u64 {
         // settings offer up to 6 GB, and a 2 GB card lost its device at the first frames,
         // #323)
         let card = omsi_render::ADAPTER_TEXTURE_MB.load(std::sync::atomic::Ordering::Relaxed);
-        // (a bigger card may take up to half of its own memory when it is set)
         let vram = omsi_render::ADAPTER_VRAM_MB.load(std::sync::atomic::Ordering::Relaxed);
-        let limit = if vram > 2560 { card.max(vram / 2) } else { card };
-        if limit > 0 && mb > limit * 5 / 4 {
-            log::warn!("texture memory {mb} MB is more than the graphics card holds: {} MB", limit * 5 / 4);
-            return limit * 5 / 4 * 1_000_000;
+        let top = texture_roof(card, vram);
+        if top > 0 && mb > top {
+            log::warn!("texture memory {mb} MB is more than the graphics card holds beside the pictures: {top} MB");
+            return top * 1_000_000;
         }
         return mb * 1_000_000;
     }
@@ -106,5 +133,48 @@ pub fn release_free_memory() {
                     );
                 }
             });
+    }
+}
+
+#[cfg(test)]
+mod texture_roof_tests {
+    use super::texture_roof;
+
+    /// A 6 GB card: the renderer puts it at 1600 MB of textures, and a set budget may not
+    /// stand at 3751 - two fifths of the card is the roof. Two players' logs of 14 October
+    /// 2026 had `texture_memory 6000` on an RTX 3050 and the textures at 3300 MB, which the
+    /// card could not hold beside the pictures: 9 frames a second, 80 % of each frame spent
+    /// waiting to present, and the render scale, the shadows and SSAO all taken down for
+    /// nothing.
+    #[test]
+    fn a_six_gigabyte_card_keeps_its_textures_inside_itself() {
+        let top = texture_roof(1600, 6002);
+        assert_eq!(top, 2400, "a 6 GB card");
+        assert!(top < 3751, "{top} is no better than before the fork");
+        // the meshes, the pictures at 4x MSAA, the shadow maps and the driver fit beside it
+        assert!(top + 356 + 600 < 5234, "nothing left for the rest of the card");
+    }
+
+    /// A 12 GB card may hold more, and the set 6000 MB comes down a little.
+    #[test]
+    fn a_twelve_gigabyte_card_holds_more() {
+        assert_eq!(texture_roof(3603, 12010), 4804);
+    }
+
+    /// A small card is not let above what the renderer reckoned for it and a fifth (a
+    /// GTX 1050 lost its device at the first frames with half of its 2 GB, #114/#323).
+    #[test]
+    fn a_small_card_stays_where_the_renderer_put_it() {
+        let top = texture_roof(716, 2048);
+        assert_eq!(top, 819);
+        assert!(top < 1024, "{top} is half the card or more");
+    }
+
+    /// An integrated card has no memory of its own to run out of: the renderer's own figure
+    /// and a fifth stands, as it did.
+    #[test]
+    fn an_integrated_card_keeps_what_it_had() {
+        assert_eq!(texture_roof(1000, 0), 1250);
+        assert_eq!(texture_roof(3000, 0), 3750);
     }
 }

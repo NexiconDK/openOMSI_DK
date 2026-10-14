@@ -85,6 +85,11 @@ Første runde rettelser fra gennemgangen af hele koden. Du skal ikke ændre noge
 - **Lyden venter ikke længere på sig selv.** Spillet spurgte op mod tusind gange pr. billede, om en lyd stadig spiller, og hvert spørgsmål kunne vente på, at lydtråden blev færdig med at blande en hel lydblok. Nu svares der med det samme fra en liste for sig.
 - **Sporing af lydhændelser:** de voksede uden grænse for biler længere væk end 300 m, fordi ingen hentede dem. En af listerne gemmer en kopi af alle scriptvariabler pr. hændelse. Nu ryddes de altid, og de kan højst indeholde 64. Det fjerner også det "bump", der kom, når en bil kom tilbage i nærheden og afspillede hele puklen i ét billede.
 
+**Grafikkortets hukommelse**
+- **`texture_memory` kan ikke længere sættes højere, end kortet kan holde ved siden af billederne.** Et kort rummer mere end teksturerne: maskerne, de billeder der tegnes i (ved 4x MSAA fire gange hver), skyggekortene, spejlene og driverens eget. Indstillingen må nu gå en femtedel over det, programmet selv har regnet kortet til, men aldrig over to femtedele af kortet.
+  Før blev en sat værdi lukket op til halvdelen af kortet og en femtedel oveni: **3751 MB på et 6 GB-kort**, hvor programmet selv havde sat netop det kort til 1600 MB. To spillere havde `texture_memory 6000` i deres indstillinger og et RTX 3050: teksturerne stod på 3300 MB, kortet kunne ikke holde det ved siden af resten, og driveren flyttede teksturer over bussen for hvert billede. Resultatet var **9 FPS med 80 % af hvert billede brugt på at vente på at vise det** — og det hjalp ingenting at skrue opløsningen ned til 55 %, slå skygger og ambient occlusion fra, for det var ikke der, kortet manglede noget. Nu er loftet 2400 MB på et 6 GB-kort og 4804 MB på et 12 GB-kort. Fire tests.
+  `OMSI_TEXTURE_MEMORY=<MB>` sætter stadig en anden værdi, hvis man vil prøve.
+
 **Hele tiden**
 - **Stille lyde** bliver ikke længere regnet om prøve for prøve. En fjern bus holder sine motorlyde i gang på -30 til -40 dB, og de blev blandet alligevel. De følger stadig tiden, så en løkke kommer tilbage i samme fase.
 - **Scriptopslag:** "skriver scriptet til denne variabel?" blev afgjort ved at gennemgå hvert eneste trin i hele bussens script, flere gange pr. billede pr. bus ved et stoppested. Nu slås det op i en liste, der laves én gang.
