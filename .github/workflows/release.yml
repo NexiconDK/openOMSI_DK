@@ -6,7 +6,9 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    # (the fork) `main` is released; `perf-test` and any other branch listed here is built
+    # as a test build and published nowhere - see the `release` job and the version below
+    branches: [main, perf-test]
   pull_request:
   workflow_dispatch:
 
@@ -32,11 +34,21 @@ jobs:
         with:
           fetch-depth: 0
       # a pull request's test build says which pull request it is: 0.1.1313-pr1192 (the
-      # launcher shows it, and the updater leaves such a build alone)
+      # launcher shows it, and the updater leaves such a build alone - `is_test_build`,
+      # which goes by the `-pr` in it)
+      # (the fork) a branch other than main is a test build too: 0.2.44-dk-prtest-perf-test
       - id: v
         env:
           PR: ${{ github.event.pull_request.number }}
-        run: echo "version=$(sh scripts/version.sh)-dk${PR:+-pr$PR}" >> "$GITHUB_OUTPUT"
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          suffix=""
+          if [ -n "$PR" ]; then
+            suffix="-pr$PR"
+          elif [ "$BRANCH" != main ]; then
+            suffix="-prtest-$BRANCH"
+          fi
+          echo "version=$(sh scripts/version.sh)-dk$suffix" >> "$GITHUB_OUTPUT"
       - run: echo "### openOMSI ${{ steps.v.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
 
   windows:
@@ -302,7 +314,8 @@ jobs:
           path: out/*.apk
 
   release:
-    if: github.event_name != 'pull_request'
+    # (the fork) only main is published: a branch build is downloaded from the run itself
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [version, windows]
     runs-on: ubuntu-latest
     permissions:
