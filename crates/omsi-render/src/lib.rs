@@ -6301,15 +6301,10 @@ impl Renderer {
                     chosen.push((score, LampShadow { index: idx, position: p, range: l.radius, owner: l.shadow_owner }, key));
                 }
             }
-            // (the fork) the wedge a spot or a headlamp lights, seen from above: a headlamp
-            // is a long narrow beam, and taken by the square around its reach a full beam
-            // was listed in three hundred cells - most of them behind and beside the car,
-            // where it shines nothing - and filled the cells of the lamps that do light them
-            let wedge = light_wedge(l);
             for y in (y0.max(0.0) as usize)..=(y1.min(side as f32 - 1.0) as usize) {
                 for x in (x0.max(0.0) as usize)..=(x1.min(side as f32 - 1.0) as usize) {
                     let cell0 = Vec2::new(origin[0] + x as f32 * LIGHT_CELL, origin[1] + y as f32 * LIGHT_CELL);
-                    if !cell_lit(p.truncate(), l.radius, wedge, cell0) {
+                    if !cell_lit(p.truncate(), l.radius, cell0) {
                         continue;
                     }
                     let base = (y * side + x) * LIGHT_CELL_CAP;
@@ -7769,62 +7764,23 @@ fn light_score(l: &PointLight) -> f32 {
     l.intensity * (l.color[0] + l.color[1] + l.color[2]).max(0.0)
 }
 
-/// (the fork) The wedge a lamp lights seen from above - its direction in the ground plane
-/// and the cosine of its half-angle there - or None for one that can light any direction
-/// (a point light, a lamp in a housing, a spot pointing down, a cone of 90 degrees or more).
+/// (the fork) Whether the lamp at `lp` with reach `radius` lights any part of the grid cell
+/// whose corner is `cell0`: its circle is taken against the cell, not the square around it.
 ///
-/// A headlamp is shaped by `headlamp()` in the shader, not by its cone: it sends nothing
-/// backwards, and across the road it has faded out by 45 degrees (`wide`, which
-/// `smoothstep(1.0, 0.45, across)` takes to zero at one). Fifty degrees is taken, to be sure.
-/// A spot's cone is `cone[1]`; tilted out of the ground plane by `b`, the wedge it covers
-/// from above opens by `sin g = sin a / cos b`, and once that passes one it covers them all.
-fn light_wedge(l: &PointLight) -> Option<(Vec2, f32)> {
-    let dir = l.direction;
-    if dir.length_squared() < 1e-6 {
-        return None;
-    }
-    let dir = dir.normalize();
-    let flat = dir.truncate();
-    let cos_b = flat.length();
-    if cos_b < 1e-3 {
-        return None;
-    }
-    if l.beam != 0.0 {
-        return Some((flat / cos_b, (50.0f32).to_radians().cos()));
-    }
-    let a = l.cone[1].clamp(-1.0, 1.0).acos();
-    if a >= std::f32::consts::FRAC_PI_2 {
-        return None;
-    }
-    let sin_g = a.sin() / cos_b;
-    (sin_g < 1.0).then(|| (flat / cos_b, sin_g.asin().cos()))
-}
-
-/// (the fork) Whether the lamp at `lp` with reach `radius` and plan-view `wedge`
-/// ([`light_wedge`]) lights any part of the grid cell whose corner is `cell0`.
-///
-/// The circle is taken against the cell, not the square around it. A cell is left out of a
-/// wedge when it lies wholly outside one of the wedge's three half planes - ahead of the
-/// lamp and its two sides, each through the lamp itself. A cell kept may still be dark; none
-/// that is lit is dropped.
-fn cell_lit(lp: Vec2, radius: f32, wedge: Option<(Vec2, f32)>, cell0: Vec2) -> bool {
+/// Only the circle. A spot or a headlamp lights a narrow wedge of that circle, and leaving
+/// it out of the cells beside and behind it saved most of the cells a full beam's 225 m take
+/// - but `lamp_airlight` (lamp_air.wgsl), which lights the fog, the mist and the falling
+/// snow, walks the view ray's cells and takes each lamp in the one cell holding the ray's
+/// point *nearest to the lamp*. That point lies anywhere within the lamp's reach, in no
+/// particular direction from it, so a lamp missing from that cell is missing from the fog
+/// altogether - and the cells where it was kept then stood out as hard-edged boxes of lit
+/// fog in front of the bus. The nearest point is never farther than the reach, so the circle
+/// is what both the scene and the air need.
+fn cell_lit(lp: Vec2, radius: f32, cell0: Vec2) -> bool {
     let half = LIGHT_CELL * 0.5;
     let d = cell0 + Vec2::splat(half) - lp;
     let near = Vec2::new((d.x.abs() - half).max(0.0), (d.y.abs() - half).max(0.0));
-    if near.length_squared() > radius * radius {
-        return false;
-    }
-    let Some((dir, cos_a)) = wedge else { return true };
-    let (s, c) = cos_a.clamp(-1.0, 1.0).acos().sin_cos();
-    let left = Vec2::new(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
-    let right = Vec2::new(dir.x * c + dir.y * s, -dir.x * s + dir.y * c);
-    for n in [dir, Vec2::new(left.y, -left.x), Vec2::new(-right.y, right.x)] {
-        // the cell's farthest corner in the half plane's own direction
-        if n.dot(d) + n.x.abs() * half + n.y.abs() * half < 0.0 {
-            return false;
-        }
-    }
-    true
+    near.length_squared() <= radius * radius
 }
 
 /// A light as the shaders read it, at `p` relative to the render origin.
@@ -9720,107 +9676,52 @@ mod light_grid_tests {
         PointLight { radius, intensity: 1.0, ..Default::default() }
     }
 
-    /// The cell holding `p`, by its corner.
-    fn cell_of(p: Vec2) -> Vec2 {
-        Vec2::new((p.x / LIGHT_CELL).floor() * LIGHT_CELL, (p.y / LIGHT_CELL).floor() * LIGHT_CELL)
-    }
-
-    /// How many of the grid's cells a lamp at `at` is listed in.
-    fn cells(at: Vec2, radius: f32, wedge: Option<(Vec2, f32)>) -> usize {
-        let side = LIGHT_GRID_SIDE;
-        (0..side)
-            .flat_map(|y| (0..side).map(move |x| (x, y)))
-            .filter(|(x, y)| cell_lit(at, radius, wedge, Vec2::new(*x as f32 * LIGHT_CELL, *y as f32 * LIGHT_CELL)))
-            .count()
-    }
-
     /// The cells a lamp is listed in are taken by its circle, not by the square around it:
     /// the cell diagonally out from it, whose nearest corner lies past its reach, is left out
     /// although the square covers it.
     #[test]
-    fn a_plain_lamp_lights_the_cells_its_circle_reaches() {
+    fn a_lamp_lights_the_cells_its_circle_reaches() {
         let l = lamp(15.0);
         let at = Vec2::new(LIGHT_CELL * 0.5, LIGHT_CELL * 0.5);
-        let wedge = light_wedge(&l);
-        assert!(wedge.is_none(), "a point light lights every direction");
         // its own cell and the one beside it (12.5 m to its edge)
-        assert!(cell_lit(at, l.radius, wedge, Vec2::ZERO));
-        assert!(cell_lit(at, l.radius, wedge, Vec2::new(LIGHT_CELL, 0.0)));
+        assert!(cell_lit(at, l.radius, Vec2::ZERO));
+        assert!(cell_lit(at, l.radius, Vec2::new(LIGHT_CELL, 0.0)));
         // two cells on (37.5 m): out of reach
-        assert!(!cell_lit(at, l.radius, wedge, Vec2::new(LIGHT_CELL * 2.0, 0.0)));
+        assert!(!cell_lit(at, l.radius, Vec2::new(LIGHT_CELL * 2.0, 0.0)));
         // diagonally out: its nearest corner is 17.7 m off, past the 15 m reach, though the
         // square around the reach covers that cell
-        assert!(!cell_lit(at, l.radius, wedge, Vec2::new(LIGHT_CELL, LIGHT_CELL)));
-        assert!(cell_lit(at, 20.0, wedge, Vec2::new(LIGHT_CELL, LIGHT_CELL)));
+        assert!(!cell_lit(at, l.radius, Vec2::new(LIGHT_CELL, LIGHT_CELL)));
+        assert!(cell_lit(at, 20.0, Vec2::new(LIGHT_CELL, LIGHT_CELL)));
     }
 
-    /// A headlamp shines ahead: the cells behind and beside the car are left out, the ones
-    /// along the beam kept. A full beam reaches 225 m, and taken by the square around that
-    /// reach it was listed in some three hundred cells, most of them dark.
+    /// A headlamp is listed all round itself, not only along its beam: the fog, the mist and
+    /// the falling snow look the lamp up in the cell holding the view ray's point nearest to
+    /// it, which lies in any direction from the lamp (see [`cell_lit`]). Listed by its beam,
+    /// the lit fog ended at the cells' edges, in hard-edged boxes ahead of the bus.
     #[test]
-    fn a_headlamp_is_listed_along_its_beam_only() {
+    fn a_headlamp_is_listed_all_round_itself_for_the_fog() {
         let full = PointLight { direction: Vec3::Y, beam: -1.0, ..lamp(225.0) };
-        let wedge = light_wedge(&full);
-        assert!(wedge.is_some());
         let at = Vec2::splat(LIGHT_CELL * 32.0);
-        assert!(cell_lit(at, full.radius, wedge, cell_of(at + Vec2::new(0.0, 100.0))));
-        assert!(!cell_lit(at, full.radius, wedge, cell_of(at + Vec2::new(0.0, -100.0))));
-        assert!(!cell_lit(at, full.radius, wedge, cell_of(at + Vec2::new(100.0, 0.0))));
-        // and in far fewer cells than its circle covers, let alone the square around it
-        let beam = cells(at, full.radius, wedge);
-        let round = cells(at, full.radius, None);
-        assert!(beam * 2 < round, "{beam} cells of the {round} its circle covers");
-        assert!(beam > 40, "{beam} cells");
+        for away in [Vec2::new(0.0, 100.0), Vec2::new(0.0, -100.0), Vec2::new(100.0, 0.0), Vec2::new(-80.0, -80.0)] {
+            let c0 = Vec2::new(((at.x + away.x) / LIGHT_CELL).floor() * LIGHT_CELL, ((at.y + away.y) / LIGHT_CELL).floor() * LIGHT_CELL);
+            assert!(cell_lit(at, full.radius, c0), "{away:?} left out");
+        }
+        // past its reach it is out
+        assert!(!cell_lit(at, full.radius, Vec2::new(at.x + 300.0, at.y)));
     }
 
-    /// A spot pointing down (a platform light, a lamp under a roof) keeps every direction in
-    /// plan view, and so does one whose cone is a half-circle or wider.
+    /// Every point within a lamp's reach falls in a cell the lamp is listed in - what both
+    /// the shaded scene and the fog need.
     #[test]
-    fn a_spot_pointing_down_keeps_every_direction() {
-        let down = PointLight { direction: Vec3::new(0.0, 0.0, -1.0), cone: [0.9, 0.7], ..lamp(30.0) };
-        assert!(light_wedge(&down).is_none());
-        // tilted 45 degrees down with a 60 degree cone: it reaches past the vertical
-        let tilted = PointLight { direction: Vec3::new(0.0, 0.7, -0.7), cone: [0.7, 0.5], ..lamp(30.0) };
-        assert!(light_wedge(&tilted).is_none());
-        let wide = PointLight { direction: Vec3::Y, cone: [0.1, -0.2], ..lamp(30.0) };
-        assert!(light_wedge(&wide).is_none());
-        // a narrow spot along the ground keeps its wedge
-        let narrow = PointLight { direction: Vec3::Y, cone: [0.98, 0.94], ..lamp(60.0) };
-        let w = light_wedge(&narrow);
-        assert!(w.is_some());
-        let at = Vec2::new(LIGHT_CELL * 0.5, LIGHT_CELL * 0.5);
-        assert!(cell_lit(at, narrow.radius, w, Vec2::new(0.0, LIGHT_CELL)));
-        assert!(!cell_lit(at, narrow.radius, w, Vec2::new(LIGHT_CELL * 2.0, 0.0)));
-    }
-
-    /// Every direction a spot's cone really lights is in a cell the test keeps: the points
-    /// of its cone are walked, and the cell each lands in must be listed.
-    #[test]
-    fn no_lit_point_falls_in_a_cell_left_out() {
-        for (dir, cone, beam) in [
-            (Vec3::new(1.0, 0.3, -0.2), [0.9, 0.6], 0.0),
-            (Vec3::new(-0.4, 1.0, 0.0), [0.99, 0.95], 0.0),
-            (Vec3::new(0.2, -1.0, -0.1), [0.8, 0.3], 0.0),
-            (Vec3::new(1.0, 1.0, 0.0), [1.0, 1.0], 1.0),
-        ] {
-            let l = PointLight { direction: dir.normalize(), cone, beam, ..lamp(80.0) };
-            let wedge = light_wedge(&l);
-            let at = Vec2::new(400.0, 400.0);
-            let a = if beam != 0.0 { (45.0f32).to_radians() } else { cone[1].acos() };
-            // the cone's own directions, from its axis out to its edge
-            for k in -8..=8 {
-                let t = k as f32 / 8.0 * a;
-                let (s, c) = t.sin_cos();
-                let d3 = Vec3::new(
-                    l.direction.x * c - l.direction.y * s,
-                    l.direction.x * s + l.direction.y * c,
-                    l.direction.z,
-                );
-                for far in [1.0f32, 20.0, 79.0] {
-                    let p = at + d3.truncate().normalize_or_zero() * far;
-                    let c0 = Vec2::new((p.x / LIGHT_CELL).floor() * LIGHT_CELL, (p.y / LIGHT_CELL).floor() * LIGHT_CELL);
-                    assert!(cell_lit(at, l.radius, wedge, c0), "{dir:?} cone {cone:?} beam {beam}: ({:.1}, {:.1}) left out", p.x, p.y);
-                }
+    fn no_point_within_reach_falls_in_a_cell_left_out() {
+        let at = Vec2::new(400.0, 400.0);
+        let radius = 80.0f32;
+        for k in 0..64 {
+            let a = k as f32 / 64.0 * std::f32::consts::TAU;
+            for far in [0.5f32, 20.0, 79.5] {
+                let p = at + Vec2::new(a.cos(), a.sin()) * far;
+                let c0 = Vec2::new((p.x / LIGHT_CELL).floor() * LIGHT_CELL, (p.y / LIGHT_CELL).floor() * LIGHT_CELL);
+                assert!(cell_lit(at, radius, c0), "({:.1}, {:.1}) left out", p.x, p.y);
             }
         }
     }
