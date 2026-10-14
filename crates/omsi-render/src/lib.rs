@@ -8411,6 +8411,7 @@ fn scene_shader_text(gl: bool) -> String {
         include_str!("enhanced.wgsl"),
     ]
     .join("\n");
+    let src = headlamp_tuning(src);
     // Enhanced+: the enhanced pass writes the reflections' surfaces as well (`GBUF_FORMAT`)
     let src = if rt_gbuf() { src.replace("//RT ", "") } else { src };
     let src = if basic_pipelines() { lean_scene(src) } else { src };
@@ -8515,13 +8516,13 @@ fn sky_shader_source() -> String {
 /// The snowfall (snow.wgsl), with the lamps the enhanced picture lights it by (none
 /// without storage buffers).
 fn snow_shader_source() -> String {
-    let src = [
+    let src = headlamp_tuning([
         include_str!("snow.wgsl"),
         include_str!("enhanced_common.wgsl"),
         FOG_LAMP_LIGHTS,
         include_str!("lamp_air.wgsl"),
     ]
-    .join("\n");
+    .join("\n"));
     if array_path() == ArrayPath::NoStorage {
         let src = src
             .replace("@group(0) @binding(3) var<storage, read> lights: array<PointLight>;", "fn lights_at(i: u32) -> PointLight { return PointLight(vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0)); }")
@@ -8550,13 +8551,26 @@ fn snowfall_flakes(s: f32) -> ([u32; 3], f32) {
 /// Enhanced: the lamps' light in the fog over the drawn picture (`fog_lamps.wgsl`; not
 /// without storage buffers, where there are no lamps).
 fn fog_lamps_shader_source() -> String {
-    [
-        include_str!("fog_lamps.wgsl"),
-        include_str!("enhanced_common.wgsl"),
-        FOG_LAMP_LIGHTS,
-        include_str!("lamp_air.wgsl"),
-    ]
-    .join("\n")
+    headlamp_tuning(
+        [
+            include_str!("fog_lamps.wgsl"),
+            include_str!("enhanced_common.wgsl"),
+            FOG_LAMP_LIGHTS,
+            include_str!("lamp_air.wgsl"),
+        ]
+        .join("\n"),
+    )
+}
+
+/// (the fork) `OMSI_HEADLAMP_SOFT=1` rounds the knee of a low beam's fall-off in
+/// `lamp_air.wgsl`'s `headlamp`, in every shader that lights with it - the scene, the fog,
+/// the snowfall and the coronas - so that the crease it leaves on the road and in the air
+/// can be told from the rest.
+fn headlamp_tuning(src: String) -> String {
+    if omsi_cfg::flags::OMSI_HEADLAMP_SOFT.is_set() {
+        return src.replace("const HEADLAMP_SOFT: f32 = 0.0;", "const HEADLAMP_SOFT: f32 = 1.0;");
+    }
+    src
 }
 
 /// The scene's point lights and their grid as the fog pass reads them (`lamp_air.wgsl`):
@@ -8574,13 +8588,13 @@ const CELL_CAP: u32 = 32u;
 
 /// The light coronas (both paths).
 fn corona_shader_source() -> String {
-    let src = [
+    let src = headlamp_tuning([
         include_str!("corona.wgsl"),
         include_str!("enhanced_common.wgsl"),
         FOG_LAMP_LIGHTS,
         include_str!("lamp_air.wgsl"),
     ]
-    .join("\n");
+    .join("\n"));
     // (the basic set lights rain by the sky alone: the loop over the lamps is one more
     // thing a phone's compiler can fail on, see `lean_scene`)
     let src = if basic_pipelines() {

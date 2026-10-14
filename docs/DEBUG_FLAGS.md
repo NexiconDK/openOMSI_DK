@@ -233,6 +233,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_FULL_GPU` | bool | off | use | render | Keep the requested settings on a small or shared graphics chip. |
 | `OMSI_GL_TEXTURE_UNITS` | bool | off | use | render | Use the texture-unit layout of the OpenGL backend on any device. |
 | `OMSI_GPU_ARRAYS` | text | - | use | render | textures or nostorage: take that texture array path on any device. |
+| `OMSI_HEADLAMP_SOFT` | bool | off | once | render | Round the knee of a low beam's fall-off (the crease about thirteen metres ahead), on the road and in the air. |
 | `OMSI_HEIGHTPROFILE_GROUND` | bool | off | once | app | The wheels stand on the splines' [heightprofile]s again (A/B). |
 | `OMSI_HTML_FALLBACK_FONT` | text | - | use | sim | Font file for the html pages' characters Roboto lacks (Hangul, CJK); else Malgun Gothic (Windows) or AppleGothic (macOS). |
 | `OMSI_HTML_FALLBACK_FONT_BOLD` | text | - | use | sim | With OMSI_HTML_FALLBACK_FONT: its bold face. |

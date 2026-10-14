@@ -5,6 +5,10 @@
 // A headlamp's intensity towards `t` (from the lamp) by the angles of a road lamp, not
 // around its axis: wide across, brightest just under the lamp's horizon where it reaches
 // far down the road, weak straight down, and with a low beam a sharp cut-off above it.
+// (the fork) 1 with `OMSI_HEADLAMP_SOFT` (`headlamp_tuning` writes it into the shader):
+// the knee of the low beam's fall-off is rounded instead of cut off flat.
+const HEADLAMP_SOFT: f32 = 0.0;
+
 fn headlamp(t: vec3<f32>, dir: vec3<f32>, low: bool) -> f32 {
     let fwd = normalize(dir.xy + vec2<f32>(1e-6, 0.0));
     let ahead = dot(t.xy, fwd);
@@ -17,7 +21,14 @@ fn headlamp(t: vec3<f32>, dir: vec3<f32>, low: bool) -> f32 {
     // full out to where the road is 0.06 under the lamp's horizon, then less as the cube of
     // the drop and a little more: the road is lit evenly from the bumper on, a little
     // brighter as far as the beam reaches, and not as one hot pool where its axis lands
-    var up = min(1.0, pow(0.06 / max(abs(drop), 1e-4), 3.4));
+    let knee = pow(0.06 / max(abs(drop), 1e-4), 3.4);
+    // full out to where the road is 0.06 under the lamp's horizon - about thirteen metres
+    // ahead -, and `min` leaves a crease there: a straight line across the road, which the
+    // fog draws as a line in the air as well. HEADLAMP_SOFT rounds it (same ends, no crease).
+    var up = min(1.0, knee);
+    if (HEADLAMP_SOFT > 0.5) {
+        up = knee * inverseSqrt(1.0 + knee * knee);
+    }
     if (low) {
         up = up * smoothstep(-0.012, 0.025, drop);
         return wide * up;
