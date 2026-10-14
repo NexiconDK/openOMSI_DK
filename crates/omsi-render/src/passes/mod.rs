@@ -54,6 +54,11 @@ pub(crate) struct FrameEnv {
     pub no_coronas: bool,
     pub no_glare: bool,
     pub debug_fog_lamps: bool,
+    /// (the fork) `OMSI_NO_FOG_LAMPS`: the lamps light no fog, mist or snow at all, and
+    /// `OMSI_FOG_LAMP_GAIN`: what they do light, times this. For telling what the lamps throw
+    /// into the air apart from what they light on the road itself.
+    pub no_fog_lamps: bool,
+    pub fog_lamp_gain: f32,
     pub no_rt_grade: bool,
 }
 
@@ -90,6 +95,8 @@ impl FrameEnv {
             no_coronas: omsi_cfg::flags::OMSI_NO_CORONAS.is_set(),
             no_glare: omsi_cfg::flags::OMSI_NO_GLARE.is_set(),
             debug_fog_lamps: omsi_cfg::flags::OMSI_DEBUG_FOG_LAMPS.is_set(),
+            no_fog_lamps: omsi_cfg::flags::OMSI_NO_FOG_LAMPS.is_set(),
+            fog_lamp_gain: omsi_cfg::flags::OMSI_FOG_LAMP_GAIN.parse::<f32>().filter(|g| *g >= 0.0).unwrap_or(1.0),
             no_rt_grade: omsi_cfg::flags::OMSI_NO_RT_GRADE.is_set(),
         }
     }

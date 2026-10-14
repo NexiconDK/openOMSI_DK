@@ -254,6 +254,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_NO_CULL` | bool | off | once | render | Draw every mesh from both sides (A/B). |
 | `OMSI_NO_ENHANCED` | bool | off | frame | render | Enhanced settings drawn with the plain path. |
 | `OMSI_NO_ENVMAP` | bool | off | use | app | No environment maps. |
+| `OMSI_NO_FOG_LAMPS` | bool | off | frame | render | No light from the lamps in fog, mist or snow (the sun's shafts and glare stay). |
 | `OMSI_NO_FXAA` | bool | off | frame | render | No FXAA. |
 | `OMSI_NO_GLARE` | bool | off | frame | render | No sun glare. |
 | `OMSI_NO_GLASS_PICTURE` | bool | off | frame | render | No picture behind the glass (rain films). |
@@ -308,6 +309,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 |---|---|---|---|---|---|
 | `OMSI_ENHANCED` | bool | settings | use | app | Enhanced graphics for this run. |
 | `OMSI_ENHANCED_PLUS` | bool | settings | use | app | Enhanced+ (ray traced) graphics for this run. |
+| `OMSI_FOG_LAMP_GAIN` | num | 1 | frame | render | The lamps' light in fog, mist and snow times this (0 = none, for finding the right strength). |
 | `OMSI_GRAPHICS` | text | settings | use | app | vanilla, vanilla_plus or enhanced: another renderer for one run. |
 | `OMSI_IBIS_BUDGET` | num | 10 | use | sim | Seconds the IBIS typist may take per entry. |
 | `OMSI_LAN_JOIN_TIMEOUT` | num | default | use | net | LAN: seconds to wait when joining a game. |

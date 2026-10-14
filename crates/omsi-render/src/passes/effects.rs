@@ -41,7 +41,7 @@ impl Renderer {
     pub(crate) fn encode_fog_lamps(&self, encoder: &mut wgpu::CommandEncoder, scene: &Scene, f: &FrameCtx, vp_mat: Mat4, puddles_on: bool, timers: &mut PassTimers) {
         let (width, height, lighting) = (f.width, f.height, f.lighting);
         let (enhanced, prepass_on, with_overlays, masked_frame) = (f.enhanced, f.prepass_on, f.with_overlays, f.masked_frame);
-        let fog_lamps = enhanced_weather_fog(lighting) >= 2e-4 && !scene.lights.is_empty();
+        let fog_lamps = enhanced_weather_fog(lighting) >= 2e-4 && !scene.lights.is_empty() && !f.env.no_fog_lamps;
         let shafts = lighting.shadows && lighting.sun_dir.z > 0.0;
         let glare = lighting.sun_dir.z > -0.01 && lighting.sun_intensity > 0.0 && !f.env.no_glare;
         if f.env.debug_fog_lamps {
@@ -59,6 +59,10 @@ impl Renderer {
                     let fog_all = enhanced_weather_fog(lighting);
                     let rain_part = if lighting.rain > 0.0 && lighting.snowfall <= 0.0 { 2.3 / (2500.0 - 1800.0 * lighting.rain.clamp(0.0, 1.0)) } else { 0.0 };
                     let droplets = if fog_all > 0.0 { ((fog_all - rain_part) / fog_all).clamp(0.0, 1.0) } else { 0.0 };
+                    // (the fork) `OMSI_NO_FOG_LAMPS` / `OMSI_FOG_LAMP_GAIN`: the lamps' share
+                    // of the air's light, turned off or weighed (the share is what the shader
+                    // multiplies their light by)
+                    let droplets = if fog_lamps { droplets * f.env.fog_lamp_gain } else { 0.0 };
                     let u = FogLampUniform { inv_view_proj: vp_mat.inverse().to_cols_array_2d(), size: [width as f32, height as f32, if glare { 1.0 } else { 0.0 }, droplets] };
                     self.queue.write_buffer(&self.fog_lamps_buf, 0, bytemuck::bytes_of(&u));
                     let h = &self.hdr_targets[&(width, height)];
