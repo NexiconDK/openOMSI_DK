@@ -51,7 +51,10 @@ fn headlamp(t: vec3<f32>, dir: vec3<f32>, low: bool) -> f32 {
 fn fog_phase(c: f32) -> f32 {
     return 0.9 * hg_phase(c, 0.85) + 0.1 * hg_phase(c, -0.5);
 }
-const AIRLIGHT_CELLS: u32 = 16u;
+// (the fork: 16 reached 280 to 400 m of the ray, and full snowfall lights the air 400 m out
+// - the lamps whose nearest point lay past the last cell were dropped whole, which cut the
+// glow of a lit street along a straight line across the picture)
+const AIRLIGHT_CELLS: u32 = 24u;
 fn lamp_airlight(c: vec3<f32>, d: vec3<f32>, start: f32, len: f32, jitter: f32) -> vec3<f32> {
     var sum = vec3<f32>(0.0);
     let sigma0 = enh.fog.x;
@@ -118,28 +121,48 @@ fn lamp_airlight(c: vec3<f32>, d: vec3<f32>, start: f32, len: f32, jitter: f32) 
                 var acc = 0.0;
                 var half = 0.0;
                 if (l.extra.z != 0.0 || l.dir.w > -1.5) {
-                    // a beam (a headlamp, a spot): lit only where its cone or cut-off lets
-                    // it - a sliver of the angles the lamp is seen under, which the five
-                    // nodes missed. Sixteen even steps over that angle instead (dphi =
-                    // h dt / r^2: the inverse square is in the step). (Sixteen even steps
-                    // along the way put the few next to the lamp, where nearly all of its
-                    // light is, a metre or more apart: the pixels' staggered steps came
-                    // out as a coarse checker in the fog round every headlamp.)
-                    let pa = atan((ta - t0) / hh);
-                    let dphi = (atan((tb - t0) / hh) - pa) / 16.0;
+                    // A beam (a headlamp, a spot) is lit only where its cone or its cut-off
+                    // lets it - a sliver of the angles the lamp is seen under, which the five
+                    // nodes missed. Sixteen steps over the angle instead.
+                    //
+                    // (the fork) Pivoted on the ray's own distance from the lamp - a metre or
+                    // two of it from the cab - the substitution put fifteen of those sixteen
+                    // steps within a few metres of the lamp, where a headlamp sends nothing,
+                    // and left the whole lit stretch of road to the one step over: a pixel's
+                    // glow then stood or fell with its own jitter, from nothing to nearly
+                    // twice the light, which is the dither seen in the fog, and it jumped
+                    // wherever the depth the ray ends at jumps, which drew the lit fog in
+                    // hard-edged boxes around whatever the headlamps reach. (openOMSI took
+                    // the boxes for the beam's own shape and changed the light on the road
+                    // twice over it, 58d963ac and 2da18118, before putting it back and
+                    // writing that what looked square was the glow, eb830952.)
+                    //
+                    // The pivot is a share of the stretch itself now, held within four times
+                    // the ray's distance from the lamp so that one the ray passes close by
+                    // keeps its inverse square sampled where that is steep. The pivot no
+                    // longer being the distance, the step carries its own length exactly:
+                    // dt = p sec^2 dphi, against r^2 as it is.
+                    let piv = clamp(0.15 * (tb - ta), hh, 4.0 * hh);
+                    let pa = atan((ta - t0) / piv);
+                    let dphi = (atan((tb - t0) / piv) - pa) / 16.0;
                     for (var q = 0u; q < 16u; q = q + 1u) {
-                        let tq = t0 + hh * tan(pa + (f32(q) + jitter) * dphi);
+                        let ph = pa + (f32(q) + jitter) * dphi;
+                        let tq = t0 + piv * tan(ph);
                         let to = l.pos.xyz - (c + d * tq);
-                        let ld = to * inverseSqrt(max(dot(to, to), 1e-6));
+                        let d2 = dot(to, to);
+                        let ld = to * inverseSqrt(max(d2, 1e-6));
                         var beam = 0.0;
                         if (l.extra.z != 0.0) {
                             beam = headlamp(-ld, l.dir.xyz, l.extra.z > 0.0);
                         } else {
                             beam = smoothstep(l.dir.w, l.extra.x, dot(-ld, l.dir.xyz));
                         }
-                        acc = acc + beam * fog_phase(dot(ld, d)) * dphi;
+                        let sec = 1.0 / max(cos(ph), 1e-3);
+                        acc = acc + beam * fog_phase(dot(ld, d)) * dphi * piv * sec * sec / max(d2, hh * hh);
                     }
-                    half = 1.0;
+                    // (the step's length and the inverse square are in `acc` already: this
+                    // takes back the `/ hh` the sum below ends with)
+                    half = hh;
                 } else {
                     let pa = atan((ta - t0) / hh);
                     let pb = atan((tb - t0) / hh);

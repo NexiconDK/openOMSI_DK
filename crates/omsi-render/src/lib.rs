@@ -11864,6 +11864,20 @@ mod tests {
     /// units: the scene's camera and material groups stay within them on every array path
     /// there, and what is left out of the camera group for it no pipeline made there reads
     /// (#1133, #1154, #1162, #1176).
+    /// (the fork) The lamps-in-the-fog shader is put together from four pieces and only
+    /// compiled on a machine with the enhanced path: it is parsed and checked here, so a
+    /// mistake in it is a failed test and not a black picture on somebody's computer.
+    #[test]
+    fn the_fog_lamps_shader_is_valid() {
+        use wgpu::naga;
+        let src = fog_lamps_shader_source();
+        let module = naga::front::wgsl::parse_str(&src).expect("the lamps-in-the-fog shader parses");
+        naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all())
+            .validate(&module)
+            .expect("the lamps-in-the-fog shader is valid");
+        assert!(module.entry_points.iter().any(|e| e.name == "fs_fog_lamps"));
+    }
+
     #[test]
     fn the_scene_groups_fit_the_sixteen_texture_units_of_opengl() {
         use wgpu::naga;
