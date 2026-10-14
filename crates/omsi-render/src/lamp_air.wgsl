@@ -193,8 +193,53 @@ fn lamp_airlight(c: vec3<f32>, d: vec3<f32>, start: f32, len: f32, jitter: f32) 
                     // longer being the distance, the step carries its own length exactly:
                     // dt = p sec^2 dphi, against r^2 as it is.
                     let piv = clamp(0.15 * (tb - ta), hh, 4.0 * hh);
-                    let pa = atan((ta - t0) / piv);
-                    let dphi = (atan((tb - t0) / piv) - pa) / 16.0;
+                    var pa = atan((ta - t0) / piv);
+                    var pb = atan((tb - t0) / piv);
+                    // (the fork) The sixteen steps are laid over the stretch the beam
+                    // actually lights, not over the whole of its reach.
+                    //
+                    // `[ta, tb]` is where the ray runs inside the lamp's *sphere* - up to
+                    // 225 m of it for a headlamp. A beam lights a narrow wedge of that
+                    // sphere, so on most rays the light sits in a sliver of the stretch and
+                    // the rest of it is dark. Spread over the whole stretch, fifteen of the
+                    // sixteen steps landed in the dark and the sliver fell to whichever one
+                    // happened to reach it - which is the ray's own jitter. Worked out
+                    // beforehand, the estimate of one ray swung between nothing and nine
+                    // times the right answer as the jitter went round (60 to 229 % spread,
+                    // against 5 to 17 % with this bracket), and since the jitter is a hash
+                    // of the pixel, neighbouring pixels got unrelated answers: a grainy
+                    // weave over everything dark in fog and falling snow - plainest on the
+                    // near-black side of a bus, where the lit air is all there is to see.
+                    //
+                    // Seventeen cheap probes - the beam's shape alone, no distance, no
+                    // phase - bracket where it has anything to give, and the sixteen real
+                    // steps go there, one probe's width wider either way. Outside the
+                    // bracket the integrand is nil, so nothing is lost: the mean comes out
+                    // closer to the true integral than it did (0.99 against 0.93-0.98).
+                    // Finding nothing, it keeps the whole stretch as before.
+                    let probe = (pb - pa) / 16.0;
+                    var lo = 17;
+                    var hi = -1;
+                    for (var q = 0; q <= 16; q = q + 1) {
+                        let tq = t0 + piv * tan(pa + f32(q) * probe);
+                        let to = l.pos.xyz - (c + d * tq);
+                        let ld = to * inverseSqrt(max(dot(to, to), 1e-6));
+                        var em = 0.0;
+                        if (l.extra.z != 0.0) {
+                            em = headlamp(-ld, l.dir.xyz, l.extra.z > 0.0);
+                        } else {
+                            em = smoothstep(l.dir.w, l.extra.x, dot(-ld, l.dir.xyz));
+                        }
+                        if (em > 0.0) {
+                            lo = min(lo, q);
+                            hi = max(hi, q);
+                        }
+                    }
+                    if (hi >= 0) {
+                        pb = pa + f32(min(hi + 1, 16)) * probe;
+                        pa = pa + f32(max(lo - 1, 0)) * probe;
+                    }
+                    let dphi = (pb - pa) / 16.0;
                     for (var q = 0u; q < 16u; q = q + 1u) {
                         let ph = pa + (f32(q) + jitter) * dphi;
                         let tq = t0 + piv * tan(ph);
