@@ -308,6 +308,7 @@ flags! {
     OMSI_LAUNCHER_PAGE: Text, Test, Use, "-", "Launcher: open this page (e.g. mods, drive:N).";
     OMSI_LAUNCHER_SHOT: Text, Test, Use, "-", "Launcher: secs:file.png - the window's picture into a file.";
     OMSI_LAUNCHER_SIZE: Text, Test, Use, "-", "Launcher: WxH window size.";
+    OMSI_LIGHT_GRID_OLD: Bool, Switch, Use, "off", "Light grid: fill the cells as before the fork - the whole square around a lamp's reach, first come first served.";
     OMSI_LIST_ALIGNED: Bool, Debug, Use, "off", "Log the splines aligned to the terrain.";
     OMSI_MAX_FPS: Num, Tuning, Use, "settings", "Frame rate limit for this run.";
     OMSI_METER: Text, Tuning, Use, "-", "gain,target,dark,bright,bias,night: the exposure metering.";

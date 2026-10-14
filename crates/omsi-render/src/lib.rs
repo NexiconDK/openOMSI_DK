@@ -6269,6 +6269,10 @@ impl Renderer {
         // (the fork) how much each lamp matters where a cell runs out of room
         // ([`light_score`]; the interior lamps are in no cell, so theirs never counts)
         let mut scores: Vec<f32> = vec![0.0; gpu_lights.len()];
+        // (the fork) `OMSI_LIGHT_GRID_OLD=1`: the cells filled as they were before the fork -
+        // the whole square around a lamp's reach, and in a full cell whoever came first. For
+        // telling a change of the grid apart from what the picture always did.
+        let old_grid = omsi_cfg::flags::OMSI_LIGHT_GRID_OLD.is_set();
         let mut grid = std::mem::take(&mut scene.grid_scratch);
         grid.clear();
         grid.resize(side * side * LIGHT_CELL_CAP, u32::MAX);
@@ -6304,13 +6308,18 @@ impl Renderer {
             for y in (y0.max(0.0) as usize)..=(y1.min(side as f32 - 1.0) as usize) {
                 for x in (x0.max(0.0) as usize)..=(x1.min(side as f32 - 1.0) as usize) {
                     let cell0 = Vec2::new(origin[0] + x as f32 * LIGHT_CELL, origin[1] + y as f32 * LIGHT_CELL);
-                    if !cell_lit(p.truncate(), l.radius, cell0) {
+                    if !old_grid && !cell_lit(p.truncate(), l.radius, cell0) {
                         continue;
                     }
                     let base = (y * side + x) * LIGHT_CELL_CAP;
                     let cell = &mut grid[base..base + LIGHT_CELL_CAP];
                     match cell.iter().position(|v| *v == u32::MAX) {
                         Some(slot) => cell[slot] = idx,
+                        None if old_grid => {
+                            if omsi_cfg::flags::OMSI_DEBUG_LIGHT_GRID.is_set() {
+                                log::info!("light grid: cell ({x}, {y}) full, light at ({:.1}, {:.1}) radius {:.0} left out", p.x, p.y, l.radius);
+                            }
+                        }
                         None => {
                             // (the fork) the cell is full: its dimmest lamp gives way to a
                             // brighter one. The lamps came in the order they were gathered,
