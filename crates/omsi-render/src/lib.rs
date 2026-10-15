@@ -248,6 +248,9 @@ const VIEW_LAMPS_TAU: f32 = 0.4;
 /// second this is a fortieth of a stop a frame - far quicker than an eye adapts, and far too
 /// little to see as a step.
 const VIEW_LAMPS_RATE: f32 = 1.5;
+/// (the fork) The half angle (degrees) the eye is taken to adapt over, whatever the camera's
+/// own field ([`view_lamp_light`]). The eye's central field, not the whole picture.
+const VIEW_LAMPS_HALF: f32 = 22.5;
 /// The tone curve's contrast about mid grey by day and at night (see `tone_contrast`).
 const TONE_CONTRAST_DAY: f32 = 1.22;
 const TONE_CONTRAST_NIGHT: f32 = 0.94;
@@ -8071,11 +8074,21 @@ fn lamp_sky_glow(scene: &Scene, cam_rel: Vec3) -> f32 {
 /// each frame, so that the thirty-five points do not sample the same places of the street
 /// over and over. Eased together over the frames ([`VIEW_LAMPS_TAU`]) they read as several
 /// hundred points for the cost of thirty-five.
-fn view_lamp_light(lights: &[PointLight], ro: DVec3, cam_rel: Vec3, camera: &Camera, aspect: f32, ground: Option<f32>, shift: Vec2) -> f32 {
+///
+/// `adapt_half`: the half angle (degrees) the rays are kept within, however wide the camera
+/// stands. The eye takes to the middle of what it looks at, not to the whole of it, and the
+/// rays were spread over the camera's own field: zoomed out, they swept a quite different
+/// piece of the street, and the picture's brightness changed with the zoom alone - standing
+/// still, where nothing else can change it. Within this angle the measurement is the same
+/// view whatever the zoom; a camera narrower than it keeps its own, since one cannot adapt
+/// to what one cannot see. 90 or more leaves it to the camera, as before the fork.
+fn view_lamp_light(lights: &[PointLight], ro: DVec3, cam_rel: Vec3, camera: &Camera, aspect: f32, ground: Option<f32>, shift: Vec2, adapt_half: f32) -> f32 {
     let ground = ground.filter(|g| g.is_finite() && *g < cam_rel.z - 0.3).unwrap_or(cam_rel.z - 1.6);
     let (f, r, u) = (camera.forward(), camera.right(), camera.up());
-    let ty = (camera.fov_deg.to_radians() * 0.5).tan();
-    let tx = ty * aspect.max(0.1);
+    let cap = adapt_half.clamp(5.0, 89.0).to_radians().tan();
+    let ty = (camera.fov_deg.to_radians() * 0.5).tan().min(cap);
+    // (the eye's field is wider across than it is tall, as a picture is)
+    let tx = (ty * aspect.max(0.1)).min(cap * 1.4);
     let mut points = Vec::with_capacity(35);
     for j in 0..5 {
         for i in 0..7 {
@@ -9876,8 +9889,8 @@ mod tests {
         }
         let cam = Camera { position: DVec3::new(0.0, -35.0, 30.0), yaw: 0.0, pitch: -40.0, roll: 0.0, fov_deg: 60.0, near: 0.1, far: 1000.0 };
         let cam_rel = cam.position.as_vec3();
-        let seen = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO);
-        let in_air = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, None, Vec2::ZERO);
+        let seen = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO, VIEW_LAMPS_HALF);
+        let in_air = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, None, Vec2::ZERO, VIEW_LAMPS_HALF);
         // (the lot's ground: some 10-30 lux under the lamps, 1e-3 .. 3e-3, less between and
         // round them - a log-average of some 10 lux; a moonless night is 2e-6)
         assert!(seen > 5e-5, "{seen}");
@@ -9916,8 +9929,8 @@ mod tests {
             let at = cam.position.as_vec3();
             let n = frame as f32;
             let shift = Vec2::new((n * 0.754_877_7).fract(), (n * 0.569_840_3).fract());
-            let v = view_lamp_light(&lights, DVec3::ZERO, at, &cam, 16.0 / 9.0, Some(0.0), shift);
-            raw.push(view_lamp_light(&lights, DVec3::ZERO, at, &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO));
+            let v = view_lamp_light(&lights, DVec3::ZERO, at, &cam, 16.0 / 9.0, Some(0.0), shift, VIEW_LAMPS_HALF);
+            raw.push(view_lamp_light(&lights, DVec3::ZERO, at, &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO, 180.0));
             let dt = 1.0 / 60.0;
             let e = match held {
                 Some(w) => {
@@ -9937,6 +9950,23 @@ mod tests {
                 .map(|w| (w[1].max(2e-6) / w[0].max(2e-6)).log2().abs())
                 .fold(0.0f32, f32::max)
         };
+        // standing still and only zooming must not change the light: the reading is taken
+        // over the eye's own field, not the camera's (the picture went visibly brighter and
+        // darker with the zoom alone, with nothing else moving)
+        let at = DVec3::new(0.0, 120.0, 2.2);
+        let look = |fov: f32, half: f32| {
+            let cam = Camera { position: at, yaw: 0.0, pitch: -12.0, roll: 0.0, fov_deg: fov, near: 0.1, far: 1000.0 };
+            view_lamp_light(&lights, DVec3::ZERO, at.as_vec3(), &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO, half)
+        };
+        let spread = |half: f32| {
+            let v: Vec<f32> = [45.0f32, 60.0, 75.0, 90.0].iter().map(|f| look(*f, half)).collect();
+            let (lo, hi) = v.iter().fold((f32::MAX, 0.0f32), |(a, b), x| (a.min(*x), b.max(*x)));
+            (hi.max(2e-6) / lo.max(2e-6)).log2().abs()
+        };
+        let (open, held) = (spread(180.0), spread(VIEW_LAMPS_HALF));
+        assert!(open > 0.15, "zooming did not move the reading anyway ({open:.3} EV): nothing to show");
+        assert!(held < open * 0.25, "zooming still moves the light by {held:.3} EV (was {open:.3})");
+
         let (was, now) = (worst(&raw), worst(&eased));
         assert!(was > 0.2, "the street does not make the reading jump at all ({was:.3} EV): nothing to show");
         assert!(now < 0.05, "eased still steps by {now:.3} EV a frame");

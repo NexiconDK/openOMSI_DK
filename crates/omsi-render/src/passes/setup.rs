@@ -410,7 +410,8 @@ impl Renderer {
             } else {
                 Vec2::ZERO
             };
-            let seen = view_lamp_light(&scene.lights, scene.render_origin, cam_rel, camera, aspect, ground, shift);
+            let half = if tau > 0.0 { VIEW_LAMPS_HALF } else { 180.0 };
+            let seen = view_lamp_light(&scene.lights, scene.render_origin, cam_rel, camera, aspect, ground, shift, half);
             self.view_lamps = Some(match self.view_lamps {
                 Some(was) if tau > 0.0 && f.dt > 0.0 && was.is_finite() && !self.instant_exposure => {
                     // In the light's own terms, not in its number: the reading stands at a
