@@ -552,17 +552,20 @@ $("ask-yes").addEventListener("click", async () => {
   setTimeout(() => show("duty"), 600);
 });
 
-// (the fork) the stops of the trip under way, from the one the bus is at or heads for
-function dutyStops(d) {
-  const out = [];
+// (the fork) the stops of the trip under way. Standing at a stop, the list begins there;
+// rolling between two, the console keeps the one just left standing above the one ahead,
+// and marks them both - so the list begins one stop further back.
+function dutyStops(d, atStop) {
+  const all = [];
   let here = false;
   for (const r of d.rows) {
     if (r.k === "trip") { if (here) break; here = r.state === "now"; continue; }
-    if (!here || r.k !== "stop") continue;
-    if (r.state === "done" && !out.length) continue;   // (the ones behind us are gone)
-    out.push(r);
+    if (here && r.k === "stop") all.push(r);
   }
-  return out;
+  let i = all.findIndex((s) => s.state !== "done");
+  if (i < 0) i = Math.max(0, all.length - 1);
+  const start = atStop ? i : Math.max(0, i - 1);
+  return { list: all.slice(start), now: i - start };
 }
 
 // the red sign with the hand: the bus stands at this stop
@@ -572,20 +575,30 @@ const HAND = `<svg viewBox="0 0 24 24"><path d="M8.3 1.4h7.4l6.9 6.9v7.4l-6.9 6.
   <path d="M8.5 11.3h8.8v2.5a4.4 4.4 0 0 1-4.4 4.4 4.4 4.4 0 0 1-4.4-4.4z"/>
   <path d="m8.5 12.6-2.2-2.2a1 1 0 0 0-1.4 1.4l2.7 3z"/></g></svg>`;
 
+// and the two blue arrows the console shows while the bus rolls: one out of the stop it
+// has left, one into the stop it heads for
+const ARROW = (id, d) => `<svg viewBox="0 0 24 24"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#6fc3ea"/><stop offset=".45" stop-color="#3b84c9"/><stop offset="1" stop-color="#2a63a8"/></linearGradient></defs>
+  <circle cx="12" cy="12" r="11" fill="url(#${id})"/><path d="${d}" fill="#fff"/></svg>`;
+const GONE = ARROW("a-out", "M6 10.2h7.2V7.2L18.4 12l-5.2 4.8v-3H6z");
+const COMING = ARROW("a-in", "M18 10.2h-7.2V7.2L5.6 12l5.2 4.8v-3H18z");
+
 // TUR I AUTOMATISK STOPPESTEDSVALG: the screen the trip is driven by
 function drawDuty() {
   const box = $("duty-body");
   if (!state) return;
   const d = state.duty, L = labels;
   if (!d) { box.innerHTML = `<div class="empty">${esc(L.no_duty)}</div>`; return; }
-  const stops = dutyStops(d), head = stops.length ? stops[0].name : "";
+  const { list: stops, now } = dutyStops(d, d.at_stop);
+  const head = stops.length ? stops[0].name : "";
   if (head !== dutyHead) { dutyHead = head; page.duty = 0; }   // (the bus moved on)
   page.duty = Math.max(0, Math.min(page.duty, leaves(stops.length, PER.duty) - 1));
   const from = page.duty * PER.duty, shown = stops.slice(from, from + PER.duty);
   let right = shown.map((s, i) => {
-    const hold = from + i === 0 && d.at_stop;
-    return `<div class="stop${s.state === "done" ? " done" : ""}"><span class="n">${esc(s.name)}</span>
-      <span class="t">${esc(s.exp || s.time)}</span>${hold ? HAND : ""}</div>`;
+    const at = from + i;
+    const mark = d.at_stop ? (at === now ? HAND : "") : at === now - 1 ? GONE : at === now ? COMING : "";
+    return `<div class="stop"><span class="n">${esc(s.name)}</span>
+      <span class="t">${esc(s.exp || s.time)}</span>${mark}</div>`;
   }).join("");
   for (let i = shown.length; i < PER.duty; i++) right += `<div class="slot"></div>`;
   box.innerHTML = `<div class="side">
