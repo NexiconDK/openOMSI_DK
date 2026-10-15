@@ -497,11 +497,16 @@ fn storm_strength(weather: Option<&omsi_content::weather::Weather>, asked: f32) 
 /// only a short way: a strike overhead cracks, one eight kilometres off is a rumble with
 /// nothing above a few hundred hertz left in it.
 fn clap(band: usize, seed: u64) -> Clip {
-    let (secs, attack, tau, cutoff) = match band {
-        0 => (2.6f32, 0.004f32, 0.55f32, 3200.0f32),
-        1 => (4.6, 0.09, 1.5, 950.0),
-        _ => (7.2, 0.38, 2.8, 330.0),
+    // `body` is the stretch the bursts fall in; the clip runs on half as long again past it
+    // so that the last of them has somewhere to die away. Cut off at the body's end the
+    // roll was still at a good share of its loudest when the samples ran out, and a clap
+    // ended in a click instead of fading into the street.
+    let (body, attack, tau, cutoff) = match band {
+        0 => (2.2f32, 0.004f32, 0.55f32, 3200.0f32),
+        1 => (4.0, 0.09, 1.5, 950.0),
+        _ => (6.2, 0.38, 2.8, 330.0),
     };
+    let secs = body * 1.5;
     let n = (secs * CLAP_RATE as f32) as usize;
     let mut rng = seed | 1;
     let mut rand = move || {
@@ -513,7 +518,7 @@ fn clap(band: usize, seed: u64) -> Clip {
     // the bursts: the first the near end of the channel, then the rest of it rolling in
     let mut bursts: Vec<(f32, f32, f32)> = vec![(0.0, 1.0, tau)];
     for i in 0..(2 + band * 2) {
-        let t = 0.08 + rand() * secs * 0.75;
+        let t = 0.08 + rand() * body * 0.8;
         let a = (0.55 - 0.07 * i as f32).max(0.15) * (0.5 + rand());
         bursts.push((t, a, tau * (1.0 + 2.0 * rand())));
     }
@@ -539,7 +544,10 @@ fn clap(band: usize, seed: u64) -> Clip {
         let k = (1.0 - (-std::f32::consts::TAU * hz / CLAP_RATE as f32).exp()).clamp(0.001, 1.0);
         lp1 += (noise - lp1) * k;
         lp2 += (lp1 - lp2) * k;
-        *s = lp2 * env;
+        // and the last stretch is taken down to nothing, so that however the bursts fell
+        // the clap always ends in silence rather than on whatever sample came last
+        let x = ((t - (secs - body * 0.4)) / (body * 0.4)).clamp(0.0, 1.0);
+        *s = lp2 * env * (1.0 - x * x * (3.0 - 2.0 * x));
     }
     // the corner takes most of the noise's level with it, so the clap is scaled by what it
     // actually came out at rather than by what it was built from
@@ -664,8 +672,8 @@ mod tests {
         assert_eq!((near.channels, near.sample_rate), (1, CLAP_RATE));
         // a near clap is over in a few seconds, a far one rolls for the best part of ten
         let secs = |c: &Clip| c.frames() as f32 / c.sample_rate as f32;
-        assert!((secs(&near) - 2.6).abs() < 0.1, "{}", secs(&near));
-        assert!(secs(&far) > 6.5, "{}", secs(&far));
+        assert!((secs(&near) - 3.3).abs() < 0.1, "{}", secs(&near));
+        assert!(secs(&far) > 8.5, "{}", secs(&far));
         // both are scaled to the same peak, and neither clips
         for c in [&near, &far] {
             let peak = c.samples.iter().map(|s| s.unsigned_abs() as u32).max().unwrap_or(0);
@@ -681,6 +689,25 @@ mod tests {
         assert!(loud(&far, 0.0, 0.1) < 0.35, "{}", loud(&far, 0.0, 0.1));
         // and the far one keeps going long after the near one has finished
         assert!(loud(&far, 4.0, 6.0) > 0.02, "{}", loud(&far, 4.0, 6.0));
+    }
+
+    /// A clap dies away into the street: however its bursts fell, the samples must not run
+    /// out while the roll is still going. They did, at a seventh to three quarters of the
+    /// clap's loudest, and a clap ended on a click instead of fading out.
+    #[test]
+    fn a_clap_fades_out_instead_of_being_cut_off() {
+        for band in 0..3 {
+            for seed in 1..6 {
+                let c = clap(band, seed);
+                let peak = c.samples.iter().map(|s| s.unsigned_abs() as u32).max().unwrap_or(0).max(1) as f32;
+                // the last tenth of a second, against the clap's own loudest
+                let from = c.samples.len().saturating_sub(c.sample_rate as usize / 10);
+                let end = c.samples[from..].iter().map(|s| s.unsigned_abs() as u32).max().unwrap_or(0) as f32 / peak;
+                assert!(end < 0.02, "band {band} seed {seed} still at {:.0} % when it ends", end * 100.0);
+                // and the very last sample sits at silence, so there is no step to click on
+                assert!(c.samples.last().copied().unwrap_or(0).unsigned_abs() < 200);
+            }
+        }
     }
 
     /// The clap waits for the sound to travel: a flash four kilometres off is heard twelve
