@@ -313,6 +313,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_FOG_LAMP_GAIN` | num | 1 | frame | render | The lamps' light in fog, mist and snow times this (0 = none, for finding the right strength). |
 | `OMSI_GRAPHICS` | text | settings | use | app | vanilla, vanilla_plus or enhanced: another renderer for one run. |
 | `OMSI_IBIS_BUDGET` | num | 10 | use | sim | Seconds the IBIS typist may take per entry. |
+| `OMSI_LAMP_SHADOW_FADE` | num | 0.35 | frame | render | Seconds a street lamp's shadow fades in or out over as it takes or loses one of the four shadow maps (0 = switch at once, as before the fork). |
 | `OMSI_LAN_JOIN_TIMEOUT` | num | default | use | net | LAN: seconds to wait when joining a game. |
 | `OMSI_MAX_FPS` | num | settings | use | app | Frame rate limit for this run. |
 | `OMSI_METER` | text | - | use | render | gain,target,dark,bright,bias,night: the exposure metering. |

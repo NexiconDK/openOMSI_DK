@@ -185,12 +185,17 @@ struct Surface {
 // the lamp's head; a few taps of it soften the edge, as the lamp's glowing bowl does.
 fn lamp_shadow_at(li: u32, p: vec3<f32>, n: vec3<f32>, thin: bool) -> f32 {
     var k = 4u;
+    // (the fork) how much of this lamp's shadow is drawn: a lamp taking or losing one of the
+    // four places fades over a third of a second instead of switching whole on one frame
+    // (`prepare_lights`, lib.rs). It rides in the fraction of the index.
+    var weight = 1.0;
     for (var j = 0u; j < 4u; j = j + 1u) {
         if (camera.lamp_shadow[j] >= 0.0 && u32(camera.lamp_shadow[j]) == li) {
             k = j;
+            weight = 1.0 - fract(camera.lamp_shadow[j]);
         }
     }
-    if (k > 3u) {
+    if (k > 3u || weight <= 0.0) {
         return 1.0;
     }
     let d = distance(p, lights[li].pos.xyz);
@@ -217,7 +222,8 @@ fn lamp_shadow_at(li: u32, p: vec3<f32>, n: vec3<f32>, thin: bool) -> f32 {
             sum = sum + textureSampleCompareLevel(t_shadow_far, s_shadow, a, ndc.z - 0.00002);
         }
     }
-    return sum / 9.0;
+    // (the fork) towards no shadow at all as the lamp fades out of its place)
+    return mix(1.0, sum / 9.0, weight);
 }
 
 // The point and spot lights of the pixel's grid cell: diffuse and specular.

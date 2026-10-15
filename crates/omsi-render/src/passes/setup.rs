@@ -127,8 +127,19 @@ impl Renderer {
         // `prepare_lights` says they do: with the view's own flag the mirrors built the
         // vanilla list and the window the enhanced one, so the two never matched and every
         // view sent the whole grid (512 KB) and the lights to the card again
+        let dt = {
+            let now = std::time::Instant::now();
+            let dt = self
+                .last_frame
+                .map(|t| (now - t).as_secs_f32())
+                .unwrap_or(0.0);
+            if lead_view {
+                self.last_frame = Some(now);
+            }
+            dt
+        };
         let enhanced_lights = lighting.enhanced && self.hdr_pass.is_some() && !env.no_enhanced;
-        let (grid, lamp_shadows) = self.prepare_lights(scene, cam_rel, enhanced_lights, lighting.lamp_shadows && with_overlays && projection.is_none() && self.shadow_pipelines.len() > 6);
+        let (grid, lamp_shadows) = self.prepare_lights(scene, cam_rel, enhanced_lights, lighting.lamp_shadows && with_overlays && projection.is_none() && self.shadow_pipelines.len() > 6, dt);
         self.prepare_coronas(scene, lighting.night, lighting.inside.as_ref().filter(|v| point_in_vehicle_box(camera.position, v)));
         self.prepare_smoke(scene, camera.position);
         // ambient occlusion only for the real picture, not for the mirrors
@@ -162,17 +173,6 @@ impl Renderer {
         if glass_on {
             self.prepare_glass_behind(scene, width, height, if masked_frame { HDR_FORMAT } else { self.format });
         }
-        let dt = {
-            let now = std::time::Instant::now();
-            let dt = self
-                .last_frame
-                .map(|t| (now - t).as_secs_f32())
-                .unwrap_or(0.0);
-            if lead_view {
-                self.last_frame = Some(now);
-            }
-            dt
-        };
         clock.stage(self, "setup", "mirror.setup");
         self.prepare(scene);
         clock.stage(self, "prepare", "mirror.prepare");
@@ -346,7 +346,14 @@ impl Renderer {
             light_view_proj_close: sh.light_view_proj_close.to_cols_array_2d(),
             wind: [lighting.glass_wind.x, lighting.glass_wind.y, lighting.glass_wind.z, 1.0],
             lamp_view_proj: std::array::from_fn(|k| lamp_shadows.get(k).map_or(Mat4::IDENTITY, |l| l.view_proj()).to_cols_array_2d()),
-            lamp_shadow: std::array::from_fn(|k| lamp_shadows.get(k).map_or(-1.0, |l| l.index as f32)),
+            // (the fork) the light's index with how much of its shadow is drawn in the
+            // fraction, so that a lamp taking or losing one of the few places fades instead
+            // of switching (`lamp_shadow_at`): `u32()` of it is the index as before, and
+            // `1 - fract()` the share. An index of several hundred still leaves four digits
+            // of the fraction in a 32-bit float.
+            lamp_shadow: std::array::from_fn(|k| {
+                lamp_shadows.get(k).map_or(-1.0, |l| l.index as f32 + (1.0 - l.fade.clamp(0.0, 1.0)) * 0.98)
+            }),
             tree_wind: {
                 // the gusts drift with the wind: summed over the frames (the wind changes
                 // with the weather), in f64 and modulo the shaders' pattern period

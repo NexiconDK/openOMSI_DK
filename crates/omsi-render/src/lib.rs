@@ -506,6 +506,12 @@ const LAMP_SHADOWS: usize = 4;
 /// street lamp's map (each lamp's own: an embedded source leaves its own fixture out).
 const SHADOW_LISTS: usize = 3 + LAMP_SHADOWS;
 const LAMP_SHADOW_REACH: f32 = 45.0;
+/// (the fork) Seconds a street lamp's shadow is faded in or out over as it takes or loses
+/// one of the [`LAMP_SHADOWS`] places. `OMSI_LAMP_SHADOW_FADE` sets it; 0 switches as before.
+const LAMP_SHADOW_FADE: f32 = 0.35;
+/// (the fork) How much farther than `LAMP_SHADOW_REACH` a lamp that holds a place stays a
+/// candidate, so that it is still there to be drawn while it fades out.
+const LAMP_SHADOW_KEEP: f32 = 30.0;
 /// The far map's height over its width: the lamps' tiles take the quarter under it.
 const FAR_MAP_ASPECT: f32 = 1.25;
 /// A lamp's shadow map looks straight down from its head over this field of view (a
@@ -520,6 +526,10 @@ struct LampShadow {
     position: Vec3,
     range: f32,
     owner: Option<i64>,
+    /// (the fork) How much of its shadow is drawn, 0 to 1: a lamp taking one of the few
+    /// places fades in over [`LAMP_SHADOW_FADE`] and one losing it fades out, instead of its
+    /// shadows appearing and vanishing whole on one frame (`lamp_shadow_at`, enhanced.wgsl).
+    fade: f32,
 }
 
 impl LampShadow {
@@ -1387,6 +1397,9 @@ pub struct Scene {
     /// The street lamps that had a shadow map last frame (their places in centimetres):
     /// they keep it against a lamp only a little stronger (`prepare_lights`).
     lamp_shadow_last: Vec<[i64; 3]>,
+    /// (the fork) Which lamp holds each of the [`LAMP_SHADOWS`] places and how far it is
+    /// faded in (see `prepare_lights`).
+    lamp_slots: Vec<Option<([i64; 3], f32)>>,
     last_lights: Vec<u8>,
     /// Material bind groups and uniform buffers made since the last `prepare`, by what they
     /// hold: materials made in one go with the same textures and values share them (a C2's
@@ -3355,6 +3368,7 @@ impl Renderer {
             grid_scratch: Vec::new(),
             smoke_scratch: Default::default(),
             lamp_shadow_last: Vec::new(),
+            lamp_slots: Vec::new(),
             last_lights: Vec::new(),
             bind_groups: HashMap::new(),
             looks: hashbrown::HashMap::new(),
@@ -6261,7 +6275,7 @@ impl Renderer {
     /// by, whose radius it reads as 0, and the mirrors show no headlight pools. The three
     /// stand-in points stay out of it, or a street full of cars would fill the grid cells'
     /// sixteen places before the street lamps got theirs.
-    fn prepare_lights(&self, scene: &mut Scene, cam_rel: Vec3, enhanced: bool, lamp_shadows: bool) -> ([f32; 4], Vec<LampShadow>) {
+    fn prepare_lights(&self, scene: &mut Scene, cam_rel: Vec3, enhanced: bool, lamp_shadows: bool, dt: f32) -> ([f32; 4], Vec<LampShadow>) {
         // the street lamps that get a shadow map: the few lighting the camera's
         // surroundings most (by their strength over the distance)
         let mut chosen: Vec<(f32, LampShadow, [i64; 3])> = Vec::new();
@@ -6313,16 +6327,20 @@ impl Renderer {
             scores.push(light_score(l));
             if lamp_shadows && enhanced && l.housed && l.intensity > 0.0 {
                 let d = (p - cam_rel).length();
-                if d < l.radius + LAMP_SHADOW_REACH {
+                let key = l.position.to_array().map(|c| (c * 100.0).round() as i64);
+                // (a lamp that had a map keeps it until another is clearly stronger: the
+                // set changing with every metre the camera moved switched shadows on and
+                // off between lamps that light the view about alike, #1613)
+                let held = scene.lamp_shadow_last.contains(&key);
+                // (the fork) one that holds a place stays a candidate a little past the
+                // reach, so that it is still here to be drawn while it fades out
+                let reach = LAMP_SHADOW_REACH + if held { LAMP_SHADOW_KEEP } else { 0.0 };
+                if d < l.radius + reach {
                     let mut score = l.intensity * (l.color[0] + l.color[1] + l.color[2]) * l.core * l.core / (d * d + 25.0);
-                    // (a lamp that had a map keeps it until another is clearly stronger: the
-                    // set changing with every metre the camera moved switched shadows on and
-                    // off between lamps that light the view about alike, #1613)
-                    let key = l.position.to_array().map(|c| (c * 100.0).round() as i64);
-                    if scene.lamp_shadow_last.contains(&key) {
+                    if held {
                         score *= 1.6;
                     }
-                    chosen.push((score, LampShadow { index: idx, position: p, range: l.radius, owner: l.shadow_owner }, key));
+                    chosen.push((score, LampShadow { index: idx, position: p, range: l.radius, owner: l.shadow_owner, fade: 0.0 }, key));
                 }
             }
             for y in (y0.max(0.0) as usize)..=(y1.min(side as f32 - 1.0) as usize) {
@@ -6433,9 +6451,57 @@ impl Renderer {
             self.rebuild_camera_bind_group(scene);
         }
         chosen.sort_by(|a, b| b.0.total_cmp(&a.0));
-        chosen.truncate(LAMP_SHADOWS);
-        scene.lamp_shadow_last = chosen.iter().map(|c| c.2).collect();
-        let lamps = chosen.into_iter().map(|c| c.1).collect();
+        // (the fork) The few places are held by the same lamp from frame to frame, and a lamp
+        // taking or losing one is faded in or out instead of being switched.
+        //
+        // Only four street lamps have a shadow map at a time. Driving, the places change
+        // hands constantly, and `lamp_shadow_at` is a plain yes or no: the frame a lamp lost
+        // its place, every shadow under it - the mast, the bushes, the kerb, a parked car -
+        // went at once, and came back as abruptly when it won one again. On the road under
+        // the lamp posts, which is the only place there is such a shadow to lose, that reads
+        // as shadows flicking in and out. It is worst with "shadows cast by: everything",
+        // where there is most to lose, and nearly gone with OMSI's own `[shadow]` meshes.
+        //
+        // A place keeps its lamp until the lamp has faded out, so its map is still drawn
+        // while it goes, and a lamp waiting for a place takes the first that falls empty.
+        let fade_time = omsi_cfg::flags::OMSI_LAMP_SHADOW_FADE.parse::<f32>().unwrap_or(LAMP_SHADOW_FADE);
+        let lamps = if fade_time > 0.0 && lamp_shadows {
+            let step = (dt / fade_time).clamp(0.0, 1.0);
+            scene.lamp_slots.resize(LAMP_SHADOWS, None);
+            let want: Vec<[i64; 3]> = chosen.iter().take(LAMP_SHADOWS).map(|c| c.2).collect();
+            // the places that keep their lamp fade on towards 1, the rest fade out
+            for slot in scene.lamp_slots.iter_mut() {
+                if let Some((key, f)) = slot.as_mut() {
+                    let here = chosen.iter().any(|c| c.2 == *key);
+                    *f = if want.contains(key) && here { (*f + step).min(1.0) } else { *f - step };
+                    if *f <= 0.0 || !here {
+                        *slot = None;
+                    }
+                }
+            }
+            // a lamp that wants a place and has none takes the first empty one
+            for key in &want {
+                if scene.lamp_slots.iter().flatten().any(|(k, _)| k == key) {
+                    continue;
+                }
+                if let Some(slot) = scene.lamp_slots.iter_mut().find(|s| s.is_none()) {
+                    *slot = Some((*key, step));
+                }
+            }
+            scene.lamp_shadow_last = scene.lamp_slots.iter().flatten().map(|(k, _)| *k).collect();
+            (0..LAMP_SHADOWS)
+                .filter_map(|k| {
+                    let (key, f) = scene.lamp_slots[k]?;
+                    let c = chosen.iter().find(|c| c.2 == key)?;
+                    Some(LampShadow { fade: f.clamp(0.0, 1.0), ..c.1 })
+                })
+                .collect()
+        } else {
+            chosen.truncate(LAMP_SHADOWS);
+            scene.lamp_slots.clear();
+            scene.lamp_shadow_last = chosen.iter().map(|c| c.2).collect();
+            chosen.into_iter().map(|c| LampShadow { fade: 1.0, ..c.1 }).collect()
+        };
         ([origin[0], origin[1], LIGHT_CELL, side as f32], lamps)
     }
 
@@ -12409,4 +12475,88 @@ pub fn catch<R>(f: impl FnOnce() -> R) -> Option<R> {
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
     CATCHING.with(|c| c.set(was));
     r.ok()
+}
+
+#[cfg(test)]
+mod lamp_shadow_fade_tests {
+    use super::*;
+
+    /// The slot bookkeeping of `prepare_lights`, on its own: `want` is the lamps that should
+    /// hold the four places this frame, and the fades are stepped as the frame does it.
+    fn step(slots: &mut Vec<Option<([i64; 3], f32)>>, here: &[[i64; 3]], want: &[[i64; 3]], d: f32) {
+        slots.resize(LAMP_SHADOWS, None);
+        for slot in slots.iter_mut() {
+            if let Some((key, f)) = slot.as_mut() {
+                let present = here.contains(key);
+                *f = if want.contains(key) && present { (*f + d).min(1.0) } else { *f - d };
+                if *f <= 0.0 || !present {
+                    *slot = None;
+                }
+            }
+        }
+        for key in want {
+            if slots.iter().flatten().any(|(k, _)| k == key) {
+                continue;
+            }
+            if let Some(slot) = slots.iter_mut().find(|s| s.is_none()) {
+                *slot = Some((*key, d));
+            }
+        }
+    }
+
+    fn weight(slots: &[Option<([i64; 3], f32)>], key: [i64; 3]) -> f32 {
+        slots.iter().flatten().find(|(k, _)| *k == key).map_or(0.0, |(_, f)| f.clamp(0.0, 1.0))
+    }
+
+    /// Only four street lamps have a shadow map at a time, and the places change hands as the
+    /// camera moves. Switched, the frame a lamp lost its place every shadow under it went at
+    /// once - on the road under the lamp posts, which is the only place there is such a
+    /// shadow to lose, that reads as shadows flicking in and out (reported 15 October 2026,
+    /// worst with "shadows cast by: everything").
+    #[test]
+    fn a_lamp_never_loses_its_shadow_on_one_frame() {
+        let k = |n: i64| [n, 0, 0];
+        let five: Vec<[i64; 3]> = (1..=5).map(k).collect();
+        let mut slots = Vec::new();
+        // four lamps take the places and fade in
+        let d = 1.0 / 20.0;
+        for _ in 0..40 {
+            step(&mut slots, &five, &five[..4], d);
+        }
+        for key in &five[..4] {
+            assert_eq!(weight(&slots, *key), 1.0, "{key:?} not faded in");
+        }
+        // the fifth takes over from the first: neither may move by more than one step
+        let want = [five[4], five[1], five[2], five[3]];
+        let mut was = [1.0f32, 0.0];
+        for frame in 0..60 {
+            step(&mut slots, &five, &want, d);
+            let (out, inn) = (weight(&slots, five[0]), weight(&slots, five[4]));
+            assert!((was[0] - out).abs() <= d + 1e-6, "frame {frame}: the lamp going out jumped {:.3}", was[0] - out);
+            assert!((inn - was[1]).abs() <= d + 1e-6, "frame {frame}: the lamp coming in jumped {:.3}", inn - was[1]);
+            was = [out, inn];
+        }
+        assert_eq!(weight(&slots, five[0]), 0.0, "the old lamp still holds a place");
+        assert_eq!(weight(&slots, five[4]), 1.0, "the new lamp never faded in");
+        // and the three that kept their places were never touched
+        for key in &five[1..4] {
+            assert_eq!(weight(&slots, *key), 1.0, "{key:?} lost its shadow");
+        }
+    }
+
+    /// A lamp that goes out of reach altogether gives its place up at once - there is no map
+    /// left to fade - but the place is then free for the next lamp.
+    #[test]
+    fn a_lamp_out_of_reach_frees_its_place() {
+        let k = |n: i64| [n, 0, 0];
+        let mut slots = Vec::new();
+        for _ in 0..40 {
+            step(&mut slots, &[k(1), k(2)], &[k(1), k(2)], 0.05);
+        }
+        assert_eq!(weight(&slots, k(1)), 1.0);
+        step(&mut slots, &[k(2), k(3)], &[k(2), k(3)], 0.05);
+        assert_eq!(weight(&slots, k(1)), 0.0, "the lamp that left is still held");
+        assert!(weight(&slots, k(3)) > 0.0, "the new lamp got no place");
+        assert_eq!(weight(&slots, k(2)), 1.0, "the lamp that stayed was disturbed");
+    }
 }

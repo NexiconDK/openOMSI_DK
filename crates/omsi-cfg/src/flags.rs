@@ -298,6 +298,7 @@ flags! {
     OMSI_INTEL_FULL_GPU: Bool, Switch, Use, "off", "Keep the requested settings on an Intel Vulkan adapter.";
     OMSI_JOINT_ANGLE: Num, Test, Use, "-", "Degrees: the rear section of an articulated bus held at that angle.";
     OMSI_KEEP_ALLOCATOR: Bool, Switch, Use, "off", "Skip the restart that swaps in the faster allocator at start.";
+    OMSI_LAMP_SHADOW_FADE: Num, Tuning, Frame, "0.35", "Seconds a street lamp's shadow fades in or out over as it takes or loses one of the four shadow maps (0 = switch at once, as before the fork).";
     OMSI_LANES_NEAR: Text, Test, Use, "-", "x,y,r: log the driving lanes passing there.";
     OMSI_LAN_AUDIO: Bool, Test, Use, "off", "Offscreen LAN: with the other buses' sounds.";
     OMSI_LAN_IP: Text, Setup, Use, "-", "a.b.c.d[,e.f.g.h]: LAN addresses to offer first (when the detection gets them wrong).";
