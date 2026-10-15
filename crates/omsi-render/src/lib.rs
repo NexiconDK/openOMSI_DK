@@ -240,6 +240,14 @@ const METER_TARGET: f32 = -2.84;
 // eye; at the metering's gain a snow field still comes out darkened by well under a stop)
 const METER_DARKEN: f32 = 2.0;
 const METER_BRIGHTEN: f32 = 1.6;
+/// (the fork) How long the lamps in view are eased over ([`view_lamp_light`], and the grid
+/// of rays moved a little each frame with it). `OMSI_VIEW_LAMPS_EASE` sets it in seconds;
+/// 0 takes the reading whole, as before the fork.
+const VIEW_LAMPS_TAU: f32 = 0.4;
+/// (the fork) The most the lamps in view may move in a second, in stops. At sixty frames a
+/// second this is a fortieth of a stop a frame - far quicker than an eye adapts, and far too
+/// little to see as a step.
+const VIEW_LAMPS_RATE: f32 = 1.5;
 /// The tone curve's contrast about mid grey by day and at night (see `tone_contrast`).
 const TONE_CONTRAST_DAY: f32 = 1.22;
 const TONE_CONTRAST_NIGHT: f32 = 0.94;
@@ -2184,8 +2192,10 @@ pub struct Renderer {
     /// (`lamp_sky_glow`), as the sky is computed with it.
     city_glow: Option<f32>,
     /// The lamps' and headlights' light on what the camera looks at (`view_lamp_light`),
-    /// which the eye adapts to by night.
+    /// which the eye adapts to by night, eased over [`VIEW_LAMPS_TAU`].
     view_lamps: Option<f32>,
+    /// (the fork) Which frame's offset the rays of `view_lamp_light` are taken with.
+    view_lamps_tick: u32,
     /// A sky being computed on a helper thread, for this input.
     sky_job: Option<(
         atmosphere::SkyInput,
@@ -3106,6 +3116,7 @@ impl Renderer {
             sky_state: None,
             city_glow: None,
             view_lamps: None,
+            view_lamps_tick: 0,
             sky_job: None,
             exposure: None,
             texture_aspect: None,
@@ -8056,7 +8067,11 @@ fn lamp_sky_glow(scene: &Scene, cam_rel: Vec3) -> f32 {
 /// the sides of a narrow view - the meter read a moonless night while the picture was full
 /// of lit streets, and the eye's adaptation to that dark lifted every lamp's light to
 /// white (the modded maps' lamps, spaced and placed differently from the stock ones, most).
-fn view_lamp_light(lights: &[PointLight], ro: DVec3, cam_rel: Vec3, camera: &Camera, aspect: f32, ground: Option<f32>) -> f32 {
+/// (the fork) `shift`: the grid of rays is moved by this share of a cell, a different share
+/// each frame, so that the thirty-five points do not sample the same places of the street
+/// over and over. Eased together over the frames ([`VIEW_LAMPS_TAU`]) they read as several
+/// hundred points for the cost of thirty-five.
+fn view_lamp_light(lights: &[PointLight], ro: DVec3, cam_rel: Vec3, camera: &Camera, aspect: f32, ground: Option<f32>, shift: Vec2) -> f32 {
     let ground = ground.filter(|g| g.is_finite() && *g < cam_rel.z - 0.3).unwrap_or(cam_rel.z - 1.6);
     let (f, r, u) = (camera.forward(), camera.right(), camera.up());
     let ty = (camera.fov_deg.to_radians() * 0.5).tan();
@@ -8064,8 +8079,8 @@ fn view_lamp_light(lights: &[PointLight], ro: DVec3, cam_rel: Vec3, camera: &Cam
     let mut points = Vec::with_capacity(35);
     for j in 0..5 {
         for i in 0..7 {
-            let x = -0.9 + 1.8 * i as f32 / 6.0;
-            let y = -0.95 + 1.9 * j as f32 / 4.0;
+            let x = -0.9 + 1.8 * (i as f32 + shift.x) / 6.0;
+            let y = -0.95 + 1.9 * (j as f32 + shift.y) / 4.0;
             let dir = (f + r * (x * tx) + u * (y * ty)).normalize();
             if dir.z >= -0.01 {
                 continue;
@@ -9861,8 +9876,8 @@ mod tests {
         }
         let cam = Camera { position: DVec3::new(0.0, -35.0, 30.0), yaw: 0.0, pitch: -40.0, roll: 0.0, fov_deg: 60.0, near: 0.1, far: 1000.0 };
         let cam_rel = cam.position.as_vec3();
-        let seen = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, Some(0.0));
-        let in_air = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, None);
+        let seen = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO);
+        let in_air = view_lamp_light(&lights, DVec3::ZERO, cam_rel, &cam, 16.0 / 9.0, None, Vec2::ZERO);
         // (the lot's ground: some 10-30 lux under the lamps, 1e-3 .. 3e-3, less between and
         // round them - a log-average of some 10 lux; a moonless night is 2e-6)
         assert!(seen > 5e-5, "{seen}");
@@ -9870,6 +9885,66 @@ mod tests {
         // and the lamps seen from beside the lot, at eye height, veil the eye as well
         let eye = Camera { position: DVec3::new(0.0, -40.0, 1.7), pitch: 0.0, ..cam };
         assert!(glare_veil(&lights, DVec3::ZERO, eye.position.as_vec3(), eye.forward()) > 1e-5);
+    }
+
+    /// (the fork) Driving a lamp-lit street, the thirty-five rays sweep over the road and a
+    /// ray crossing the edge of a lamp's pool moves the whole reading at once. A night's log
+    /// of 15 October 2026 had it at exactly nothing in an eighth of its 14 568 frames, and
+    /// jumping 0.227 EV from one frame to the next - the picture blinking on the road near
+    /// the lamp posts. Moved a little each frame and eased together, the reading cannot step.
+    #[test]
+    fn the_lamps_in_view_do_not_jump_from_one_frame_to_the_next() {
+        // a lit street: lamps 30 m apart along it
+        let lights: Vec<PointLight> = (0..12)
+            .map(|k| PointLight {
+                position: DVec3::new(6.0, k as f64 * 55.0, 8.0),
+                radius: 16.0,
+                color: [1.0, 0.85, 0.6],
+                intensity: 1.0,
+                core: 3.0,
+                housed: true,
+                mode: LightMode::Both,
+                ..Default::default()
+            })
+            .collect();
+        // driven along it, a frame at a time at 50 km/h
+        let step = 13.9 / 60.0;
+        let (mut raw, mut eased) = (Vec::new(), Vec::new());
+        let mut held: Option<f32> = None;
+        for frame in 0..600 {
+            let cam = Camera { position: DVec3::new(0.0, frame as f64 * step, 2.2), yaw: 0.0, pitch: -12.0, roll: 0.0, fov_deg: 60.0, near: 0.1, far: 1000.0 };
+            let at = cam.position.as_vec3();
+            let n = frame as f32;
+            let shift = Vec2::new((n * 0.754_877_7).fract(), (n * 0.569_840_3).fract());
+            let v = view_lamp_light(&lights, DVec3::ZERO, at, &cam, 16.0 / 9.0, Some(0.0), shift);
+            raw.push(view_lamp_light(&lights, DVec3::ZERO, at, &cam, 16.0 / 9.0, Some(0.0), Vec2::ZERO));
+            let dt = 1.0 / 60.0;
+            let e = match held {
+                Some(w) => {
+                    let (a, b) = (w.max(2e-6).ln(), v.max(2e-6f32).ln());
+                    let lim = VIEW_LAMPS_RATE * std::f32::consts::LN_2 * dt;
+                    (a + ((b - a) * (1.0 - (-dt / VIEW_LAMPS_TAU).exp())).clamp(-lim, lim)).exp()
+                }
+                None => v,
+            };
+            held = Some(e);
+            eased.push(e);
+        }
+        // the largest step from one frame to the next, in EV (a moonless night as the floor,
+        // which is the darkest the reading itself goes)
+        let worst = |v: &[f32]| {
+            v.windows(2)
+                .map(|w| (w[1].max(2e-6) / w[0].max(2e-6)).log2().abs())
+                .fold(0.0f32, f32::max)
+        };
+        let (was, now) = (worst(&raw), worst(&eased));
+        assert!(was > 0.2, "the street does not make the reading jump at all ({was:.3} EV): nothing to show");
+        assert!(now < 0.05, "eased still steps by {now:.3} EV a frame");
+        assert!(now < was * 0.25, "eased {now:.3} EV against {was:.3} EV as it was");
+        // and it still measures the street: the eased reading follows the raw one's level
+        let mean = |v: &[f32]| v.iter().sum::<f32>() / v.len() as f32;
+        let (mr, me) = (mean(&raw), mean(&eased));
+        assert!(me > mr * 0.5 && me < mr * 2.0, "eased {me:.6} against measured {mr:.6}");
     }
 
     /// A textured material can have black diffuse but white ambient (depot interiors).

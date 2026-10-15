@@ -384,9 +384,50 @@ impl Renderer {
         // unless it comes before the window's first frame)
         if enhanced && lead_view {
             let ground = lighting.fog_base.or(lighting.inside.map(|v| v.0.z)).map(|z| (z - scene.render_origin.z) as f32);
-            self.view_lamps = Some(view_lamp_light(&scene.lights, scene.render_origin, cam_rel, camera, aspect, ground));
+            // (the fork) The lamps in view are measured from thirty-five rays onto the
+            // street, and the measurement was taken as it stood. Thirty-five points are few:
+            // driving, they sweep over the road, and a point crossing the edge of a lamp's
+            // pool moves the whole reading at once. Measured over a night's drive it stood
+            // at exactly nothing in an eighth of the frames and rose over the district's own
+            // level in eighteen bursts of about four tenths of a second, by up to 0.29 EV -
+            // and it jumped 0.227 EV from one frame to the next. That is the picture
+            // blinking and glinting on the road near the lamp posts: the whole scene lifts
+            // for a moment and drops back.
+            //
+            // The grid is moved a little each frame, so the points do not sample the same
+            // places over and over, and the reading is eased over `VIEW_LAMPS_TAU` instead
+            // of being taken whole. Together they read as several hundred points for the
+            // cost of thirty-five, and nothing can step. The eye takes seconds to adapt
+            // anyway, so a quarter of a second of lag costs nothing. `OMSI_VIEW_LAMPS_EASE`
+            // sets the time (0 = neither, as it was, for comparing).
+            let tau = omsi_cfg::flags::OMSI_VIEW_LAMPS_EASE.parse::<f32>().unwrap_or(VIEW_LAMPS_TAU);
+            let shift = if tau > 0.0 {
+                self.view_lamps_tick = self.view_lamps_tick.wrapping_add(1);
+                // (the plastic-number sequence: every offset lands as far from the ones
+                // before it as it can, so a handful of frames already cover the cell evenly)
+                let n = self.view_lamps_tick as f32;
+                Vec2::new((n * 0.754_877_7).fract(), (n * 0.569_840_3).fract())
+            } else {
+                Vec2::ZERO
+            };
+            let seen = view_lamp_light(&scene.lights, scene.render_origin, cam_rel, camera, aspect, ground, shift);
+            self.view_lamps = Some(match self.view_lamps {
+                Some(was) if tau > 0.0 && f.dt > 0.0 && was.is_finite() && !self.instant_exposure => {
+                    // In the light's own terms, not in its number: the reading stands at a
+                    // moonless night's 2e-6 for an eighth of the frames of a drive, and from
+                    // there a step of a few per cent of the way is several stops. The eye
+                    // adapts that way too. And never faster than `VIEW_LAMPS_RATE`, which at
+                    // sixty frames a second is a fortieth of a stop a frame - far quicker
+                    // than any eye, and too little to see as a step whatever the reading does.
+                    let floor = 2e-6f32;
+                    let (a, b) = (was.max(floor).ln(), seen.max(floor).ln());
+                    let lim = VIEW_LAMPS_RATE * std::f32::consts::LN_2 * f.dt;
+                    (a + ((b - a) * (1.0 - (-f.dt / tau).exp())).clamp(-lim, lim)).exp()
+                }
+                _ => seen,
+            });
             if f.env.debug_view_lamps {
-                log::info!("view lamps: {:.6}", self.view_lamps.unwrap_or(0.0));
+                log::info!("view lamps: {:.6} (measured {seen:.6})", self.view_lamps.unwrap_or(0.0));
             }
         }
         // the night sky's glow from the lamps round the camera (the window's view leads), in

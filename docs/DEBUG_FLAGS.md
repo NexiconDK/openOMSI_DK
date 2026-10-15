@@ -329,6 +329,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_SURFACE_FLUSH` | num | 0.12 | once | app | Height in metres under which a surface counts as flush with the road. |
 | `OMSI_TEXTURE_MEMORY` | num | settings | use | app | Texture budget in MB. |
 | `OMSI_TONE_CONTRAST` | text | 1 | once | render | day[,night]: tone mapping contrast. |
+| `OMSI_VIEW_LAMPS_EASE` | num | 0.4 | use | render | Seconds the lamps in view are eased over for the night exposure (0 = take each frame's reading whole, as before the fork). |
 | `OMSI_WINDY_TREES` | text | settings | use | app | 0 or 1: trees in the wind off or on (A/B renders). |
 
 ## Set-up
