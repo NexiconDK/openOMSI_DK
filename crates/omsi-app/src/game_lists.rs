@@ -2828,7 +2828,9 @@ fn world_pages(app: &App) -> Vec<Page> {
         climate.extend(slider_row(app, "wind_dir", "Wind direction", "The direction of the wind in degrees (0 is north).", &|v| format!("{}°", v as i64)));
         // the METAR sync on: only its own rows stay (the weather is the report's)
         if app.metar_locked() {
-            weather.retain(|r| matches!(r.1.as_str(), "metar_sync" | "metar_src" | "metar_icao_edit" | "metar_refresh"));
+            // (the fork) the two storms stay: they lie over whatever weather is in force
+            // rather than changing it, so the report still decides the weather itself
+            weather.retain(|r| matches!(r.1.as_str(), "metar_sync" | "metar_src" | "metar_icao_edit" | "metar_refresh" | "snowstorm" | "thunder"));
             climate.clear();
         }
         tools.push(button("Object editor", "Open", "Place and move objects in the world.", "editor"));
