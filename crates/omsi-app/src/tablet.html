@@ -174,11 +174,19 @@
   /* (the fork) the plain login, where the player has no picture of the console: the screen
      the manual shows, without its owner's marks - the strip of buttons along the top with
      the date and the hour at its end, the two fields and the hint under them */
+  /* (the fork) the console's own strip of status cells, as the Rejsekort manual has it:
+     IFS-FM (which the buses do not use), two spare cells, then wi-fi, the signal, the
+     printer, the GPS, the card reader, the alarm and the help - and the date over the
+     hour at the end. The icons are drawn here; none of them is anybody's artwork. */
   #login.plain .strip { position: absolute; left: 0; top: 0; right: calc(124 * var(--u)); height: calc(63 * var(--u));
-    display: flex; border-bottom: 1px solid var(--line); background: #e9e9e9; }
+    display: flex; border-bottom: 1px solid #808080; background: #d9d9d9; }
   #login:not(.plain) .strip { display: none; }
-  #login .strip i { flex: 1; border-right: 1px solid #c4c4c4; background: #f6f6f6; }
-  #login .strip i.lit { background: #e3e8ea; }
+  #login .strip i { flex: 1; border-right: 1px solid #a9a9a9; background: #f0f0f0;
+    display: flex; align-items: center; justify-content: center; font-style: normal; }
+  #login .strip i svg { width: calc(34 * var(--u)); height: calc(34 * var(--u)); display: block; }
+  #login .strip i.green { background: #46b450; }
+  #login .strip i.ifs { font-size: calc(13 * var(--u)); font-weight: 700; color: #2f7d32;
+    line-height: 1; text-align: center; letter-spacing: 0; }
 </style>
 </head>
 <body>
@@ -193,7 +201,23 @@
     <div class="drawn u" id="l-hint" style="left:0;right:0;top:calc(558*var(--u));text-align:center"></div>
     <input id="driver" inputmode="numeric" style="left:calc(340*var(--u));top:calc(412*var(--u));width:calc(575*var(--u));height:calc(31*var(--u))">
     <input id="password" type="password" inputmode="numeric" style="left:calc(338*var(--u));top:calc(462*var(--u));width:calc(577*var(--u));height:calc(32*var(--u))">
-    <div class="strip drawn"><i></i><i></i><i></i><i></i><i class="lit"></i><i></i><i class="lit"></i><i></i><i class="lit"></i><i></i></div>
+    <div class="strip drawn">
+      <i class="ifs">IFS&#8209;<br>FM</i><i></i><i></i>
+      <i title="Wi-fi"><svg viewBox="0 0 24 24" fill="none" stroke="#37474f" stroke-width="2.2" stroke-linecap="round">
+        <path d="M3.5 9.5a13 13 0 0 1 17 0"/><path d="M6.5 13a8.5 8.5 0 0 1 11 0"/><path d="M9.5 16.4a4 4 0 0 1 5 0"/><circle cx="12" cy="19.6" r="1.3" fill="#37474f" stroke="none"/></svg></i>
+      <i title="Signal"><svg viewBox="0 0 24 24"><rect x="3" y="15" width="3.4" height="6" fill="#2e7d32"/><rect x="8.2" y="11.5" width="3.4" height="9.5" fill="#2e7d32"/>
+        <rect x="13.4" y="8" width="3.4" height="13" fill="#2e7d32"/><rect x="18.6" y="4" width="3.4" height="17" fill="#2e7d32"/></svg></i>
+      <i title="Printer"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="5" fill="#90a4ae"/><rect x="2.5" y="8" width="19" height="8.5" rx="1.2" fill="#78909c"/>
+        <rect x="6" y="14" width="12" height="7" fill="#eceff1" stroke="#546e7a" stroke-width="1"/><circle cx="18.6" cy="11" r="1.1" fill="#4caf50"/></svg></i>
+      <i class="green" title="GPS"><svg viewBox="0 0 24 24"><path d="M12 2.5c-3.6 0-6.5 2.9-6.5 6.5 0 4.9 6.5 12.5 6.5 12.5s6.5-7.6 6.5-12.5c0-3.6-2.9-6.5-6.5-6.5z" fill="#fff"/>
+        <circle cx="12" cy="9" r="2.7" fill="#2e7d32"/></svg></i>
+      <i title="Kortl&#230;ser"><svg viewBox="0 0 24 24"><rect x="7.5" y="2.5" width="9" height="19" rx="2.2" fill="#5c7cfa" stroke="#2f3d7a" stroke-width="1.2"/>
+        <circle cx="12" cy="9" r="2.6" fill="#bbdefb"/><rect x="9.5" y="14" width="5" height="1.6" fill="#bbdefb"/><rect x="9.5" y="17" width="5" height="1.6" fill="#bbdefb"/></svg></i>
+      <i class="green" title="Alarm"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
+        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg></i>
+      <i title="Hj&#230;lp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.6" fill="#1565c0"/>
+        <text x="12" y="17.2" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg></i>
+    </div>
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <button type="button" class="esc">ESC</button>
     <button type="submit" class="ok">OK</button>
