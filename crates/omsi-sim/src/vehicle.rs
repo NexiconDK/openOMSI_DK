@@ -960,6 +960,10 @@ pub struct VehicleInstance {
     pub contact: Option<std::sync::Arc<dyn crate::rigid::Ground>>,
     /// Vehicles coupled behind this one.
     pub trailers: Vec<TrailerPart>,
+    /// (the fork) How far the exhaust system has warmed up (0 stone cold, 1 at working
+    /// heat). A cold pipe in cold air makes a far denser plume, so this decides how much
+    /// the exhaust smokes (see `cold_exhaust_boost`).
+    pub exhaust_warm: f32,
     /// The vehicle's `[smoke]` particle systems (see `crate::particles`).
     pub particles: ParticleSet,
     /// How far each `[light_enh_2]` of the model (in order) has come on: its fading variable
@@ -1246,6 +1250,9 @@ impl VehicleInstance {
         };
         VehicleInstance {
             a_trans: OmsiFrames::default(),
+            // (the fork) a vehicle that has just been put on the road is cold: a bus taken
+            // over at a depot on a winter morning smokes until it has run a while
+            exhaust_warm: 0.0,
             particles: ParticleSet::new(ty.model.particle_systems(), std::ptr::addr_of!(host) as u64 ^ 0x9e37_79b9),
             light_fade: Vec::new(),
             v_springfactor,
@@ -2857,15 +2864,25 @@ impl VehicleInstance {
         for (t, f) in self.trailers.iter_mut().zip(part_fades) {
             t.light_fade = f;
         }
+        // (the fork) the exhaust system's own warmth, which decides how much it smokes
+        self.exhaust_warm = step_exhaust_warmth(self.exhaust_warm, dt, crate::startup::engine_running(self));
         // the particle systems ([smoke]: exhaust, boiling coolant, wheel spray) of the
         // vehicle and its coupled parts, which read the same scripts' variables
         if !self.particles.is_empty() || self.trailers.iter().any(|t| !t.particles.is_empty()) {
             let mut ps = std::mem::take(&mut self.particles);
             let mut parts: Vec<ParticleSet> = self.trailers.iter_mut().map(|t| std::mem::take(&mut t.particles)).collect();
+            // (the fork) how much the cold makes it smoke: the system warms while the
+            // engine runs and cools when it stops (`step_exhaust_warmth`)
+            let boost = cold_exhaust_boost(crate::host::ambient_weather().map(|(t, _)| t), self.exhaust_warm);
             {
                 // (each puff keeps the height of the road under it - the plane the wheels
                 // stand on - for the renderer to fade it out into, see `particles`)
-                let value = |n: &str| self.var(n).unwrap_or(0.0);
+                let value = |n: &str| {
+                    let v = self.var(n).unwrap_or(0.0);
+                    // (an exhaust's own variables only: a chimney or a boiling radiator is
+                    // no colder for the weather, and the wheels' spray is the rain's)
+                    if boost > 1.0 && is_exhaust_var(n) { v * boost } else { v }
+                };
                 ps.update_over(dt, self.position, self.body_rotation(), &|| self.particle_ground(), &value);
                 for (t, set) in self.trailers.iter().zip(parts.iter_mut()) {
                     set.update_over(dt, t.position, t.body_rotation(), &|| [-t.ground_lift(), 0.0, 0.0], &value);
@@ -6370,5 +6387,115 @@ mod winding_exporter_tests {
     #[test]
     fn forward_majority_keeps_existing_behaviour() {
         assert!(keep_authored_winding(80, 40, 1, 1));
+    }
+}
+
+/// (the fork) How long the exhaust system takes to warm through once the engine runs, and
+/// how long it takes to lose that heat again when it stops (s, as a first-order lag: about
+/// four minutes to two thirds of the way, a quarter of an hour to lose it).
+const EXHAUST_WARM_TAU: f32 = 240.0;
+const EXHAUST_COOL_TAU: f32 = 900.0;
+
+/// (the fork) The air at which the cold stops making any difference, and the air at which
+/// it makes all of it (°C).
+const EXHAUST_MILD_C: f32 = 10.0;
+const EXHAUST_FREEZING_C: f32 = -8.0;
+
+/// (the fork) How much denser a stone-cold exhaust smokes in the hardest cold: a little
+/// under half as many puffs again. A cold diesel on a winter morning does worse than this,
+/// but an exhaust that doubles reads as a fault rather than as the weather.
+const EXHAUST_COLD_EXTRA: f32 = 0.45;
+
+/// (the fork) The exhaust system's warmth after `dt` seconds (see
+/// [`VehicleInstance::exhaust_warm`]): it warms while the engine runs and loses it again
+/// when the engine stops.
+fn step_exhaust_warmth(had: f32, dt: f32, engine_running: bool) -> f32 {
+    let (to, tau) = if engine_running { (1.0, EXHAUST_WARM_TAU) } else { (0.0, EXHAUST_COOL_TAU) };
+    (had + (to - had) * (1.0 - (-dt.max(0.0) / tau).exp())).clamp(0.0, 1.0)
+}
+
+/// (the fork) What the exhaust's particles are multiplied by: 1 in mild air or once the
+/// system is through, more while both the air and the pipe are cold.
+///
+/// What one sees of an exhaust in winter is mostly the water in it condensing - the same
+/// thing as one's breath - and that happens the sooner the colder the air it mixes into.
+/// A cold system does worse again: the pipe takes the heat out of the gas instead of
+/// carrying it away, and a cold engine runs rich on top of that. Once it is warmed through
+/// the plume is the ordinary one, however cold the day. None of this touches how many
+/// particles an emitter may keep (`particles::MAX_PER_EMITTER`), so it cannot run away.
+fn cold_exhaust_boost(ambient_c: Option<f32>, warm: f32) -> f32 {
+    let Some(air) = ambient_c.filter(|t| t.is_finite()) else { return 1.0 };
+    let cold = ((EXHAUST_MILD_C - air) / (EXHAUST_MILD_C - EXHAUST_FREEZING_C)).clamp(0.0, 1.0);
+    1.0 + EXHAUST_COLD_EXTRA * cold * (1.0 - warm.clamp(0.0, 1.0))
+}
+
+/// (the fork) Whether a `[smoke]` variable is an exhaust's. OMSI's content names them in
+/// German almost without exception - the stock buses' emitter reads `auspuff_freq`,
+/// `auspuff_alpha`, `auspuff_vel` and `auspuff_leben` - so a chimney, a boiling radiator or
+/// a wheel's spray, which carry their own names or plain constants, are left alone.
+fn is_exhaust_var(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.contains("auspuff") || n.contains("exhaust") || n.contains("abgas")
+}
+
+#[cfg(test)]
+mod exhaust_tests {
+    use super::*;
+
+    /// (the fork) A cold exhaust in cold air smokes more; a warm one, or a mild day, is as
+    /// it always was.
+    #[test]
+    fn a_cold_exhaust_in_cold_air_smokes_more() {
+        // stone cold in a hard frost: the most it ever adds
+        let worst = cold_exhaust_boost(Some(-10.0), 0.0);
+        assert!((worst - 1.45).abs() < 1e-5, "{worst}");
+        // warmed through, it is the ordinary plume however cold the day
+        assert_eq!(cold_exhaust_boost(Some(-20.0), 1.0), 1.0);
+        // a mild day does nothing, cold or not
+        assert_eq!(cold_exhaust_boost(Some(12.0), 0.0), 1.0);
+        assert_eq!(cold_exhaust_boost(Some(25.0), 0.0), 1.0);
+        // and in between it follows both, without a step anywhere
+        let half_cold = cold_exhaust_boost(Some(1.0), 0.0);
+        assert!(half_cold > 1.2 && half_cold < 1.3, "{half_cold}");
+        assert!(cold_exhaust_boost(Some(-10.0), 0.5) < worst);
+        // a weather nobody has set yet changes nothing
+        assert_eq!(cold_exhaust_boost(None, 0.0), 1.0);
+        assert_eq!(cold_exhaust_boost(Some(f32::NAN), 0.0), 1.0);
+    }
+
+    /// (the fork) It warms through over minutes of running and loses it over a quarter of
+    /// an hour standing, rather than switching from one to the other.
+    #[test]
+    fn the_exhaust_warms_while_the_engine_runs_and_cools_when_it_stops() {
+        let run = |mut w: f32, secs: i32, running: bool| {
+            for _ in 0..secs * 10 {
+                w = step_exhaust_warmth(w, 0.1, running);
+            }
+            w
+        };
+        // a minute of running barely starts it; four minutes take it most of the way
+        assert!(run(0.0, 60, true) < 0.3);
+        let four = run(0.0, 240, true);
+        assert!(four > 0.6 && four < 0.7, "{four}");
+        assert!(run(0.0, 900, true) > 0.97);
+        // and it holds its heat for a good while with the engine off
+        assert!(run(1.0, 120, false) > 0.85);
+        assert!(run(1.0, 1800, false) < 0.15);
+        // it never leaves 0..1, whatever the step
+        assert_eq!(step_exhaust_warmth(1.0, 1e6, true), 1.0);
+        assert_eq!(step_exhaust_warmth(0.0, 1e6, false), 0.0);
+        assert_eq!(step_exhaust_warmth(0.5, 0.0, true), 0.5);
+    }
+
+    /// (the fork) Only an exhaust's own variables are touched.
+    #[test]
+    fn only_the_exhaust_variables_are_scaled() {
+        for n in ["auspuff_freq", "Auspuff_Alpha", "auspuff_leben", "exhaust_rate", "abgas_menge"] {
+            assert!(is_exhaust_var(n), "{n}");
+        }
+        // a chimney, a boiling radiator, a wheel's spray and the usual script names
+        for n in ["rauch_freq", "kuehler_dampf", "spray_freq", "schornstein", "engine_n", "freq"] {
+            assert!(!is_exhaust_var(n), "{n}");
+        }
     }
 }

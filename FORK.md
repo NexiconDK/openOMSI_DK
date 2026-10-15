@@ -82,6 +82,15 @@ Hvad der sker ved fuld styrke:
 
 `OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
 
+### Koldt vejr: tættere udstødning, mens systemet er koldt
+En kold udstødning i kold luft ryger mærkbart mere. Det, man ser af en udstødning om vinteren, er for det meste **vandet i den, der kondenserer** — præcis det samme som ens ånde — og det sker des hurtigere, jo koldere luften er, den blandes ind i. En kold udstødning gør det værre igen: røret tager varmen ud af gassen i stedet for at føre den væk, og en kold motor kører fed oveni.
+
+- **Udstødningens varme følges pr. køretøj.** Den stiger, mens motoren kører — cirka fire minutter til to tredjedele, et kvarter til helt igennem — og taber varmen igen over et kvarter, når motoren er slukket. Et køretøj, der lige er sat på vejen, er koldt: tager du bussen på en vinter­morgen i garagen, ryger den, indtil den har kørt et stykke.
+- **Luften afgør resten.** Over 10 °C sker der ingenting. Derunder vokser det jævnt, og ved -8 °C og koldere er det fuldt.
+- **Hvor meget:** en stenkold udstødning i hård frost giver knap halvdelen flere partikler (×1,45). En rigtig kold diesel gør det værre end det, men en udstødning, der fordobler sig, læses som en fejl på bussen i stedet for som vejret.
+- Er den først **kørt varm**, er fanen den ganske almindelige, uanset hvor koldt det er.
+- Det virker for både din egen bus og AI-trafikken, og det rører kun **udstødningens egne** partikler — en skorsten, en kogende køler eller hjulenes vandsprøjt bliver ikke koldere af vejret. Antallet af partikler pr. udsender har stadig sit loft, så det kan ikke løbe løbsk og koste FPS.
+
 ### Måne med faser i alle grafikindstillinger
 I **Enhanced** har der hele tiden været en rigtig måne: dens plads og fase regnes ud af datoen og kortets placering (testet mod fuldmånen 20. januar 2000 og nymånen 6. januar samme år), skiven tegnes med den rigtige skyggegrænse, så du ser en segl, og over en kvart måne kaster den endda skygger.
 
