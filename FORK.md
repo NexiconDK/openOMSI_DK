@@ -82,6 +82,37 @@ Hvad der sker ved fuld styrke:
 
 `OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
 
+### Lyn og torden
+OMSI 2's vejr har ikke tordenvejr. Nu er der lyn, torden og lysglimt, og de kommer **begge veje**: af sig selv i tordenvejr, eller på en kontakt du selv tænder.
+
+Af sig selv sker det, når
+
+- METAR-rapporten siger tordenvejr (`TS`, fx `TSRA` med regn eller `VCTS` i nærheden). Det læses nu ind fra rapporten — før blev det smidt væk.
+- det regner kraftigt (over 55 % og varmere end 3 °C). Et kraftigt byrd er tordenvejr oftere end ikke, og en vejrfil har ingen måde at sige det. Så kommer der et fjernt lyn nu og da.
+
+På en kontakt, i din .cmd før `openomsi.exe`:
+
+```
+set OMSI_THUNDER=on       ; tordenvejr lige over dig, uanset vejret
+set OMSI_THUNDER=0.4      ; et fjernere tordenvejr (0 til 1)
+set OMSI_THUNDER=off      ; aldrig lyn, uanset vejret
+set OMSI_THUNDER_LOG=1    ; skriv tordenvejret og lynene i loggen hvert 10. sekund
+```
+
+Standard er `auto`: vejret bestemmer.
+
+Hvad der sker:
+
+- **Lynet flimrer.** Et lyn er ikke ét glimt men 1-4 **genafladninger** ned gennem samme kanal inden for et tiendedel sekund. Hvert glimt stiger på få tusindedele af et sekund og dør på en tyvendedel. Det er derfor rigtige lyn *flimrer* i stedet for at blinke én gang.
+- **En tegnet lynkile.** Godt halvdelen af lynene er bag skyen — der ser man kun skybunden lyse op indefra, som de fleste lyn gør. De andre får en rigtig **forgrenet kile** tegnet på himlen: en hovedkanal, der vandrer ned fra skybunden med 11 trin, og en eller to **grene**, der skyder ud undervejs og ender i luften. Kernen er hvidglødende med et skær omkring.
+- **Verden lyses op fra lynets side.** Husene, vejen og bussen på den side, lynet stod, lyses mest op, og hele skybunden lyser bag dem, så intet bliver stående i mørke. Inde i bussen er glimtet dæmpet, fordi det kommer ind gennem ruderne.
+- **Et lyn om natten blænder.** Glimtet lægges oven på billedet i dets eget mål i stedet for at blive målt op mod scenen: ellers ville Enhanced' automatiske lysmåling jævne et natligt lyn væk — netop der hvor det er hele pointen. Om natten er glimtet 3 gange så kraftigt, fordi øjet er vænnet til mørket.
+- **Tordenen kommer bagefter.** Lyden går 343 m i sekundet, så et lyn 4 km væk høres **12 sekunder** senere. Det er i virkeligheden det, der gør, at man kan høre, om tordenvejret er langt væk eller lige over en.
+- **Skraldet laves i kode.** Der skal ingen lydfiler med. Torden er luften langs hele lynkanalen, der sprænges fra hinanden på én gang: den nære ende når øret først og den fjerne et sekund eller mere senere, så ét lyn høres som et knald fulgt af et rul. Det bygges netop sådan — et skud for den nære ende og en håndfuld spredt bagved — og køres gennem et lavpasfilter, for luften bærer kun de høje toner et kort stykke. Et lyn lige over dig **knalder** (2,6 sekunder, op til 3200 Hz); et 8 km væk er et **rul** på over 7 sekunder uden noget over et par hundrede hertz. Inde i bussen er det dæmpet og dumpere, som regnen er.
+- Lyn tælles i afstande fra **250 m til 14 km**. Et tordenvejr over dig slår ned hvert par sekunder og tæt på; et fjernt hvert halve minut og langt væk.
+
+Lynkilen koster kun noget at tegne, mens den brænder: himlen regner én prikprodukt pr. billedpunkt, og kun billedpunkter inde i den kegle, kilen ligger i, går kanalens punkter igennem.
+
 ### Sne på vejene, hjulspor og dækspor
 Fra openOMSI PR #1902 af **Bulekoo** (MIT-licens, med kredit).
 

@@ -283,7 +283,12 @@ fn enhanced_sky(in: VsOut) -> vec4<f32> {
     // the dome is drawn pre-exposed; the disc only a little over white: the eye's glare round
     // it is drawn from its light (fog_lamps.wgsl `sun_glare`), and from the disc's pixels
     // as well the glow would have counted it twice
-    return vec4<f32>(min(col * pre, vec3<f32>(4000.0)) + min(sun_px * pre, vec3<f32>(24.0)), 1.0);
+    // (the fork) the lightning: the cloud base lit from within and the channel burning on
+    // it, in the picture's own exposed terms (sky.wgsl `lightning_sky`) - so it is added
+    // beside the pre-exposed sky rather than scaled by the metering, which at night would
+    // have levelled a flash away to nothing
+    let flash = min(lightning_sky(d, cube.a) * 4.0, vec3<f32>(600.0));
+    return vec4<f32>(min(col * pre, vec3<f32>(4000.0)) + min(sun_px * pre, vec3<f32>(24.0)) + flash, 1.0);
 }
 
 // The mirrors of an Enhanced picture are drawn with the plain shading (lib.rs, the cost of

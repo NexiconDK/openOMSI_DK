@@ -64,11 +64,12 @@ impl App {
         *self.perf.profile.entry("lights.atlas").or_default() += __ta.elapsed().as_secs_f64();
         // the roads' and the roofs' built-up snow, its ruts and tracks
         // (`crate::scene::road_snow`)
-        let snow_dt = if self.paused { 0.0 } else { dt * self.time_speed() as f32 };
+        // the weather's own seconds this frame: the clock's speed, and none while paused
+        let weather_dt = if self.paused { 0.0 } else { dt * self.time_speed() as f32 };
         if let (Some(r), Some(cam), Some(scene)) = (self.renderer.as_ref(), self.camera.as_ref(), self.scene.as_mut()) {
             let v = scene::road_snow::vehicles(self.player.as_ref().map(|p| &p.vehicle), self.session.traffic.as_deref());
             let (p, view) = (self.player.as_ref(), &self.gfx.sim_view.traffic);
-            scene::road_snow::frame(r, snow_dt, self.session.weather.as_ref(), cam.position, self.session.traffic.as_ref().map(|t| &t.net), &v);
+            scene::road_snow::frame(r, weather_dt, self.session.weather.as_ref(), cam.position, self.session.traffic.as_ref().map(|t| &t.net), &v);
             scene::road_snow::show_roofs(r, scene, v.iter().map(|x| x.0), |k| {
                 if k == 0 {
                     p.map(|p| (&p.render, &p.trailer_renders[..]))
@@ -171,6 +172,10 @@ impl App {
                         }
                     }
                     let inside = self.cam.in_cab;
+                    // the lightning and its thunder (`crate::thunder`): the clap is heard
+                    // as many seconds later as the strike was hundreds of metres away, so
+                    // the strike is kept until its sound has got here
+                    crate::thunder::step(weather_dt, Some(wt), Some(a), inside);
                     let __tm = Instant::now();
                     amb.update(
                         a,

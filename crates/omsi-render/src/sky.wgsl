@@ -36,6 +36,13 @@ struct Camera {
     inside2_a: vec4<f32>,
     inside2_b: vec4<f32>,
     inside2_c: vec4<f32>,
+    // (the fork) lightning: xyz towards the flash (unit), w how bright it is now (0 between
+    // the strokes); the channel's cone (xyz its centre, w the cosine of its half angle,
+    // above 1 for no channel) and the channel's points themselves - directions from the
+    // camera, w the thickness in radians, negative on a branch's first point, 0 past the end
+    lightning: vec4<f32>,
+    bolt_cone: vec4<f32>,
+    bolt: array<vec4<f32>, 32>,
 };
 
 // A hash of a lattice point, from its integer bits.
@@ -229,6 +236,62 @@ fn vanilla_cloud_reach(d: vec3<f32>) -> vec2<f32> {
     return vec2<f32>(r, 1.0);
 }
 
+// (the fork) Lightning runs at some 25 000 K: a touch blue of white.
+const LIGHTNING_TINT = vec3<f32>(0.82, 0.88, 1.0);
+
+// (the fork) How much of a lightning channel the ray `d` passes through: 1 along its core,
+// falling away into the halo around it.
+//
+// The channel is held as a run of directions from the camera (see `omsi_render::Lightning`),
+// so this is the distance from the ray to the nearest of its segments, measured in the
+// channel's own thickness. Nothing is walked outside the cone the whole channel lies in,
+// which is all but a sliver of the sky: a pixel there pays one dot product. Nothing is
+// walked at all while no channel burns, which is nearly always.
+fn bolt_glow(d: vec3<f32>) -> f32 {
+    if (camera.bolt_cone.w > 1.0 || dot(d, camera.bolt_cone.xyz) < camera.bolt_cone.w) {
+        return 0.0;
+    }
+    var near = 1e9;
+    for (var i = 1; i < 32; i = i + 1) {
+        let b = camera.bolt[i];
+        if (b.w == 0.0) {
+            break;
+        }
+        // (a branch's first point: nothing is drawn into it from the end of what came before)
+        if (b.w < 0.0) {
+            continue;
+        }
+        let a = camera.bolt[i - 1];
+        let ab = b.xyz - a.xyz;
+        let t = clamp(dot(d - a.xyz, ab) / max(dot(ab, ab), 1e-12), 0.0, 1.0);
+        // (the points are unit directions, so their chord stands for the angle between them
+        // to within a part in a thousand over the degree or two a channel spans)
+        near = min(near, length(d - (a.xyz + ab * t)) / mix(abs(a.w), b.w, t));
+    }
+    // the core white hot, with a halo that reaches a dozen times its width
+    return exp(-near * near * 0.8) + 0.3 * exp(-near * 0.22);
+}
+
+// (the fork) The lightning on the sky: the cloud base lit from within on the side it struck,
+// and the channel burning across it where one can be seen.
+//
+// `cloud` is how much cloud the ray meets. A stroke is inside the cloud, so the cloud lights
+// up and the clear sky beside it only a little - which is what makes a flash read as a storm
+// overhead rather than as the whole dome being turned up.
+//
+// In the picture's own exposed terms (see shader.wgsl `lightning_light`): the Vanilla sky
+// takes it as it is and clips to white, which is what a flash does, and the Enhanced one
+// adds it beside its own pre-exposed terms.
+fn lightning_sky(d: vec3<f32>, cloud: f32) -> vec3<f32> {
+    let f = camera.lightning.w;
+    if (f <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    let side = max(dot(d, camera.lightning.xyz), 0.0);
+    let glow = (0.12 + 1.4 * side * side) * mix(0.3, 1.0, clamp(cloud, 0.0, 1.0));
+    return LIGHTNING_TINT * f * (glow + 25.0 * bolt_glow(d));
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let d = normalize(in.dir);
@@ -257,12 +320,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let fog = camera.fog.xyz;
     var col = select(sky, srgb_encode(sky), encoded);
     col = mix(col, fog, vanilla_haze(v));
+    var cloud = 0.0;
     if (reach.y > 0.5) {
         let c = vanilla_clouds(d, fog, ctex, reach.x, encoded);
         col = mix(col, c.rgb, c.a);
+        cloud = c.a;
     }
+    var out = col;
     if (encoded) {
-        return vec4<f32>(srgb_decode(col), 1.0);
+        out = srgb_decode(col);
     }
-    return vec4<f32>(col, 1.0);
+    // (the fork) the lightning, added in linear light whichever of the two terms the sky
+    // itself was blended in
+    return vec4<f32>(out + lightning_sky(d, cloud), 1.0);
 }

@@ -875,6 +875,9 @@ impl Offscreen<'_> {
             player.as_ref().map_or(camera.position, |p| p.vehicle.position),
         );
         scene::road_snow::frame(renderer, dt, Some(weather), eye, traffic.as_ref().map(|t| &t.net), &v);
+        // the lightning and its thunder, as the window's frame keeps them (no sound: an
+        // offscreen run has no audio engine)
+        crate::thunder::step(dt, Some(weather), None, false);
     }
 
     /// A snapshot due at `t_s` (`--snapshots`).

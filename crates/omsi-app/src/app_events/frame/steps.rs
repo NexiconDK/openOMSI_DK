@@ -450,6 +450,9 @@ pub(crate) fn picture_lighting(
     lighting.low_clouds = settings.cloud_quality == "low";
     // the roads' built-up snow, its ruts and tracks (`crate::scene::road_snow`)
     crate::scene::road_snow::light(&mut lighting);
+    // a stroke of lightning burning now (`crate::thunder`): after the daylight is in, which
+    // decides how much a flash blinds
+    crate::thunder::light(&mut lighting);
     lighting
 }
 

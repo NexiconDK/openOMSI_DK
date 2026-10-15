@@ -436,6 +436,8 @@ flags! {
     OMSI_TEST_WINE_DIR: Text, Test, Test, "-", "Plugin demo test: folder holding omsi-plugin-host.exe for Wine.";
     OMSI_TEXTURE_MEMORY: Num, Tuning, Use, "settings", "Texture budget in MB.";
     OMSI_TEXTURE_RAIN: Bool, Switch, Use, "off", "OMSI 2's own texture rain on the glass instead of the drops.";
+    OMSI_THUNDER: Text, Switch, Use, "auto", "Lightning and thunder: auto takes it from the weather (a METAR report with TS, or a heavy shower), off has none, on or a number 0..1 lays a storm of that strength over whatever the weather says.";
+    OMSI_THUNDER_LOG: Bool, Test, Use, "off", "With the lightning: log the storm, the strikes and the flash every ten seconds.";
     OMSI_TONE_CONTRAST: Text, Tuning, Once, "1", "day[,night]: tone mapping contrast.";
     OMSI_TOUCH: Bool, Test, Use, "off", "The on-screen touch controls on a computer.";
     OMSI_TRACE_AI: Text, Debug, Use, "-", "CSV: every AI car's pose, steering and speed every frame.";

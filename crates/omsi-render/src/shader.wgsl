@@ -35,6 +35,13 @@ struct Camera {
     inside2_a: vec4<f32>,
     inside2_b: vec4<f32>,
     inside2_c: vec4<f32>,
+    // (the fork) lightning: xyz towards the flash (unit), w how bright it is now (0 between
+    // the strokes); the channel's cone (xyz its centre, w the cosine of its half angle,
+    // above 1 for no channel) and the channel's points themselves - directions from the
+    // camera, w the thickness in radians, negative on a branch's first point, 0 past the end
+    lightning: vec4<f32>,
+    bolt_cone: vec4<f32>,
+    bolt: array<vec4<f32>, 32>,
 };
 
 // 1 when the point lies inside the player's vehicle (its [boundingbox], shrunk a little so
@@ -236,6 +243,25 @@ fn weather_outside_n(world: vec3<f32>, n: vec3<f32>, terrain: bool, surface: f32
     return select(0.0, 1.0, skin_x || skin_y || skin_z);
 }
 @group(0) @binding(0) var<uniform> camera: Camera;
+
+// (the fork) Lightning runs at some 25 000 K: a touch blue of white.
+const LIGHTNING_TINT = vec3<f32>(0.82, 0.88, 1.0);
+
+// (the fork) The light a burning stroke of lightning throws on a surface facing `n`: the
+// side it struck brightest, with the whole cloud base lighting up behind it so that nothing
+// facing away is left as it was. Zero whenever nothing burns, which is nearly always, so
+// every pixel of an ordinary frame pays one comparison for it.
+//
+// In the picture's own exposed terms, not in radiance: a flash is supposed to white out
+// whatever the eye had adapted to, and metered against the scene it would be levelled away
+// to nothing at night - where it is the whole point - and by day as well.
+fn lightning_light(n: vec3<f32>) -> vec3<f32> {
+    let f = camera.lightning.w;
+    if (f <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    return LIGHTNING_TINT * f * (0.2 + 0.8 * max(dot(n, camera.lightning.xyz), 0.0));
+}
 // Whether this pipeline draws alpha-tested materials (the only ones that may `discard`).
 // Pipelines of every other kind set it false, and the discard is compiled out: a fragment
 // function that can discard turns the GPU's early depth test off - on Apple's GPUs the
@@ -2201,6 +2227,9 @@ fn shade_vanilla(in: FsIn, puddle_weight: ptr<function, f32>, eye: vec3<f32>) ->
     // to mirror the sky, strongest where you look along it (the Fresnel sheen that makes a
     // wet street read as wet)
     let outside = weather_outside_n(in.world, n, material.extra.x > 0.5, in.params2.w);
+    // (the fork) a stroke of lightning lights the world from the side it struck. Dimmer
+    // inside a vehicle, where it comes in through the glass rather than straight down.
+    lit = lit + albedo * lightning_light(n) * mix(0.35, 1.0, outside);
     let wet = camera.shadow.w * material.params2.z * outside * (1.0 - clamp(camera.ambient.w, 0.0, 1.0));
     if (wet > 0.0) {
         let vdir = normalize(in.world - eye);

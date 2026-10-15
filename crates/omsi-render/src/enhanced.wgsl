@@ -1174,7 +1174,11 @@ fn shade_enhanced(in: FsIn, puddle_weight: ptr<function, vec2<f32>>, capture: bo
     // handrails either: without the ambient occlusion on it they glowed through there)
     let cabin_light = interior_lamps(in.world, n, in.params2.z);
     let cabin = sf.albedo * cabin_light * mix(1.0, ao, 0.85);
-    var rgb = (direct + ambient + lamps) * pre + cabin;
+    // (the fork) a stroke of lightning: the side it struck lights up. In the picture's own
+    // exposed terms, as the cabin's light is - metered against the scene a flash would be
+    // levelled away at night, where it is the whole point.
+    let flash = sf.albedo * lightning_light(n) * mix(1.0, ao, 0.5);
+    var rgb = (direct + ambient + lamps) * pre + cabin + flash;
     // A material's own emissive colour ([matl_allcolor], an .x's emissive) is the texture at
     // full brightness in Omsi.exe: shown at the screen's white, not scaled with the eye's
     // night adaptation - a texture lit that way by [matl_allcolor] glared at several times

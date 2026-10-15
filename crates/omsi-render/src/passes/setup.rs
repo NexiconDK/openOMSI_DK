@@ -395,6 +395,26 @@ impl Renderer {
                 Some((_, _, bb)) if lighting.inside.is_some() => [bb[3], bb[4], bb[5], 1.0],
                 _ => [0.0; 4],
             },
+            // (the fork) the lightning: the flash's side and strength, and the channel
+            // drawn on the sky (see `Lighting::lightning`, sky.wgsl `bolt_glow`)
+            lightning: match &lighting.lightning {
+                Some(l) => [l.dir.x, l.dir.y, l.dir.z, l.strength.max(0.0)],
+                None => [0.0, 0.0, 1.0, 0.0],
+            },
+            bolt_cone: match &lighting.lightning {
+                // (a cosine above 1 holds no direction at all: nothing is drawn)
+                Some(l) if !l.bolt.is_empty() => [l.cone.0[0], l.cone.0[1], l.cone.0[2], l.cone.1],
+                _ => [0.0, 0.0, 1.0, 2.0],
+            },
+            bolt: {
+                let mut b = [[0.0f32; 4]; BOLT_POINTS];
+                if let Some(l) = &lighting.lightning {
+                    for (slot, p) in b.iter_mut().zip(l.bolt.iter()) {
+                        *slot = *p;
+                    }
+                }
+                b
+            },
         };
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::bytes_of(&cu));

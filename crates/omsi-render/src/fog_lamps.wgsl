@@ -35,6 +35,12 @@ struct Camera {
     inside2_a: vec4<f32>,
     inside2_b: vec4<f32>,
     inside2_c: vec4<f32>,
+    // (the fork) the lightning and its channel: read by the sky and the scene (sky.wgsl
+    // `lightning_sky`, shader.wgsl `lightning_light`), here only so that this copy of the
+    // struct is the length of the buffer
+    lightning: vec4<f32>,
+    bolt_cone: vec4<f32>,
+    bolt: array<vec4<f32>, 32>,
 };
 @group(0) @binding(0) var<uniform> camera: Camera;
 

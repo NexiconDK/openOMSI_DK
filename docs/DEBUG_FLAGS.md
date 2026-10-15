@@ -215,6 +215,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_TABLET_PREVIEW` | text | - | test | app | Web IBIS preview test: the folder for the state it writes. |
 | `OMSI_TEST_CONTENT` | text | - | test | app, o3d | Content root for tests that need real OMSI content. |
 | `OMSI_TEST_WINE_DIR` | text | - | test | plugin | Plugin demo test: folder holding omsi-plugin-host.exe for Wine. |
+| `OMSI_THUNDER_LOG` | bool | off | use | app | With the lightning: log the storm, the strikes and the flash every ten seconds. |
 | `OMSI_TOUCH` | bool | off | use | app | The on-screen touch controls on a computer. |
 | `OMSI_TRIGGER_ALL` | bool | off | use | app | Check: fire every [mouseevent] of the model and compare the variables before and after. |
 | `OMSI_UI_PREVIEW` | text | target/ui-preview.png | use | app | Plugin UI preview test: the picture's path. |
@@ -303,6 +304,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_SHADOW_NEAR_EVERY_FRAME` | bool | off | frame | render | Redraw the near shadow map every frame. |
 | `OMSI_TERRAIN_ALIGN` | bool | off | use | app | Align the terrain to the splines again at load (A/B; Omsi.exe does not). |
 | `OMSI_TEXTURE_RAIN` | bool | off | use | app | OMSI 2's own texture rain on the glass instead of the drops. |
+| `OMSI_THUNDER` | text | auto | use | app | Lightning and thunder: auto takes it from the weather (a METAR report with TS, or a heavy shower), off has none, on or a number 0..1 lays a storm of that strength over whatever the weather says. |
 | `OMSI_TRACKIR_NATIVE` | text | on | use | app | 0 turns the native TrackIR interface off. |
 | `OMSI_TRAFFIC_ALL_GROUPS` | bool | off | use | app | Let restricted AI groups (aircraft, depot fleets) drive everywhere. |
 | `OMSI_TYRE_SUSPENSION` | bool | off | once | sim | The old suspension with wheel mass, tyre and bump stops (A/B). |

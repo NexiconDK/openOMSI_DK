@@ -76,6 +76,8 @@ mod settings;
 mod tablet;
 mod telemetry;
 mod threads;
+/// (the fork) Lightning and thunder: the flash, the channel on the sky and the clap.
+mod thunder;
 mod tiles;
 mod traffic;
 mod view_sync;

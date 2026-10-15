@@ -84,6 +84,17 @@ struct CameraUniform {
     inside2_a: [f32; 4],
     inside2_b: [f32; 4],
     inside2_c: [f32; 4],
+    /// (the fork) Lightning: xyz towards the flash (unit), w how bright it is at the eye
+    /// now, 0 while nothing burns (see `Lighting::lightning`). The sky and the world both
+    /// light up on that side.
+    lightning: [f32; 4],
+    /// The channel's cone: xyz its centre (unit), w the cosine of its half angle - above 1
+    /// where no channel is drawn, so a pixel outside it walks none of the points.
+    bolt_cone: [f32; 4],
+    /// The channel itself: its points as directions from the camera, w the thickness in
+    /// radians - negative on the first point of a branch (nothing is drawn into it), 0 past
+    /// the last point.
+    bolt: [[f32; 4]; BOLT_POINTS],
 }
 
 /// The period the sky's cloud patterns repeat with (m): 5 x the cloud field (14 km), 8 x
@@ -447,6 +458,34 @@ pub const SNOW_TRACK_TEXELS: u32 = 2048;
 pub const SNOW_TRACK_TILE: u32 = 256;
 pub const SNOW_TRACK_SIDE: f64 = 256.0;
 
+/// (the fork) The points of a lightning channel at most, the shaders' array (sky.wgsl
+/// `bolt_glow`): eleven segments of the main channel and one or two branches off it.
+pub const BOLT_POINTS: usize = 32;
+
+/// (the fork) A stroke of lightning as the picture draws it: the flash that lights the
+/// world and the sky, and the channel burning on the sky where one can be seen (a stroke
+/// behind the cloud lights it from within and has no channel).
+///
+/// The channel is held as directions from the camera rather than as places in the world: it
+/// is kilometres away and lasts a tenth of a second, so where the eye stands within that
+/// does not move it, and the sky shader has a direction to compare against and nothing to
+/// project.
+#[derive(Clone, Debug, Default)]
+pub struct Lightning {
+    /// Towards the flash (unit): the side of the world that lights up.
+    pub dir: Vec3,
+    /// How bright it is at the eye now: 0 between the strokes, around 1 for a stroke
+    /// overhead, less the farther off it struck.
+    pub strength: f32,
+    /// The channel: its points as directions from the camera, w the thickness in radians -
+    /// negative on the first point of a branch, so nothing is drawn into it. Empty for a
+    /// stroke with no channel to see. At most `BOLT_POINTS` long.
+    pub bolt: Vec<[f32; 4]>,
+    /// The cone the channel lies in: its centre (unit) and the cosine of its half angle, so
+    /// a pixel outside it need walk none of the points. Above 1 where there is no channel.
+    pub cone: ([f32; 3], f32),
+}
+
 /// The snow track field is left out of the camera group (and road_snow_off.wgsl drawn in
 /// its place): on OpenGL, where the scene's arrays may have no storage buffers to read and
 /// its sixteen texture units are full (see `sixteen_texture_units`), or with
@@ -747,6 +786,9 @@ pub struct Lighting {
     pub snow_ruts: f32,
     /// The snow track field holds the area around the camera (`set_snow_track_rows`).
     pub snow_tracks: bool,
+    /// (the fork) A stroke of lightning burning now: the flash and the channel drawn on the
+    /// sky. None while nothing burns, which is nearly always.
+    pub lightning: Option<Lightning>,
     /// Enhanced graphics: the physically based high-range renderer (enhanced.wgsl) with its
     /// computed sky, automatic exposure, glow and tone mapping (post.wgsl).
     pub enhanced: bool,
@@ -893,6 +935,7 @@ impl Default for Lighting {
             snow_fallen: 0.0,
             snow_ruts: 0.0,
             snow_tracks: false,
+            lightning: None,
             enhanced: false,
             classic: false,
             inside: None,
