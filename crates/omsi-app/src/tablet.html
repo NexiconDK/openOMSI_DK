@@ -35,15 +35,51 @@
     line-height: 1.2; font-size: calc(30 * var(--u)); font-variant-numeric: tabular-nums; font-weight: 700; }
   .clock .c-date { font-size: calc(21 * var(--u)); font-weight: 400; }
   .plain .clock { border-left: 1px solid #a9a9a9; border-bottom: 1px solid #808080; }
-  /* the bar along the bottom: what the keys do */
-  .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(60 * var(--u)); display: flex;
-    border-top: 1px solid var(--line); background: var(--paper); }
-  .foot button { min-width: calc(120 * var(--u)); padding: 0 calc(18 * var(--u)); font-size: calc(24 * var(--u));
-    border-right: 1px solid var(--line); }
-  .foot button.right { margin-left: auto; border-right: 0; border-left: 1px solid var(--line); }
-  .foot button:active, .key:active, .row:active { background: var(--pick); }
-  .body { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(60 * var(--u)); }
+  /* (the fork) the bar along the bottom is the console's own, as the Rejsekort manual has
+     it: ESC, Menu, Billetter, Linje, Betjening, the pram and the two arrows. The manual's
+     page 5 gives the colours their meaning - a white key can be pressed, a grey or a blue
+     one cannot, and the yellow one is the menu you are standing in. Menu, Billetter and
+     Betjening belong to the real console and not to this page, so they stand blue and grey
+     here, which is the console's own way of saying they lead nowhere. */
+  .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(84 * var(--u));
+    display: flex; gap: calc(4 * var(--u)); padding: calc(5 * var(--u)); background: #cfd6dc; }
+  .foot button { flex: 1; border: 1px solid #9aa3ab; border-radius: calc(4 * var(--u));
+    background: #e9ecee; font-size: calc(20 * var(--u)); font-weight: 700; color: #1b1b1b;
+    display: flex; align-items: center; justify-content: center; }
+  .foot button:disabled { cursor: default; }
+  .foot .esc { flex: 1.25; font-size: calc(26 * var(--u)); font-weight: 400; }
+  .foot .off { background: #ccd3d8; }
+  .foot .blue { background: #a3b4d2; }
+  .foot .now { background: #ecebc2; }
+  .foot .arrow { flex: 0 0 calc(100 * var(--u)); }
+  .foot .arrow svg, .foot .pram svg { width: calc(40 * var(--u)); height: calc(40 * var(--u)); display: block; }
+  .foot button:not(:disabled):active { background: var(--pick); }
+  .body { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u)); }
   h2 { margin: 0; font-weight: 400; font-size: calc(30 * var(--u)); }
+
+  /* (the fork) the console's list: six rows between the strip and the bar, a white row for
+     every line or trip and a pale blue-grey one for the slots left over */
+  .sheet { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u));
+    display: grid; grid-template-rows: repeat(6, 1fr); background: #d8e0e3;
+    border-top: 1px solid #6b7580; }
+  .sheet.two { grid-template-columns: repeat(2, 1fr); grid-auto-flow: row; }
+  .cell { background: #fff; border-right: 1px solid #6b7580; border-bottom: 1px solid #6b7580;
+    display: flex; align-items: center; text-align: left; padding: 0 calc(24 * var(--u));
+    font-size: calc(52 * var(--u)); font-weight: 700; color: #111; }
+  .cell.gap { background: #d8e0e3; cursor: default; }
+  .cell.mine { background: #ffe77f; }
+  .cell:not(.gap):active { background: var(--pick); }
+  .trip { background: #fff; border-bottom: 1px solid #6b7580; text-align: left;
+    padding: 0 calc(24 * var(--u)); display: flex; flex-direction: column; justify-content: center;
+    gap: calc(2 * var(--u)); color: #111; }
+  .trip .w { font-size: calc(26 * var(--u)); font-variant-numeric: tabular-nums; }
+  .trip .r { font-size: calc(42 * var(--u)); font-weight: 700; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .trip.pick { background: #ffe77f; }
+  .trip.past { color: #8a8a8a; }
+  .trip.driving { background: #cfe8cf; }
+  .trip:not(.gap):active { background: var(--pick); }
+  .trip.gap { background: #d8e0e3; cursor: default; }
 
   /* login: the picture with its two fields */
   #login { background: var(--paper) url("/tex/login.png") no-repeat 0 0 / 100% 100%; }
@@ -68,46 +104,28 @@
     width: calc(341 * var(--u)); }
   #login .drawn.hint { left: 0; right: 0; text-align: center; font-size: calc(26 * var(--u)); }
 
-  /* lines: big keys */
-  .keys { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(70 * var(--u)); bottom: calc(14 * var(--u));
-    overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(150 * var(--u)), 1fr));
-    gap: calc(14 * var(--u)); align-content: start; }
-  .key { height: calc(88 * var(--u)); border: calc(2 * var(--u)) solid var(--soft); border-radius: calc(4 * var(--u));
-    background: var(--field); font-size: calc(38 * var(--u)); font-weight: 700; }
-  .key.mine { background: var(--pick); border-color: var(--rail); }
-  .head { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(14 * var(--u));
-    display: flex; align-items: center; gap: calc(16 * var(--u)); }
   .note { color: var(--dim); }
-
-  /* trips */
-  .tabs { display: flex; gap: calc(8 * var(--u)); margin-left: auto; }
-  .tab { border: 1px solid var(--line); padding: calc(6 * var(--u)) calc(14 * var(--u)); font-size: calc(20 * var(--u));
-    max-width: calc(330 * var(--u)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tab.on { background: #000; color: #fff; }
-  .list { position: absolute; left: 0; right: 0; top: calc(70 * var(--u)); bottom: 0; overflow-y: auto;
-    border-top: 1px solid var(--line); }
-  .row { display: grid; width: 100%; text-align: left; align-items: center; height: calc(56 * var(--u));
-    grid-template-columns: calc(110 * var(--u)) calc(90 * var(--u)) 1fr calc(150 * var(--u));
-    padding: 0 calc(24 * var(--u)); border-bottom: 1px solid #d8d8d8; font-size: calc(23 * var(--u)); }
-  .row b { font-variant-numeric: tabular-nums; }
-  .row .to { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row .tour { text-align: right; color: var(--dim); font-size: calc(18 * var(--u)); }
-  .row.past { color: var(--dim); }
-  .row.driving { background: var(--pick); box-shadow: inset calc(5 * var(--u)) 0 0 var(--rail); }
   .plate { justify-self: start; background: #000; color: #fff; font-weight: 700; padding: 0 calc(10 * var(--u));
     border-radius: calc(3 * var(--u)); font-size: calc(21 * var(--u)); }
   .past .plate { background: var(--dim); }
 
-  /* the question before a trip is taken on */
-  .ask { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); display: none; align-items: center; justify-content: center; }
+  /* (the fork) the console's own question box, as the manual has it: a title bar with its
+     mark, the trip in the middle, and Ja and Nej across the whole foot of it */
+  .ask { position: absolute; inset: 0; background: rgba(0, 0, 0, .25); display: none; align-items: center; justify-content: center; }
   .ask.on { display: flex; }
-  .ask .box { width: calc(760 * var(--u)); background: var(--paper); border: calc(2 * var(--u)) solid #000; padding: calc(28 * var(--u)); }
-  .ask p { margin: calc(14 * var(--u)) 0 calc(26 * var(--u)); font-size: calc(26 * var(--u)); }
-  .ask .err { color: var(--early); min-height: 1.2em; font-size: calc(20 * var(--u)); margin: 0 0 calc(10 * var(--u)); }
-  .ask .btns { display: flex; gap: calc(16 * var(--u)); }
-  .ask .btns button { flex: 1; height: calc(80 * var(--u)); border: calc(2 * var(--u)) solid var(--soft); background: var(--field);
-    font-size: calc(30 * var(--u)); font-weight: 700; }
-  .ask .btns button.yes { background: var(--pick); border-color: var(--rail); }
+  .ask .box { width: calc(830 * var(--u)); background: #d6d8de; border: 1px solid #6b7580; padding: 0; }
+  .ask .ttl { background: #e4e6ea; border-bottom: 1px solid #6b7580; display: flex; align-items: center;
+    gap: calc(12 * var(--u)); padding: calc(7 * var(--u)) calc(16 * var(--u)); font-size: calc(30 * var(--u)); }
+  .ask .ttl svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); display: block; }
+  .ask .mid { padding: calc(44 * var(--u)) calc(26 * var(--u)) calc(56 * var(--u)); text-align: center; }
+  .ask .what { font-weight: 700; font-size: calc(27 * var(--u)); line-height: 1.35; white-space: pre-line; }
+  .ask p { margin: calc(32 * var(--u)) 0 0; font-weight: 700; font-size: calc(27 * var(--u)); }
+  .ask .err { color: var(--early); min-height: 1.2em; font-size: calc(21 * var(--u)); margin: calc(14 * var(--u)) 0 0; }
+  .ask .btns { display: flex; gap: calc(5 * var(--u)); padding: calc(5 * var(--u)); }
+  .ask .btns button { flex: 1; height: calc(78 * var(--u)); border: 1px solid #9aa3ab; background: #e9ecee;
+    font-size: calc(32 * var(--u)); font-weight: 700; }
+  .ask .btns button:active { background: var(--pick); }
+  .ask .btns button.lone { flex: 0 0 calc(200 * var(--u)); margin: 0 auto; }
 
   /* the duty */
   .left { position: absolute; left: calc(24 * var(--u)); top: calc(18 * var(--u)); width: calc(500 * var(--u)); bottom: calc(14 * var(--u)); }
@@ -255,9 +273,11 @@
       <div class="say" id="say"></div>
     </div>
     <div class="ask" id="wifi"><div class="box">
-      <h2 data-l="no_wifi_title">Ingen wi-fi</h2>
-      <p data-l="no_wifi">Konsollen har ingen wi-fi-forbindelse. Tryk OK for at forts&aelig;tte.</p>
-      <div class="btns"><button class="yes lone" id="wifi-ok">OK</button></div>
+      <div class="ttl"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
+        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg>
+        <span data-l="warning">Advarsel</span></div>
+      <div class="mid"><div class="what" data-l="no_wifi">Konsollen har ingen wi-fi-forbindelse. Tryk Ok for at forts&aelig;tte.</div></div>
+      <div class="btns"><button class="lone" id="wifi-ok">Ok</button></div>
     </div></div>
   </section>
 
@@ -283,33 +303,59 @@
         <text x="12" y="17.2" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg></i>
   </template>
 
+  <!-- (the fork) LINJEVALG, as the manual's page 9 has it: the lines two to a row, six rows
+       deep, and the arrows in the bar to leaf through them -->
   <section id="lines" class="screen">
-    <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
-    <div class="body">
-      <div class="head"><h2 data-l="pick_line"></h2></div>
-      <div class="keys" id="keys"></div>
-      <div class="empty" id="no-lines" hidden data-l="no_lines"></div>
-    </div>
-    <div class="foot"><button data-go="logout">ESC</button><button class="right" data-go="duty" data-l="duty"></button></div>
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="sheet two" id="keys"></div>
+    <div class="empty" id="no-lines" hidden data-l="no_lines"></div>
+    <div class="foot" data-foot></div>
   </section>
 
+  <!-- (the fork) TURVALG, as the manual's page 10 has it: the hour and the tour over the
+       two ends of the trip, the one the console suggests on yellow -->
   <section id="trips" class="screen">
-    <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
-    <div class="body">
-      <div class="head"><h2 id="trips-title"></h2><div class="tabs" id="tabs"></div></div>
-      <div class="list" id="trip-list"></div>
-      <div class="empty" id="no-trips" hidden data-l="no_trips"></div>
-    </div>
-    <div class="foot"><button data-go="lines">ESC</button><button class="right" data-go="duty" data-l="duty"></button></div>
-    <div class="ask" id="ask"><div class="box"><h2 data-l="start_q"></h2><p id="ask-what"></p><div class="err" id="ask-err"></div>
-      <div class="btns"><button class="yes" id="ask-yes" data-l="yes"></button><button id="ask-no" data-l="no"></button></div></div></div>
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="sheet" id="trip-list"></div>
+    <div class="empty" id="no-trips" hidden data-l="no_trips"></div>
+    <div class="foot" data-foot></div>
+    <div class="ask" id="ask"><div class="box">
+      <div class="ttl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1565c0"/>
+        <text x="12" y="17.4" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg>
+        <span data-l="question">Sp&oslash;rgsm&aring;l</span></div>
+      <div class="mid">
+        <div class="what" id="ask-what"></div>
+        <p data-l="start_q"></p>
+        <div class="err" id="ask-err"></div>
+      </div>
+      <div class="btns"><button id="ask-yes" data-l="yes"></button><button id="ask-no" data-l="no"></button></div>
+    </div></div>
   </section>
 
   <section id="duty" class="screen">
-    <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <div class="body" id="duty-body"></div>
-    <div class="foot"><button data-go="lines">ESC</button><button class="right" data-go="lines" data-l="lines"></button></div>
+    <div class="foot" data-foot></div>
   </section>
+
+  <!-- (the fork) the console's bar along the foot of every screen but the login -->
+  <template id="foot-keys">
+    <button class="esc" data-key="esc">ESC</button>
+    <button class="off" disabled>Menu</button>
+    <button class="blue" disabled>Billetter</button>
+    <button class="now" data-key="linje">Linje</button>
+    <button class="blue" disabled>Betjening</button>
+    <button class="off pram" disabled title="Barnevogn"><svg viewBox="0 0 24 24">
+      <path d="M5.4 8h9V5.4a2.8 2.8 0 0 1 2.8-2.8h1a2.8 2.8 0 0 1 2.8 2.8v6a3.2 3.2 0 0 1-3.2 3.2H8.6a3.2 3.2 0 0 1-3.2-3.2z" fill="#1b1b1b"/>
+      <path d="M5.5 8.2C5.2 5.4 4.4 3.6 2.2 3.4" fill="none" stroke="#1b1b1b" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="9" cy="19.6" r="2.5" fill="none" stroke="#1b1b1b" stroke-width="1.5"/>
+      <circle cx="18" cy="19.6" r="2.5" fill="none" stroke="#1b1b1b" stroke-width="1.5"/></svg></button>
+    <button class="arrow" data-key="up" title="Op"><svg viewBox="0 0 24 24"><path d="M12 3.4 20 12h-4.6v8.4H8.6V12H4z" fill="#111"/></svg></button>
+    <button class="arrow" data-key="down" title="Ned"><svg viewBox="0 0 24 24"><path d="M12 20.6 4 12h4.6V3.6h6.8V12H20z" fill="#111"/></svg></button>
+  </template>
   <div class="lost" id="lost">&#9888;</div>
 </div>
 <script>
@@ -318,7 +364,11 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const store = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
                 set(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} } };
-let state = null, labels = {}, screen = null, line = null, trips = [], dir = "", pick = null, failures = 0;
+let state = null, labels = {}, screen = null, line = null, lines = [], trips = [], pick = null, failures = 0;
+// (the fork) the console's list is six rows deep, the lines two to a row; the arrows in
+// the bar leaf through it, and `suggest` is the trip the console puts forward on yellow
+const PER = { lines: 12, trips: 6 };
+let page = { lines: 0, trips: 0 }, suggest = 0, nowS = 0;
 
 // the screen as large as the tablet allows, at 16:9
 function fit() {
@@ -341,9 +391,10 @@ function show(name) {
   if (name === "login") { padClose(); $("driver").value = ""; $("password").value = ""; }
 }
 
-// (the fork) the console's strip of status cells stands on the start-up screen as well as
-// on the login, so it is written once and put in both places
+// (the fork) the console's strip of status cells and its bar of keys stand on more than
+// one screen, so each is written once and put in every place it belongs
 document.querySelectorAll("[data-strip]").forEach((e) => e.appendChild($("strip-cells").content.cloneNode(true)));
+document.querySelectorAll("[data-foot]").forEach((e) => e.appendChild($("foot-keys").content.cloneNode(true)));
 
 function words() {
   // (a text the game has no word for keeps the one the page was written with)
@@ -412,10 +463,6 @@ $("login").addEventListener("submit", (e) => {
   show("lines");
 });
 document.querySelector("#login .esc").addEventListener("click", () => { padClose(); $("driver").value = ""; $("password").value = ""; });
-document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => {
-  if (b.dataset.go === "logout") { store.set("driver", null); return show("login"); }
-  show(b.dataset.go);
-}));
 
 async function getJson(url, opts) {
   const r = await fetch(url, Object.assign({ cache: "no-store" }, opts));
@@ -423,54 +470,91 @@ async function getJson(url, opts) {
   return r.json();
 }
 
+// the console writes the hour of departure out to the second
+function hms(s) {
+  const n = Math.round(s) % 86400, p = (v) => String(v).padStart(2, "0");
+  return `${p(Math.floor(n / 3600))}:${p(Math.floor(n / 60) % 60)}:${p(n % 60)}`;
+}
+function leaves(n, per) { return Math.max(1, Math.ceil(n / per)); }
+
 async function loadLines() {
   let v; try { v = await getJson("/lines"); } catch (e) { return; }
+  lines = v.lines || [];
+  page.lines = Math.min(page.lines, leaves(lines.length, PER.lines) - 1);
+  drawLines();
+}
+
+// LINJEVALG: the lines two to a row, six rows deep, the one being driven on yellow
+function drawLines() {
   const mine = state && state.duty ? state.duty.line : null;
-  $("keys").innerHTML = (v.lines || []).map((l) =>
-    `<button class="key${l.sign === mine ? " mine" : ""}" data-line="${esc(l.name)}">${esc(l.sign)}</button>`).join("");
-  $("no-lines").hidden = (v.lines || []).length > 0;
-  $("keys").querySelectorAll(".key").forEach((k) => k.addEventListener("click", () => { line = k.dataset.line; dir = ""; show("trips"); }));
+  const from = page.lines * PER.lines, shown = lines.slice(from, from + PER.lines);
+  let html = shown.map((l) =>
+    `<button class="cell${l.sign === mine ? " mine" : ""}" data-line="${esc(l.name)}">${esc(l.sign)}</button>`).join("");
+  for (let i = shown.length; i < PER.lines; i++) html += `<div class="cell gap"></div>`;
+  $("keys").innerHTML = html;
+  $("no-lines").hidden = lines.length > 0;
+  $("keys").querySelectorAll("[data-line]").forEach((k) =>
+    k.addEventListener("click", () => { line = k.dataset.line; page.trips = 0; show("trips"); }));
 }
 
 async function loadTrips(keep) {
   if (!line) return show("lines");
   let v; try { v = await getJson("/trips?line=" + encodeURIComponent(line)); } catch (e) { return; }
   trips = v.trips || [];
-  $("trips-title").textContent = `${labels.line ?? ""} ${v.sign ?? line}`;
-  // the directions: the trips' ends, the most common first
-  const count = {};
-  trips.forEach((t) => { count[t.to] = (count[t.to] || 0) + 1; });
-  const ends = Object.keys(count).sort((a, b) => count[b] - count[a]).slice(0, 3);
-  $("tabs").innerHTML = [["", labels.all ?? "*"], ...ends.map((e) => [e, "→ " + e])]
-    .map(([k, t]) => `<button class="tab${k === dir ? " on" : ""}" data-dir="${esc(k)}">${esc(t)}</button>`).join("");
-  $("tabs").querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { dir = b.dataset.dir; loadTrips(); }));
-  drawTrips(v.now_s, keep);
+  nowS = v.now_s;
+  drawTrips(keep);
 }
 
-function drawTrips(now, keep) {
-  const box = $("trip-list"), top = box.scrollTop;
-  const shown = trips.filter((t) => !dir || t.to === dir);
-  box.innerHTML = shown.map((t, i) => {
-    const past = t.arr_s < now;
-    return `<button class="row${past ? " past" : ""}${t.driving ? " driving" : ""}" data-i="${trips.indexOf(t)}">
-      <b>${esc(t.dep)}</b><span class="plate">${esc(t.sign)}</span>
-      <span class="to">${esc(t.from)} → ${esc(t.to)}</span><span class="tour">${esc(labels.tour)} ${esc(t.tour)}</span></button>`;
+// TURVALG: the hour and the tour over the two ends of the trip, the one the console puts
+// forward on yellow - the trip under way, or else the next one to leave
+function drawTrips(keep) {
+  if (!keep) {
+    let i = trips.findIndex((t) => t.driving);
+    if (i < 0) i = trips.findIndex((t) => t.arr_s >= nowS);
+    suggest = Math.max(0, i);
+    page.trips = Math.floor(suggest / PER.trips);
+  }
+  page.trips = Math.min(page.trips, leaves(trips.length, PER.trips) - 1);
+  const from = page.trips * PER.trips, shown = trips.slice(from, from + PER.trips);
+  let html = shown.map((t, i) => {
+    const at = from + i, mark = t.driving ? " driving" : at === suggest ? " pick" : "";
+    return `<button class="trip${mark}${t.arr_s < nowS ? " past" : ""}" data-i="${at}">
+      <span class="w">${esc(hms(t.dep_s))} - ${esc(t.tour)}</span>
+      <span class="r">${esc(t.from)} - ${esc(t.to)}</span></button>`;
   }).join("");
-  $("no-trips").hidden = shown.length > 0;
-  box.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => ask(trips[+r.dataset.i])));
-  if (keep) { box.scrollTop = top; return; }
-  // (from the trip under way or the next to leave)
-  const first = shown.findIndex((t) => t.driving) >= 0 ? shown.findIndex((t) => t.driving) : shown.findIndex((t) => t.arr_s >= now);
-  const row = box.children[Math.max(0, first)];
-  box.scrollTop = row ? Math.max(0, row.offsetTop - row.offsetHeight) : 0;
+  for (let i = shown.length; i < PER.trips; i++) html += `<div class="trip gap"></div>`;
+  $("trip-list").innerHTML = html;
+  $("no-trips").hidden = trips.length > 0;
+  $("trip-list").querySelectorAll("[data-i]").forEach((r) =>
+    r.addEventListener("click", () => ask(trips[+r.dataset.i])));
 }
 
 function ask(t) {
   pick = t;
-  $("ask-what").innerHTML = `<b>${esc(t.dep)}</b> &nbsp;<span class="plate">${esc(t.sign)}</span>&nbsp; ${esc(t.from)} → ${esc(t.to)}<br>
-    <span class="note">${esc(labels.tour)} ${esc(t.tour)} · ${esc(t.dep)} – ${esc(t.arr)}</span>`;
+  $("ask-what").textContent = `${hms(t.dep_s)} - ${t.tour}\n${t.from} - ${t.to}`;
   $("ask-err").textContent = "";
   $("ask").classList.add("on");
+}
+
+// (the fork) the console's bar: ESC steps back, Linje is the menu we stand in, and the
+// arrows leaf through the list. Menu, Billetter and Betjening belong to the real console
+// and not to this page, so they stand blue and grey, which is the console's own way of
+// saying a key leads nowhere.
+document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click", () => {
+  const k = b.dataset.key;
+  if (k === "esc") {
+    if (screen === "lines") { store.set("driver", null); return show("login"); }
+    return show("lines");
+  }
+  if (k === "linje") return show(screen !== "duty" && state && state.duty ? "duty" : "lines");
+  leaf(k === "down" ? 1 : -1);
+}));
+
+function leaf(d) {
+  if (screen === "lines") { page.lines = Math.max(0, Math.min(page.lines + d, leaves(lines.length, PER.lines) - 1)); return drawLines(); }
+  if (screen === "trips") { page.trips = Math.max(0, Math.min(page.trips + d, leaves(trips.length, PER.trips) - 1)); return drawTrips(true); }
+  const box = document.querySelector("#duty .stops");
+  if (box) box.scrollTop += d * box.clientHeight * 0.8;
 }
 $("ask-no").addEventListener("click", () => $("ask").classList.remove("on"));
 $("ask-yes").addEventListener("click", async () => {

@@ -308,7 +308,10 @@ fn labels() -> Value {
         "line": tr("Line"),
         "tour": tr("Tour"),
         "all": tr("All"),
-        "start_q": tr("Take on this trip?"),
+        // (the fork) the console's own wording when a trip is chosen
+        "start_q": tr("You have chosen this trip. Is that right?"),
+        "question": tr("Question"),
+        "warning": tr("Warning"),
         "yes": tr("Yes"),
         "no": tr("No"),
         "duty": tr("Duty"),
@@ -468,15 +471,18 @@ mod tests {
         for piece in PAGE.split(r#"data-l=""#).skip(1) {
             asked.push(piece.split('"').next().unwrap_or_default());
         }
-        // (the login's own three it asks for by name, not by the markup)
-        asked.extend(["starting", "updating", "driver", "password", "login_hint"]);
+        assert!(asked.len() >= 8, "only {} words asked for - has the page lost its texts?", asked.len());
+        // the ones the page's script asks for by name rather than through the markup
+        asked.extend([
+            "starting", "updating", "driver", "password", "login_hint", "lost",
+            "no_duty", "next_stop", "delay", "trip", "terminus",
+        ]);
         for key in &asked {
             assert!(!sent[key].is_null(), "the page asks for {key:?} and labels() has no such word");
         }
-        assert!(asked.len() >= 16, "only {} words asked for - has the page lost its texts?", asked.len());
-        // the start-up's own three, which the manual shows on page 7
-        for key in ["starting", "updating", "no_wifi"] {
-            assert!(asked.contains(&key), "the start-up screen lost {key:?}");
+        // and the screens the manual settles, so a rebuild cannot quietly drop one
+        for key in ["starting", "updating", "no_wifi", "question", "warning", "start_q"] {
+            assert!(asked.contains(&key), "the page lost {key:?}");
         }
     }
 
