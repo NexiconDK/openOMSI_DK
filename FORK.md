@@ -61,6 +61,10 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
   - Kører du mellem to, står der **Ankommet**. Tryk, inden dørene åbnes.
   - **Spring et stoppested over undervejs:** mens bussen ruller, kan du trykke på et stoppested længere nede i listen — så er det dét, bussen er på vej imod, og alt imellem bliver givet op uden betjening. Tryk derefter **Ankommet**.
   - Tryk på GPS'en igen, og feltet bliver grønt; vagten indhenter bussen af sig selv ved næste opdatering.
+- **Menu** (manualens side 17–21): **Menu**-tasten i bundbjælken åbner konsollens menu — blåt felt øverst og seks taster under. Tre af dem virker: **Lås konsol**, **Log ud** og **Chaufførskift**. Telebus, Indstil lyd og Vedligeholdelse hører til den rigtige konsol og står grå, altså "kan ikke vælges".
+  - **Lås konsol** låser konsollen ved korte pauser: skærmen skriver *Chaufførkonsollen er låst*, dit chaufførnummer står i et gråt felt, og du taster blot adgangskoden igen for at åbne — så er du tilbage, hvor du slap. **ESC** på den skærm er manualens chaufførskift.
+  - **Chaufførskift** sender dig til login-skærmen, men **linje og tur bliver stående** — den nye chauffør taster sit eget nummer og kører videre på samme vagt.
+  - **Log ud** logger ud og tømmer vagten fra siden (til når bussen er tilbage i garagen).
 - **Dine egne billeder:** læg login-billedet som **login.png** (1280 × 720) i mappen **WebIBIS** i din OMSI-mappe. Billedets øverste stribe bruges også som topbjælke på de andre skærme. Uden billede tegnes simple hvide skærme. Billederne følger ikke med spillet.
 
 ### Turoversigt
