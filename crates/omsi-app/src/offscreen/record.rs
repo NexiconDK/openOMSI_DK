@@ -95,6 +95,19 @@ impl Offscreen<'_> {
             view_sync::sync(ViewSync::traffic(t), &mut self.sim_view, &self.world, &self.renderer, &mut self.scene);
         }
         let cam = self.camera_now();
+        // the roofs' built-up snow on the vehicles this picture shows
+        let (p, view, keys) = (
+            self.player.as_ref(),
+            &self.sim_view.traffic,
+            scene::road_snow::vehicles(None, self.traffic.as_deref()).iter().map(|x| x.0).chain([0]).collect::<Vec<_>>(),
+        );
+        scene::road_snow::show_roofs(&self.renderer, &mut self.scene, keys, |k| {
+            if k == 0 {
+                p.map(|p| (&p.render, &p.trailer_renders[..]))
+            } else {
+                view.car(k - 1).map(|c| (&c.body, &c.trailers[..]))
+            }
+        });
         if let Some(h) = self.humans_off.as_mut() {
             view_sync::sync(ViewSync::people(h, None, cam.position), &mut self.sim_view, &self.world, &self.renderer, &mut self.scene);
         }

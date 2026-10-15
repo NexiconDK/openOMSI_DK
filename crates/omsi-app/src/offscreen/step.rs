@@ -842,6 +842,7 @@ impl Offscreen<'_> {
             ref mut spray,
             ref mut cabin_air,
             ref mut wetness,
+            ref renderer,
             ref traffic,
             ref player,
             ref camera,
@@ -868,6 +869,12 @@ impl Offscreen<'_> {
             steps::throw_spray(spray, dt, player.as_ref(), traffic.as_ref(), remotes_off, eye, steps::spray_wind(weather), world, spray_wet, crate::rain::quality());
         }
         *wetness = crate::weather_setup::road_wetness(precip_of(weather).1, dt as f64, *wetness);
+        // the roads' and the roofs' built-up snow, as the window's frame keeps it
+        let (v, eye) = (
+            scene::road_snow::vehicles(player.as_ref().map(|p| &p.vehicle), traffic.as_deref()),
+            player.as_ref().map_or(camera.position, |p| p.vehicle.position),
+        );
+        scene::road_snow::frame(renderer, dt, Some(weather), eye, traffic.as_ref().map(|t| &t.net), &v);
     }
 
     /// A snapshot due at `t_s` (`--snapshots`).

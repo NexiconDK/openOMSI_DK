@@ -438,6 +438,23 @@ fn smoke_sprite(p: &SmokeParticle, ro: DVec3) -> Option<GpuCorona> {
 pub const LM_ATLAS_TILES: u32 = 5;
 pub const LM_TILE_PX: u32 = 256;
 
+/// (from openOMSI's PR 1902, by Bulekoo) The snow track field (road_snow.wgsl): texels a
+/// side, and the metres it spans before it wraps around the world (12.5 cm a texel), in
+/// tiles of `SNOW_TRACK_TILE` texels a side. It is a storage buffer, tile after tile, each
+/// row after row, a texel an RGBA8 word: the scene's fragment stage reads sixteen textures
+/// already, the most a device gives by default.
+pub const SNOW_TRACK_TEXELS: u32 = 2048;
+pub const SNOW_TRACK_TILE: u32 = 256;
+pub const SNOW_TRACK_SIDE: f64 = 256.0;
+
+/// The snow track field is left out of the camera group (and road_snow_off.wgsl drawn in
+/// its place): on OpenGL, where the scene's arrays may have no storage buffers to read and
+/// its sixteen texture units are full (see `sixteen_texture_units`), or with
+/// `OMSI_GL_TEXTURE_UNITS` that tries that layout.
+pub(crate) fn snow_track_left_out(gl: bool) -> bool {
+    gl || omsi_cfg::flags::OMSI_GL_TEXTURE_UNITS.is_set()
+}
+
 /// A light corona sprite (`[light_enh]`, `[light_enh_2]`).
 #[derive(Debug, Clone, Copy)]
 pub struct Corona {
@@ -720,6 +737,16 @@ pub struct Lighting {
     /// The roads are kept clear of the snow (the weather's "snow on road" off): no cover is
     /// laid on road surfaces.
     pub roads_clear: bool,
+    /// (from openOMSI's PR 1902) Snow that builds up on the carriageways (0..1, see
+    /// road_snow.wgsl): it takes the place of the on/off `roads_clear` while it is set.
+    pub road_snow: Option<f32>,
+    /// The snow fallen since the start, in thousandths of a full road cover: a tyre track
+    /// fills as more falls on it (see `set_snow_track_rows`).
+    pub snow_fallen: f64,
+    /// How deep the ruts of the lanes' wheel tracks show in the roads' snow (0..1).
+    pub snow_ruts: f32,
+    /// The snow track field holds the area around the camera (`set_snow_track_rows`).
+    pub snow_tracks: bool,
     /// Enhanced graphics: the physically based high-range renderer (enhanced.wgsl) with its
     /// computed sky, automatic exposure, glow and tone mapping (post.wgsl).
     pub enhanced: bool,
@@ -862,6 +889,10 @@ impl Default for Lighting {
             wetness: 0.0,
             snow: 0.0,
             roads_clear: false,
+            road_snow: None,
+            snow_fallen: 0.0,
+            snow_ruts: 0.0,
+            snow_tracks: false,
             enhanced: false,
             classic: false,
             inside: None,
@@ -1303,6 +1334,9 @@ pub struct Instance {
     /// it. (Only the vehicle the camera is in was spared, by its box; every other bus showed
     /// its saloon under snow through the windows.)
     pub roof: Option<f32>,
+    /// (from openOMSI's PR 1902) How much snow lies on the roof of this instance's vehicle
+    /// (0..1): it rides in the surface code's ten thousands, see `instance_entries`.
+    pub roof_snow: f32,
     /// Drawn with every slot in model order among the blended draws, as Omsi.exe draws a
     /// model: mesh after mesh, each material subset with its own states and depth write
     /// (0x7c32c4 -> 0x7fd6c4, DrawSubset), not its opaque parts first. Set on the models
@@ -1860,7 +1894,31 @@ fn camera_layout_entries(path: ArrayPath, omit_enhanced: bool) -> Vec<wgpu::Bind
                 },
                 count: None,
             },
+            // the snow track field around the camera (road_snow.wgsl), and its place
+            wgpu::BindGroupLayoutEntry {
+                binding: 20,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 21,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
     ];
+    if sixteen_texture_units() || snow_track_left_out(gl_backend()) {
+        camera_entries.retain(|e| e.binding != 20);
+    }
     // the point lights and their grid (see `ArrayPath::NoStorage`)
     if path != ArrayPath::NoStorage {
         camera_entries.push(array_layout_entry_on(path, 3, wgpu::ShaderStages::FRAGMENT, true));
@@ -2250,6 +2308,10 @@ pub struct Renderer {
     lm_atlas_view: wgpu::TextureView,
     lm_uniform: wgpu::Buffer,
     lm_place: std::cell::Cell<(f64, f64, f64)>,
+    /// The ruts and tyre tracks in the roads' snow around the camera, and its place
+    /// (road_snow.wgsl, `set_snow_track_rows`).
+    snow_track: wgpu::Buffer,
+    snow_track_uniform: wgpu::Buffer,
     /// Mipmap generation on the GPU (a blit per level).
     mip_pipeline: wgpu::RenderPipeline,
     mip_layout: wgpu::BindGroupLayout,
@@ -3117,6 +3179,8 @@ impl Renderer {
             lm_atlas_view: scene.lm_atlas.create_view(&wgpu::TextureViewDescriptor::default()),
             lm_atlas: scene.lm_atlas,
             lm_uniform: scene.lm_uniform,
+            snow_track: scene.snow_track,
+            snow_track_uniform: scene.snow_track_uniform,
             lm_place: std::cell::Cell::new((0.0, 0.0, 0.0)),
             hdr_targets: HashMap::new(),
             puddles,
@@ -4902,6 +4966,7 @@ impl Renderer {
             casts_shadow: true,
             shadow_owner: None,
             roof: None,
+            roof_snow: 0.0,
         });
         if scene.bounds_known.get(mesh).copied().unwrap_or(false) {
             scene.bounds_users.push(scene.instances.len() - 1);
@@ -4957,6 +5022,7 @@ impl Renderer {
             casts_shadow: false,
             shadow_owner: None,
             roof: None,
+            roof_snow: 0.0,
         });
         if scene.bounds_known.get(mesh).copied().unwrap_or(false) {
             scene.bounds_users.push(scene.instances.len() - 1);
@@ -5062,7 +5128,32 @@ impl Renderer {
         }
     }
 
-    /// The vehicle roof height of an instance (see [`Instance::roof`]).
+    /// (from openOMSI's PR 1902) How much snow lies on the roof of an instance's vehicle
+    /// (0..1): it rides in the surface code's ten thousands (road_snow.wgsl `vehicle_snow`).
+    pub fn set_roof_snow(&self, scene: &mut Scene, instance: usize, snow: f32) {
+        if let Some(i) = scene.instances.get_mut(instance) {
+            // (a fortieth: the steps the shader tells apart)
+            if (i.roof_snow - snow).abs() >= 0.0125 {
+                i.roof_snow = snow;
+                Self::mark_changed(scene, instance);
+            }
+        }
+    }
+
+    /// Write whole rows of a tile of the snow track field (road_snow.wgsl): tile `tile`
+    /// (column + row x tiles a side), its rows from `row` on, `rgba` holding them (each
+    /// `SNOW_TRACK_TILE` texels of 4 bytes; rows along world y, see the shader).
+    pub fn set_snow_track_rows(&self, tile: u32, row: u32, rgba: &[u8]) {
+        let per_side = SNOW_TRACK_TEXELS / SNOW_TRACK_TILE;
+        let row_bytes = (SNOW_TRACK_TILE * 4) as usize;
+        let rows = (rgba.len() / row_bytes) as u32;
+        if tile >= per_side * per_side || rows == 0 || row + rows > SNOW_TRACK_TILE {
+            return;
+        }
+        let offset = ((tile * SNOW_TRACK_TILE + row) * SNOW_TRACK_TILE * 4) as u64;
+        self.queue.write_buffer(&self.snow_track, offset, &rgba[..rows as usize * row_bytes]);
+    }
+
     pub fn set_roof(&self, scene: &mut Scene, instance: usize, roof: Option<f32>) {
         if let Some(i) = scene.instances.get_mut(instance) {
             if i.roof != roof {
@@ -5969,7 +6060,10 @@ impl Renderer {
                 // below -500 a vehicle part, -(5000 + the roof height relative to origin)
                 if let Some(roof) = i.roof.filter(|_| !i.blob && !i.surface) {
                     let z = (i.origin - ro).z as f32 + i.transform.transform_point3(Vec3::new(0.0, 0.0, roof)).z;
-                    -(5000.0 + z.clamp(-4000.0, 4000.0))
+                    // (from openOMSI's PR 1902) the snow on the roof, 0..40, in the code's
+                    // ten thousands: road_snow.wgsl `vehicle_snow`
+                    let snow = (i.roof_snow.clamp(0.0, 1.0) * 40.0).round();
+                    -(5000.0 + z.clamp(-4000.0, 4000.0) + 10000.0 * snow)
                 } else {
                     surface_instance_code(
                         i.blob,
@@ -6226,7 +6320,18 @@ impl Renderer {
                     binding: 19,
                     resource: self.lm_uniform.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 20,
+                    resource: self.snow_track.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 21,
+                    resource: self.snow_track_uniform.as_entire_binding(),
+                },
         ];
+        if sixteen_texture_units() || snow_track_left_out(gl_backend()) {
+            entries.retain(|e| e.binding != 20);
+        }
         // (the point lights where the device has storage buffers for them)
         if array_path() != ArrayPath::NoStorage {
             entries.push(wgpu::BindGroupEntry { binding: 3, resource: light_buf.binding() });
@@ -8565,6 +8670,14 @@ fn scene_shader_text(gl: bool) -> String {
     let src = [
         include_str!("colour.wgsl"),
         include_str!("shader.wgsl"),
+        // (from openOMSI's PR 1902) the roads' built-up snow, its ruts and the tyres'
+        // tracks - left out where the device has no storage buffer or texture unit for
+        // its field, and the weather's on/off "snow on road" stands as before
+        if snow_track_left_out(gl) || sixteen_texture_units() {
+            include_str!("road_snow_off.wgsl")
+        } else {
+            include_str!("road_snow.wgsl")
+        },
         include_str!("enhanced_common.wgsl"),
         include_str!("puddle_common.wgsl"),
         include_str!("lamp_air.wgsl"),

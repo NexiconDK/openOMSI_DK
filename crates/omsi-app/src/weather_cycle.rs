@@ -67,6 +67,9 @@ pub fn lerp(a: &Weather, b: &Weather, k: f32) -> Weather {
         ground_wet: [m(a.ground_wet[0], b.ground_wet[0]), m(a.ground_wet[1], b.ground_wet[1]), m(a.ground_wet[2], b.ground_wet[2])],
         snow: if late { b.snow } else { a.snow },
         snow_on_road: if late { b.snow_on_road } else { a.snow_on_road },
+        // (a storm thunders through the whole change, whether it is coming in or going out:
+        // switched at the halfway mark it would fall silent while the cloud is still there)
+        thunder: a.thunder || b.thunder,
     }
 }
 

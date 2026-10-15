@@ -82,6 +82,36 @@ Hvad der sker ved fuld styrke:
 
 `OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
 
+### Sne på vejene, hjulspor og dækspor
+Fra openOMSI PR #1902 af **Bulekoo** (MIT-licens, med kredit).
+
+Før var vejrets "sne på vejen" en kontakt: vejbanen var hvid eller bar fra det ene øjeblik til det andet, og kortets `WinterSnowfall`-billeder fulgte med. Nu har vejene deres eget snelag:
+
+- **Sneen lægger sig, mens det sner.** Den starter, som vejret har den, og vokser, mens det sner: et kraftigt snefald (Starker Schneefall) lukker en vej i cirka **10 minutter**. Den smelter igen, når luften er over 0,5 °C, og hurtigere i regn.
+- **Den lægger sig i pletter** først — en let fnugning i pletter på en meter eller to og i asfaltens korn — og lukker sig, efterhånden som der falder mere.
+- **Hjulspor:** trafikken holder to striber i hver vejbane nede i **våd sjap**, som er mørkere og blankere end sneen ved siden af. Sporene ligger ikke på en skinne: de vandrer en håndsbredde, bliver bredere og smallere langs vejen og er slidt dybere nogle steder. En travl gade har friske spor, en stille vej (en busbane, en endestationssløjfe) er halvt fyldt igen.
+- **Dækspor:** hvert køretøj inden for **110 m** af kameraet presser sine dæk ned i sneen — din egen bus og alle AI-biler. Sporet er fladt og gråt med mønsterets korn, og har bløde kanter.
+- **Sporene fyldes igen** af den sne, der falder, efter at hjulet kørte: et dæksporn begynder at sløres efter 8 % af et fuldt lag og er væk ved 28 %, et hjulspor fra 15 % til 52 %. I kraftig sne er det et par minutter for et dækspor og fem-syv for et hjulspor — holder du stille ved et stoppested længe nok, kan du se det ske.
+- **Sne på tagene:** hvert køretøj nær kameraet samler sne på taget. Den lægger sig i pletter først og bliver et lukket lag. Kører du hurtigt, **blæser luftstrømmen den af**: cirka 400 m ved 50 km/h, 200 m ved 80. Den smelter sammen med vejens sne. Mængden rider med i køretøjets eget mesh, så pletterne følger bussen i stedet for at ligge stille i verden.
+
+Feltet med spor er en **256 m firkant** omkring kameraet (12,5 cm pr. punkt), der går rundt om verden, så kun de felter, kameraet kører ind i, skrives om. Hjulsporene tegnes forfra, når vejnettet er holdt op med at vokse (nye felter kommer med deres vejbaner nogle få ad gangen).
+
+Hvad der ikke sker:
+
+- Vælger du grafikken **Vanilla (klassisk)**, sker der ingenting: der viser spillet sne som OMSI 2 gennem kortets egne `WinterSnow`-billeder. Med sneen slået til tages kortets `WinterSnowfall`-vejbilleder ikke.
+- På **OpenGL** (og på kort, hvor der ikke er en tekstur-plads tilbage) ligger sporfeltet ikke på kortet, og vejene er som før.
+
+Indstillinger, i din .cmd før `openomsi.exe`:
+
+```
+set OMSI_ROAD_SNOW=off      ; tilbage til vejrets gamle kontakt
+set OMSI_ROAD_SNOW=0.5      ; start med et halvt lag på vejene
+set OMSI_ROAD_SNOW_GRID=1   ; tegn et 4 m gitter i feltet i stedet for hjulsporene
+set OMSI_ROAD_SNOW_LOG=1    ; skriv lagets tykkelse og vejret i loggen hvert 10. sekund
+```
+
+Standard er `on`: sneen begynder, som vejrfilen siger, og vokser og smelter derfra.
+
 ### Lys
 - Forlygterne fra en bus eller bil bag dig (andre spillere og AI) lyser ikke længere igennem din bus ind på forruden, instrumentbrættet og kabinen, når du sidder i førerhuset (grafik: Enhanced og Enhanced+).
 - Det gælder nu alle lygter på andre køretøjer (også deres positionslys og de forenklede lygter), og også med grafikken Vanilla og Vanilla+.

@@ -45,6 +45,8 @@ mod vehicles;
 mod vehicle_damage;
 mod lanes;
 mod season_looks;
+/// (from openOMSI's PR 1902) The roads' built-up snow, its ruts and the tyres' tracks.
+pub(crate) mod road_snow;
 
 pub(crate) use staging::*;
 pub(crate) use batching::*;

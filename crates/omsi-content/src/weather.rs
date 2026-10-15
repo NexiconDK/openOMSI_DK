@@ -20,6 +20,10 @@ pub struct Weather {
     pub ground_wet: [f32; 3],
     pub snow: bool,
     pub snow_on_road: bool,
+    /// A thunderstorm: `TS` in a METAR report (`TSRA` one with rain, `VCTS` one in the
+    /// vicinity), or `[thunder]` in a `.owt` preset. OMSI 2's weather has no thunder of its
+    /// own, so nothing reads this but the lightning (see omsi-app's `thunder.rs`).
+    pub thunder: bool,
 }
 
 impl Weather {
@@ -46,6 +50,7 @@ impl Weather {
                 "groundwet" => w.ground_wet = r.f32s::<3>(),
                 "snow" => w.snow = true,
                 "snowonroad" => w.snow_on_road = true,
+                "thunder" => w.thunder = true,
                 _ => {}
             }
         }
@@ -156,6 +161,13 @@ pub fn from_metar(station: &str, text: &str) -> Weather {
             Some('+') => (230.0, &t[1..]),
             _ => (150.0, t),
         };
+        // a thunderstorm: `TS` is the descriptor, right after the intensity or `VC` (so
+        // `TSRA` is a storm with rain, `+TSRA` a heavy one, `VCTS` one in the vicinity with
+        // nothing falling at the station). The remarks, where `TSNO` says the station has no
+        // thunder sensor, are never reached: the loop breaks at `RMK`.
+        if rest.strip_prefix("VC").unwrap_or(rest).starts_with("TS") {
+            w.thunder = true;
+        }
         let rest = rest.trim_start_matches("VC").trim_start_matches("SH").trim_start_matches("TS").trim_start_matches("FZ");
         let kind = if rest.starts_with("SN") || rest.starts_with("SG") || rest.starts_with("PL") { Some(2.0) } else if rest.starts_with("RA") || rest.starts_with("DZ") || rest.starts_with("GR") || rest.starts_with("GS") { Some(1.0) } else { None };
         if let Some(k) = kind {
@@ -213,5 +225,35 @@ mod metar_tests {
         assert_eq!(c.temp.0, -3.0);
         let s = super::from_metar("EDDT", "EDDT 241250Z 30012G25KT 1200 +SN VV008 M02/M03 Q1005");
         assert!(s.snow && s.precip[0] == 2.0 && s.fog.0 == 1200.0);
+        assert!(!w.thunder && !c.thunder && !s.thunder);
+    }
+
+    /// `TS` is read as a thunderstorm wherever the grammar puts it, and nothing else is.
+    #[test]
+    fn thunder_from_the_descriptor() {
+        // a storm with rain, heavy, and one in the vicinity with nothing falling here
+        for m in ["EDDT 241250Z 23008KT 4000 TSRA BKN012 18/15 Q0997", "EDDT 241250Z 23008KT 2000 +TSRA BKN012 18/15 Q0997", "EDDT 241250Z 23008KT 9999 VCTS SCT030 18/15 Q0997"] {
+            assert!(super::from_metar("EDDT", m).thunder, "{m}");
+        }
+        // a storm with rain still rains, heavily with a +
+        let r = super::from_metar("EDDT", "EDDT 241250Z 23008KT 2000 +TSRA BKN012 18/15 Q0997");
+        assert_eq!((r.precip[0], r.precip[1]), (1.0, 230.0));
+        // one in the vicinity brings no rain to the station
+        assert_eq!(super::from_metar("EDDT", "EDDT 241250Z 23008KT 9999 VCTS SCT030 18/15 Q0997").precip[0], 0.0);
+        // `TSNO` (no thunder sensor) stands in the remarks, which the reader never reaches
+        assert!(!super::from_metar("KJFK", "KJFK 241251Z 23008KT 10SM BKN012 18/15 A2992 RMK AO2 TSNO").thunder);
+        // showers and freezing rain are not thunder, nor is a plain shower of snow
+        for m in ["EDDT 241250Z 23008KT 4000 SHRA BKN012 08/05 Q0997", "EDDT 241250Z 23008KT 4000 FZRA BKN012 M01/M02 Q0997", "EDDT 241250Z 23008KT 4000 -SHSN BKN012 M01/M02 Q0997"] {
+            assert!(!super::from_metar("EDDT", m).thunder, "{m}");
+        }
+    }
+
+    /// A `.owt` preset may ask for a thunderstorm of its own.
+    #[test]
+    fn thunder_from_a_preset() {
+        let cfg = omsi_cfg::CfgFile::from_str("storm.owt", "[name]\r\nGewitter\r\n[thunder]\r\n");
+        assert!(super::Weather::parse(&cfg).thunder);
+        let plain = omsi_cfg::CfgFile::from_str("x.owt", "[name]\r\nHeiter\r\n");
+        assert!(!super::Weather::parse(&plain).thunder);
     }
 }
