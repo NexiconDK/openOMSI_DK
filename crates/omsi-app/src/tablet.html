@@ -54,7 +54,6 @@
   .foot .arrow { flex: 0 0 calc(100 * var(--u)); }
   .foot .arrow svg, .foot .pram svg { width: calc(40 * var(--u)); height: calc(40 * var(--u)); display: block; }
   .foot button:not(:disabled):active { background: var(--pick); }
-  .body { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u)); }
   h2 { margin: 0; font-weight: 400; font-size: calc(30 * var(--u)); }
 
   /* (the fork) the console's list: six rows between the strip and the bar, a white row for
@@ -80,6 +79,33 @@
   .trip.driving { background: #cfe8cf; }
   .trip:not(.gap):active { background: var(--pick); }
   .trip.gap { background: #d8e0e3; cursor: default; }
+
+  /* (the fork) TUR I AUTOMATISK STOPPESTEDSVALG, the screen you drive by: the blue panel
+     down the left with the line, the tour and how late the bus is, "Afslut tur" under it,
+     and the stops still to come down the right - the hand beside the top one while the
+     bus stands at it, as the manual's page 11 has it */
+  .drive { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u));
+    display: grid; grid-template-columns: 1fr 1fr; background: #d8e0e3; border-top: 1px solid #6b7580; }
+  .drive .side, .drive .stops { display: grid; grid-template-rows: repeat(6, 1fr); }
+  .drive .side { border-right: 1px solid #6b7580; }
+  .drive .panel { grid-row: span 4; background: linear-gradient(#4f85d2, #6ba2e2); color: #dceaff;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+    font-size: calc(40 * var(--u)); border-bottom: 1px solid #6b7580; }
+  .drive .end { background: #fff; border-bottom: 1px solid #6b7580; display: flex; align-items: center;
+    text-align: left; padding: 0 calc(24 * var(--u)); font-size: calc(44 * var(--u)); font-weight: 700; color: #111; }
+  .drive .end:active { background: var(--pick); }
+  .drive .slot { background: #d8e0e3; }
+  .drive .stop { background: #fff; border-bottom: 1px solid #6b7580; display: flex; align-items: center;
+    padding: 0 calc(12 * var(--u)) 0 calc(24 * var(--u)); font-size: calc(42 * var(--u)); color: #111; }
+  .drive .stop .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* (the one thing the console does not draw: when the bus is due there) */
+  .drive .stop .t { font-size: calc(24 * var(--u)); color: #5a5a5a; font-variant-numeric: tabular-nums;
+    margin-left: calc(12 * var(--u)); }
+  .drive .stop svg { width: calc(54 * var(--u)); height: calc(54 * var(--u)); flex: none; margin-left: calc(8 * var(--u)); }
+  .drive .stop.done { color: #8a8a8a; }
+  /* the crowd in the strip stands there while a trip is under way */
+  .strip i.crowd svg { display: none; }
+  #duty .strip i.crowd svg { display: block; }
 
   /* login: the picture with its two fields */
   #login { background: var(--paper) url("/tex/login.png") no-repeat 0 0 / 100% 100%; }
@@ -127,49 +153,6 @@
   .ask .btns button:active { background: var(--pick); }
   .ask .btns button.lone { flex: 0 0 calc(200 * var(--u)); margin: 0 auto; }
 
-  /* the duty */
-  .left { position: absolute; left: calc(24 * var(--u)); top: calc(18 * var(--u)); width: calc(500 * var(--u)); bottom: calc(14 * var(--u)); }
-  .sign { display: flex; align-items: center; gap: calc(14 * var(--u)); }
-  .sign .plate { font-size: calc(36 * var(--u)); padding: calc(2 * var(--u)) calc(14 * var(--u)); }
-  .sign .dest { font-size: calc(32 * var(--u)); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sub { color: var(--soft); margin: calc(8 * var(--u)) 0 calc(16 * var(--u)); font-size: calc(19 * var(--u)); }
-  .chip { display: inline-block; border-radius: calc(30 * var(--u)); padding: calc(6 * var(--u)) calc(18 * var(--u));
-    font-weight: 700; font-size: calc(26 * var(--u)); font-variant-numeric: tabular-nums; }
-  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: calc(10 * var(--u)); margin-top: calc(16 * var(--u)); }
-  .tile { border: 1px solid var(--line); padding: calc(8 * var(--u)) calc(12 * var(--u)); }
-  .tile b { display: block; font-size: calc(30 * var(--u)); font-variant-numeric: tabular-nums; }
-  .tile span { font-size: calc(15 * var(--u)); color: var(--soft); text-transform: uppercase; }
-  .next { margin-top: calc(16 * var(--u)); border: calc(2 * var(--u)) solid var(--now); padding: calc(10 * var(--u)) calc(14 * var(--u)); }
-  .next span { font-size: calc(15 * var(--u)); color: var(--soft); text-transform: uppercase; }
-  .next b { display: block; font-size: calc(30 * var(--u)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .next i { font-style: normal; color: var(--soft); font-variant-numeric: tabular-nums; }
-  .stops { position: absolute; left: calc(548 * var(--u)); right: 0; top: 0; bottom: 0; overflow-y: auto; border-left: 1px solid var(--line); }
-  .r { display: flex; align-items: center; padding: 0 calc(20 * var(--u)); font-size: calc(21 * var(--u)); }
-  .r.trip { height: calc(54 * var(--u)); gap: calc(12 * var(--u)); border-bottom: 1px solid #e3e3e3; }
-  .r.trip.now { background: var(--pick); box-shadow: inset calc(5 * var(--u)) 0 0 var(--rail); }
-  .r.trip.done { color: var(--dim); }
-  .r.trip .plate { font-size: calc(18 * var(--u)); }
-  .r.trip.done .plate { background: var(--dim); }
-  .r.trip .t { font-weight: 700; width: calc(70 * var(--u)); font-variant-numeric: tabular-nums; }
-  .r.trip .x { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .r.trip .a { color: var(--soft); font-variant-numeric: tabular-nums; }
-  .r.stop { height: calc(42 * var(--u)); position: relative; padding-left: calc(60 * var(--u)); }
-  .r.stop .rail { position: absolute; left: calc(34 * var(--u)); top: 0; bottom: 0; width: calc(4 * var(--u)); background: var(--rail); }
-  .r.stop.first .rail { top: 50%; } .r.stop.lastrow .rail { bottom: 50%; }
-  .r.stop.done .rail { background: #bdbdbd; }
-  .r.stop .pin { position: absolute; left: calc(28 * var(--u)); top: 50%; width: calc(16 * var(--u)); height: calc(16 * var(--u));
-    margin-top: calc(-8 * var(--u)); border-radius: 50%; background: var(--paper); border: calc(3 * var(--u)) solid var(--rail); }
-  .r.stop.done .pin { background: #bdbdbd; border-color: #bdbdbd; }
-  .r.stop.now .pin { background: var(--now); border-color: #b07d00; width: calc(20 * var(--u)); height: calc(20 * var(--u));
-    left: calc(26 * var(--u)); margin-top: calc(-10 * var(--u)); }
-  .r.stop .t { width: calc(80 * var(--u)); font-variant-numeric: tabular-nums; }
-  .r.stop .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .r.stop.done { color: var(--dim); }
-  .r.stop.now { font-weight: 700; }
-  .r.stop .e { font-weight: 700; margin-left: calc(10 * var(--u)); font-variant-numeric: tabular-nums; }
-  .r.stop .tag { margin-left: calc(10 * var(--u)); border: 1px solid var(--line); padding: 0 calc(6 * var(--u)); font-size: calc(15 * var(--u)); color: var(--soft); }
-  .r.pause, .r.change { height: calc(36 * var(--u)); padding-left: calc(60 * var(--u)); color: var(--soft); font-size: calc(18 * var(--u)); }
-  .r.change { color: #9a6a00; font-weight: 700; }
   .early { color: var(--early); } .ontime { color: var(--ontime); } .late { color: var(--late); }
   .empty { position: absolute; left: 0; right: 0; top: 40%; text-align: center; color: var(--soft); font-size: calc(28 * var(--u)); }
   .lost { position: absolute; left: 50%; bottom: calc(76 * var(--u)); transform: translateX(-50%); background: var(--early); color: #fff;
@@ -282,7 +265,10 @@
   </section>
 
   <template id="strip-cells">
-      <i class="ifs">IFS&#8201;&#8211;<br>FM</i><i></i><i></i><i></i>
+      <i class="ifs">IFS&#8201;&#8211;<br>FM</i><i></i><i></i>
+      <i class="crowd" title="Gruppe check ind"><svg viewBox="0 0 24 24" fill="#111">
+        <circle cx="7.6" cy="6.2" r="3.1"/><path d="M2.3 20.6a5.3 5.3 0 0 1 10.6 0z"/>
+        <circle cx="16.4" cy="6.2" r="3.1"/><path d="M11.1 20.6a5.3 5.3 0 0 1 10.6 0z"/></svg></i>
       <i title="Signal"><svg viewBox="0 0 24 24"><rect x="2.6" y="15.4" width="3.2" height="5.6" fill="#3f9a37"/>
         <rect x="7.4" y="12.2" width="3.2" height="8.8" fill="#3f9a37"/><rect x="12.2" y="8.6" width="3.2" height="12.4" fill="#3f9a37"/>
         <rect x="17" y="4.6" width="3.2" height="16.4" fill="#3f9a37"/>
@@ -337,7 +323,7 @@
   <section id="duty" class="screen">
     <div class="bar"></div><div class="strip" data-strip></div>
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
-    <div class="body" id="duty-body"></div>
+    <div class="drive" id="duty-body"></div>
     <div class="foot" data-foot></div>
   </section>
 
@@ -367,8 +353,8 @@ const store = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { r
 let state = null, labels = {}, screen = null, line = null, lines = [], trips = [], pick = null, failures = 0;
 // (the fork) the console's list is six rows deep, the lines two to a row; the arrows in
 // the bar leaf through it, and `suggest` is the trip the console puts forward on yellow
-const PER = { lines: 12, trips: 6 };
-let page = { lines: 0, trips: 0 }, suggest = 0, nowS = 0;
+const PER = { lines: 12, trips: 6, duty: 6 };
+let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = "";
 
 // the screen as large as the tablet allows, at 16:9
 function fit() {
@@ -553,8 +539,8 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
 function leaf(d) {
   if (screen === "lines") { page.lines = Math.max(0, Math.min(page.lines + d, leaves(lines.length, PER.lines) - 1)); return drawLines(); }
   if (screen === "trips") { page.trips = Math.max(0, Math.min(page.trips + d, leaves(trips.length, PER.trips) - 1)); return drawTrips(true); }
-  const box = document.querySelector("#duty .stops");
-  if (box) box.scrollTop += d * box.clientHeight * 0.8;
+  page.duty = Math.max(0, page.duty + d);
+  drawDuty();
 }
 $("ask-no").addEventListener("click", () => $("ask").classList.remove("on"));
 $("ask-yes").addEventListener("click", async () => {
@@ -566,34 +552,59 @@ $("ask-yes").addEventListener("click", async () => {
   setTimeout(() => show("duty"), 600);
 });
 
+// (the fork) the stops of the trip under way, from the one the bus is at or heads for
+function dutyStops(d) {
+  const out = [];
+  let here = false;
+  for (const r of d.rows) {
+    if (r.k === "trip") { if (here) break; here = r.state === "now"; continue; }
+    if (!here || r.k !== "stop") continue;
+    if (r.state === "done" && !out.length) continue;   // (the ones behind us are gone)
+    out.push(r);
+  }
+  return out;
+}
+
+// the red sign with the hand: the bus stands at this stop
+const HAND = `<svg viewBox="0 0 24 24"><path d="M8.3 1.4h7.4l6.9 6.9v7.4l-6.9 6.9H8.3l-6.9-6.9V8.3z" fill="#e03a35" stroke="#fff" stroke-width="1.2"/>
+  <g fill="#fff"><rect x="8.5" y="7" width="1.9" height="6.4" rx=".95"/><rect x="10.8" y="6" width="1.9" height="7.4" rx=".95"/>
+  <rect x="13.1" y="6.6" width="1.9" height="6.8" rx=".95"/><rect x="15.4" y="8" width="1.9" height="5.4" rx=".95"/>
+  <path d="M8.5 11.3h8.8v2.5a4.4 4.4 0 0 1-4.4 4.4 4.4 4.4 0 0 1-4.4-4.4z"/>
+  <path d="m8.5 12.6-2.2-2.2a1 1 0 0 0-1.4 1.4l2.7 3z"/></g></svg>`;
+
+// TUR I AUTOMATISK STOPPESTEDSVALG: the screen the trip is driven by
 function drawDuty() {
   const box = $("duty-body");
   if (!state) return;
   const d = state.duty, L = labels;
   if (!d) { box.innerHTML = `<div class="empty">${esc(L.no_duty)}</div>`; return; }
-  const keep = box.querySelector(".stops")?.scrollTop;
-  const next = d.next ? `<div class="next"><span>${esc(L.next_stop)}</span><b>${esc(d.next.name)}</b>
-      <i>${d.next.dist ? esc(d.next.dist) + " · " : ""}${esc(d.next.time)}</i></div>` : "";
-  const rows = d.rows.map((r, i) => {
-    if (r.k === "trip") return `<div class="r trip ${r.state}"${r.state === "now" ? ' id="now"' : ""}><span class="t">${esc(r.dep)}</span>
-        ${r.line ? `<span class="plate">${esc(r.line)}</span>` : ""}<span class="x">${esc(r.terminus)}</span><span class="a">${esc(r.arr)}</span></div>`;
-    if (r.k === "stop") {
-      const first = !(d.rows[i - 1] && d.rows[i - 1].k === "stop"), last = !(d.rows[i + 1] && d.rows[i + 1].k === "stop");
-      return `<div class="r stop ${r.state}${first ? " first" : ""}${last ? " lastrow" : ""}"><span class="rail"></span><span class="pin"></span>
-        <span class="t">${esc(r.time)}</span><span class="n">${esc(r.name)}</span>
-        ${r.exp ? `<span class="e ${r.exp_tone || ""}">${esc(r.exp)}</span>` : ""}${r.last ? `<span class="tag">${esc(L.terminus)}</span>` : ""}</div>`;
-    }
-    return `<div class="r ${r.k}">${esc(r.text)}</div>`;
+  const stops = dutyStops(d), head = stops.length ? stops[0].name : "";
+  if (head !== dutyHead) { dutyHead = head; page.duty = 0; }   // (the bus moved on)
+  page.duty = Math.max(0, Math.min(page.duty, leaves(stops.length, PER.duty) - 1));
+  const from = page.duty * PER.duty, shown = stops.slice(from, from + PER.duty);
+  let right = shown.map((s, i) => {
+    const hold = from + i === 0 && d.at_stop;
+    return `<div class="stop${s.state === "done" ? " done" : ""}"><span class="n">${esc(s.name)}</span>
+      <span class="t">${esc(s.exp || s.time)}</span>${hold ? HAND : ""}</div>`;
   }).join("");
-  box.innerHTML = `<div class="left">
-      <div class="sign">${d.line ? `<span class="plate">${esc(d.line)}</span>` : ""}<span class="dest">${esc(d.terminus)}</span></div>
-      <div class="sub">${esc(d.title)} · ${esc(d.span)}</div>
-      <span class="chip" style="background:${d.status.fill};color:${d.status.ink}">${esc(d.status.text)}</span>
-      <div class="tiles"><div class="tile"><b class="${d.delay_tone || ""}">${esc(d.delay)}</b><span>${esc(L.delay)}</span></div>
-        <div class="tile"><b>${esc(d.trip)}</b><span>${esc(L.trip)}</span></div></div>${next}
-    </div><div class="stops">${rows}</div>`;
-  const right = box.querySelector(".stops"), now = $("now");
-  if (keep != null) right.scrollTop = keep; else if (now) right.scrollTop = Math.max(0, now.offsetTop - 8);
+  for (let i = shown.length; i < PER.duty; i++) right += `<div class="slot"></div>`;
+  box.innerHTML = `<div class="side">
+      <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
+        <span>${esc(L.tour)}: ${esc(d.tour || "")}</span>
+        <span>${esc(L.delay)}: ${esc(d.delay)}</span></div>
+      <button class="end" id="end-trip">${esc(L.end_trip)}</button>
+      <div class="slot"></div>
+    </div><div class="stops">${right}</div>`;
+  $("end-trip").addEventListener("click", endTrip);
+}
+
+// the manual: Afslut tur takes back the chosen trip, and the console stands on Turvalg
+async function endTrip() {
+  const sign = state && state.duty ? state.duty.line : null;
+  if (!lines.length) { try { lines = (await getJson("/lines")).lines || []; } catch (e) {} }
+  const l = lines.find((x) => x.sign === sign);
+  if (!l) return show("lines");
+  line = l.name; page.trips = 0; show("trips");
 }
 
 // (the fork) The console's start-up, as the Rejsekort manual has it (page 7, "Fuldt

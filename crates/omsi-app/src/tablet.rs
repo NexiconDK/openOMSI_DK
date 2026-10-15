@@ -312,6 +312,7 @@ fn labels() -> Value {
         "start_q": tr("You have chosen this trip. Is that right?"),
         "question": tr("Question"),
         "warning": tr("Warning"),
+        "end_trip": tr("End trip"),
         "yes": tr("Yes"),
         "no": tr("No"),
         "duty": tr("Duty"),
@@ -407,6 +408,10 @@ fn state(duty: Option<&PlayerDuty>, time: f64, date: &str, bus: Option<glam::DVe
         "status": { "text": status.label(), "fill": css(fill), "ink": css(ink) },
         "delay": delay,
         "delay_tone": delay_tone,
+        // (the fork) the console's driving screen wants the tour by number, and the hand
+        // it draws beside a stop means the bus is standing at it
+        "tour": d.tour.trim(),
+        "at_stop": ds.at_stop,
         "trip": format!("{} / {}", ds.focus() + 1, ds.trips.len()),
         "next": next,
         "rows": rows,
@@ -475,7 +480,7 @@ mod tests {
         // the ones the page's script asks for by name rather than through the markup
         asked.extend([
             "starting", "updating", "driver", "password", "login_hint", "lost",
-            "no_duty", "next_stop", "delay", "trip", "terminus",
+            "no_duty", "line", "tour", "delay", "end_trip",
         ]);
         for key in &asked {
             assert!(!sent[key].is_null(), "the page asks for {key:?} and labels() has no such word");
