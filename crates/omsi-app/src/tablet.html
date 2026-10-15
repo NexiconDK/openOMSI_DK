@@ -29,7 +29,8 @@
   .plain .bar { background: var(--paper); border-bottom: 1px solid var(--line); }
   .clock { position: absolute; right: 0; top: 0; width: calc(124 * var(--u)); height: calc(63 * var(--u));
     background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center;
-    line-height: 1.1; font-size: calc(24 * var(--u)); font-variant-numeric: tabular-nums; }
+    line-height: 1.15; font-size: calc(26 * var(--u)); font-variant-numeric: tabular-nums; }
+  .clock .c-date { font-size: calc(17 * var(--u)); }
   .plain .clock { border-left: 1px solid var(--line); }
   /* the bar along the bottom: what the keys do */
   .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(60 * var(--u)); display: flex;
@@ -54,7 +55,8 @@
   #login .drawn { display: none; }
   #login.plain { background: var(--paper); }
   #login.plain .drawn { display: block; }
-  .drawn.box { border: 1px solid var(--line); }
+  /* (the fork) the console's own fields: a pale cyan with a thin dark edge */
+  .drawn.box { border: 1px solid #2c3e50; background: #b3e0ec; }
   .drawn.title { left: 0; right: 0; top: calc(220 * var(--u)); text-align: center; font-size: calc(64 * var(--u));
     font-weight: 700; color: #5d5e60; letter-spacing: calc(-1 * var(--u)); }
 
@@ -147,6 +149,36 @@
   .lost { position: absolute; left: 50%; bottom: calc(76 * var(--u)); transform: translateX(-50%); background: var(--early); color: #fff;
     padding: calc(8 * var(--u)) calc(20 * var(--u)); font-weight: 700; display: none; z-index: 5; }
   .lost.on { display: block; }
+
+  /* (the fork) the console's own number pad, as the Rejsekort manual has it: a cream panel
+     with the typed number across the top, the digits three to a row, a close key over a
+     tall ENTER whose letters stand one under the other, and CE beside the nought */
+  .pad { position: absolute; inset: 0; background: transparent; display: none; z-index: 6; }
+  .pad.on { display: block; }
+  .pad .panel { position: absolute; left: calc(470 * var(--u)); top: calc(108 * var(--u));
+    width: calc(720 * var(--u)); height: calc(545 * var(--u)); background: #f6edcb;
+    border: calc(3 * var(--u)) solid #c9b47a; padding: calc(12 * var(--u));
+    display: grid; grid-template-rows: calc(82 * var(--u)) 1fr; gap: calc(14 * var(--u)); }
+  .pad .shown { background: #fffdf2; border: calc(2 * var(--u)) solid #b9a36a; display: flex;
+    align-items: center; padding: 0 calc(20 * var(--u)); font-size: calc(46 * var(--u));
+    font-variant-numeric: tabular-nums; letter-spacing: calc(4 * var(--u)); overflow: hidden; }
+  .pad .grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+    gap: calc(8 * var(--u)); }
+  .pad .grid button { background: #dfe6ef; border: calc(2 * var(--u)) solid #9aa7b5;
+    font-size: calc(42 * var(--u)); font-weight: 700; }
+  .pad .grid button:active { background: var(--pick); }
+  .pad .enter { grid-column: 4; grid-row: 2 / span 3; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; line-height: 1.05; font-size: calc(30 * var(--u)); }
+  .pad .wide { font-size: calc(32 * var(--u)); }
+
+  /* (the fork) the plain login, where the player has no picture of the console: the screen
+     the manual shows, without its owner's marks - the strip of buttons along the top with
+     the date and the hour at its end, the two fields and the hint under them */
+  #login.plain .strip { position: absolute; left: 0; top: 0; right: calc(124 * var(--u)); height: calc(63 * var(--u));
+    display: flex; border-bottom: 1px solid var(--line); background: #e9e9e9; }
+  #login:not(.plain) .strip { display: none; }
+  #login .strip i { flex: 1; border-right: 1px solid #c4c4c4; background: #f6f6f6; }
+  #login .strip i.lit { background: #e3e8ea; }
 </style>
 </head>
 <body>
@@ -161,9 +193,24 @@
     <div class="drawn u" id="l-hint" style="left:0;right:0;top:calc(558*var(--u));text-align:center"></div>
     <input id="driver" inputmode="numeric" style="left:calc(340*var(--u));top:calc(412*var(--u));width:calc(575*var(--u));height:calc(31*var(--u))">
     <input id="password" type="password" inputmode="numeric" style="left:calc(338*var(--u));top:calc(462*var(--u));width:calc(577*var(--u));height:calc(32*var(--u))">
+    <div class="strip drawn"><i></i><i></i><i></i><i></i><i class="lit"></i><i></i><i class="lit"></i><i></i><i class="lit"></i><i></i></div>
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <button type="button" class="esc">ESC</button>
     <button type="submit" class="ok">OK</button>
+    <div class="pad" id="pad"><div class="panel">
+      <div class="shown" id="pad-shown"></div>
+      <div class="grid">
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button>
+        <button type="button" data-k="9">9</button><button type="button" data-k="x" class="wide">X</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button>
+        <button type="button" data-k="6">6</button>
+        <button type="button" data-k="enter" class="enter"><span>E</span><span>N</span><span>T</span><span>E</span><span>R</span></button>
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button>
+        <button type="button" data-k="3">3</button>
+        <button type="button" data-k="0">0</button><button type="button" data-k=".">.</button>
+        <button type="button" data-k="ce" class="wide">CE</button>
+      </div>
+    </div></div>
   </form>
 
   <section id="lines" class="screen">
@@ -221,7 +268,7 @@ function show(name) {
   if (name === "lines") loadLines();
   if (name === "trips") loadTrips();
   if (name === "duty") drawDuty();
-  if (name === "login") setTimeout(() => $("driver").focus(), 50);
+  if (name === "login") { padClose(); $("driver").value = ""; $("password").value = ""; }
 }
 
 function words() {
@@ -230,17 +277,60 @@ function words() {
   $("l-hint").textContent = labels.login_hint ?? ""; $("lost").textContent = labels.lost ?? "⚠";
 }
 
+// (the fork) The console's number pad, as the Rejsekort manual has it: tapping a field
+// brings it up, the number is typed into it and ENTER takes it. The driver's number is
+// eight digits there and the pass code four; any number does here, as it always did.
+const PAD_LEN = { driver: 8, password: 4 };
+let padFor = null, padVal = "";
+
+function padOpen(which) {
+  padFor = which; padVal = "";
+  padShow();
+  $("pad").classList.add("on");
+}
+function padShow() {
+  // the pass code is not shown as it is typed, any more than it is on the console
+  $("pad-shown").textContent = padFor === "password" ? "*".repeat(padVal.length) : padVal;
+}
+function padClose() { $("pad").classList.remove("on"); padFor = null; }
+
+$("pad").addEventListener("click", (e) => {
+  // (a tap beside the panel closes it, as ESC does)
+  if (e.target === $("pad")) padClose();
+  const k = e.target.closest("[data-k]")?.dataset.k;
+  if (!k || !padFor) return;
+  if (k === "x") return padClose();
+  if (k === "ce") { padVal = ""; return padShow(); }
+  if (k === "enter") {
+    const field = padFor;
+    $(field).value = padVal;
+    padClose();
+    // the number first, then the code, then away - the manual's four steps
+    if (field === "driver") padOpen("password");
+    else $("login").requestSubmit();
+    return;
+  }
+  if (padVal.length < PAD_LEN[padFor]) { padVal += k; padShow(); }
+});
+
+// a tap on either field brings the pad up instead of the device's own keyboard
+["driver", "password"].forEach((id) => {
+  const f = $(id);
+  f.readOnly = true;
+  f.addEventListener("focus", () => padOpen(id));
+  f.addEventListener("click", () => padOpen(id));
+});
+
 // login: any number does
 $("login").addEventListener("submit", (e) => {
   e.preventDefault();
-  if (!$("driver").value.trim()) return $("driver").focus();
-  if (!$("password").value.trim()) return $("password").focus();
+  if (!$("driver").value.trim()) return padOpen("driver");
+  if (!$("password").value.trim()) return padOpen("password");
   store.set("driver", $("driver").value.trim());
   $("password").value = "";
   show("lines");
 });
-$("driver").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("password").focus(); } });
-document.querySelector("#login .esc").addEventListener("click", () => { $("driver").value = ""; $("password").value = ""; $("driver").focus(); });
+document.querySelector("#login .esc").addEventListener("click", () => { padClose(); $("driver").value = ""; $("password").value = ""; });
 document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.go === "logout") { store.set("driver", null); return show("login"); }
   show(b.dataset.go);
