@@ -82,6 +82,19 @@ Hvad der sker ved fuld styrke:
 
 `OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
 
+### Måne med faser i alle grafikindstillinger
+I **Enhanced** har der hele tiden været en rigtig måne: dens plads og fase regnes ud af datoen og kortets placering (testet mod fuldmånen 20. januar 2000 og nymånen 6. januar samme år), skiven tegnes med den rigtige skyggegrænse, så du ser en segl, og over en kvart måne kaster den endda skygger.
+
+I **Vanilla og Vanilla+** var der ingen måne overhovedet — og natten var lige mørk ved fuldmåne og nymåne. Nu er den der:
+
+- **Månen på himlen.** Den tegnes som en *oplyst kugle*, ikke en skive med en bid ud af: for hver retning regnes det punkt på kuglen, strålen rammer, og hvor meget af det punkt solen lyser på. Det er derfor skyggegrænsen er en blød bue og ikke en lige kant — og fasen kommer helt af sig selv ud af, hvor solen står. Månens "have", de brede grå pletter, gør den til et ansigt og ikke en lampe, og den mørke rand af en segl har et spor af **jordskin**, som øjet faktisk opfanger.
+- **Fasen lyser natten op.** Månelyset lægges til lyset ovenfra, en del af det til det retningsløse lys, og himlen og disen løftes en smule med. Et skydække dæmper det, som det dæmper alt andet lys.
+- **Det følger den rigtige lov.** Lyset går som **fasen opløftet i 2,3** — samme lov som Enhanced bruger. En halvmåne viser en halv skive, men giver kun omkring **en tiendedel** af en fuldmånes lys: solen står lavt på den flade, månen vender mod os, og hvert krater kaster en lang skygge over det næste. En kvart måne giver en femogtyvendedel, altså så godt som ingenting.
+- **Størrelsen:** stock-kortets dybeste nat har lyset ovenfra på 0,02. En fuldmåne lige over dig lægger 0,030 oveni — altså omtrent en tredobling. Det er omtrent forskellen på en klar fuldmånenat og en månefri nat, uden at det bliver til dagslys.
+- Månen skal være **over horisonten**, og solen skal være **nede**: lyset falder med månens højde og fader ind gennem skumringen i stedet for at tænde.
+
+Månen tegnes også i den klassiske **Vanilla**, selvom OMSI 2 ikke selv har en. Siger du til, tager jeg den ud af den igen.
+
 ### Snestorm og tordenvejr i vejrmenuen
 Du behøver ikke skrive noget i en .cmd mere. Under **Indstillinger → Vejr**, lige under "Sne på vejen", er der to rækker:
 

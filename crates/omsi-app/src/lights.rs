@@ -45,11 +45,111 @@ pub(crate) fn set_snowstorm(v: f32) {
 /// at 7 m; this gives 20, 12 and 5 there. (At 1 it was 60, 40 and 15.)
 const VANILLA_HEADLIGHT_INTENSITY: f32 = 0.2;
 
+/// (the fork) The moon's colour: a touch warm of white, as the Enhanced sky's `MOON_TINT`
+/// has it. The blue of moonlight is the eye's, not the moon's - at that little light the
+/// rods take over and see no colour at all.
+const MOON_TINT: Vec3 = Vec3::new(1.04, 1.0, 0.93);
+
+/// (the fork) What a full moon straight overhead adds to the light from above (`secondary`)
+/// in the classic picture. The stock envir leaves the deepest night at 0.02 there, so a
+/// full moon roughly trebles it - which is about what a clear full-moon night looks like
+/// against a moonless one, without turning into daylight.
+const FULL_MOON_LIGHT: f32 = 0.030;
+
+/// (the fork) The moon's own light for the classic picture (Vanilla and Vanilla+), which
+/// has no sky model to take it from: the night was exactly as dark at full moon as at new
+/// moon. The Enhanced sky computes its own moonlight (`atmosphere.rs`), so it is left alone.
+///
+/// The phase counts as its 2.3rd power, the same law the Enhanced sky uses, because a half
+/// moon is nothing like half as bright as a full one: the sun stands low on the face it
+/// shows us, every crater throws a long shadow, and a half moon gives about a tenth of a
+/// full moon's light. A quarter moon gives a twenty-fifth, which is to say nothing.
+fn add_moonlight(l: &mut Lighting, d: &Daylight) {
+    if crate::startup::ENHANCED.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let light = MOON_TINT * moonlight_of(d.altitude_deg, d.moon_dir.z, d.moon_illum);
+    if light.max_element() <= 0.0 {
+        return;
+    }
+    // from above, as it comes; a share of it undirected, off the walls and the ground; and
+    // the sky and the haze lift a little with it (a moonlit night is not a black sky)
+    l.secondary += light;
+    l.ambient += light * 0.4;
+    l.sky_color += light * 0.25;
+    l.fog_color += light * 0.25;
+}
+
+/// (the fork) How much light the moon throws from above (see `add_moonlight`): the sun's
+/// altitude in degrees, how high the moon stands (the z of the unit vector towards it) and
+/// how much of its disc is lit.
+fn moonlight_of(sun_altitude_deg: f32, moon_up: f32, illum: f32) -> f32 {
+    // nothing of it while the sun is up, and it fades in through the dusk
+    let sun_down = 1.0 - ((sun_altitude_deg + 6.0) / 6.0).clamp(0.0, 1.0);
+    // its height over the horizon: the light it throws on the ground falls with the cosine,
+    // and the last of it goes as it sets
+    let risen = smoothstep(-0.02, 0.06, moon_up) * moon_up.max(0.0);
+    let phase = illum.clamp(0.0, 1.0).powf(2.3);
+    FULL_MOON_LIGHT * phase * risen * sun_down
+}
+
+/// A smooth 0..1 ramp between `a` and `b`.
+fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
+    let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+#[cfg(test)]
+mod moon_tests {
+    use super::*;
+
+    /// (the fork) The night's light follows the phase as it does in the sky: a full moon
+    /// trebles the stock envir's deepest night, a half moon gives about a tenth of that,
+    /// and a new moon nothing. The Enhanced sky has its own moonlight and is left alone.
+    #[test]
+    fn the_phase_decides_how_much_the_moon_lights_the_night() {
+        // (straight overhead, the sun well down)
+        let at = |illum: f32| moonlight_of(-30.0, 1.0, illum);
+        let full = at(1.0);
+        // a full moon against the stock envir's night, where `secondary` is 0.02
+        assert!((full - 0.030).abs() < 1e-4, "{full}");
+        // a half moon shows half a disc and throws about a tenth of the light: the sun is
+        // low on the face it turns to us and every crater shadows the next
+        let half = at(0.5);
+        assert!(half > full * 0.17 && half < full * 0.24, "{half} of {full}");
+        // a quarter is as good as nothing, and a new moon is nothing
+        assert!(at(0.25) < full * 0.05);
+        assert_eq!(at(0.0), 0.0);
+        // and it is strictly more light the fuller it is
+        let mut last = 0.0;
+        for i in 0..=20 {
+            let v = at(i as f32 / 20.0);
+            assert!(v >= last, "{v} after {last}");
+            last = v;
+        }
+    }
+
+    /// It has to be up, and the sun has to be down.
+    #[test]
+    fn the_moon_lights_nothing_by_day_or_below_the_horizon() {
+        // below the horizon
+        assert_eq!(moonlight_of(-30.0, -0.05, 1.0), 0.0);
+        // on the horizon: a trace, since what it throws falls with its height
+        assert!(moonlight_of(-30.0, 0.02, 1.0) < moonlight_of(-30.0, 1.0, 1.0) * 0.05);
+        // the sun up: nothing, however full the moon
+        assert_eq!(moonlight_of(10.0, 1.0, 1.0), 0.0);
+        assert_eq!(moonlight_of(0.0, 1.0, 1.0), 0.0);
+        // and it comes in through the dusk rather than switching on
+        let dusk = moonlight_of(-3.0, 1.0, 1.0);
+        assert!(dusk > 0.0 && dusk < moonlight_of(-6.0, 1.0, 1.0));
+    }
+}
+
 /// Lighting parameters for the renderer from the daylight model.
 pub fn lighting_from(d: &Daylight, fog_range: f32) -> Lighting {
     // fog density from the weather's visibility range (an object at `range` is ~90% fogged)
     let density = (2.3 / fog_range.max(50.0)).max(0.00005);
-    Lighting {
+    let mut l = Lighting {
         sun_dir: d.sun_dir,
         sun_intensity: 1.0,
         sun_color: d.sun_color,
@@ -69,7 +169,11 @@ pub fn lighting_from(d: &Daylight, fog_range: f32) -> Lighting {
         latitude: d.latitude,
         day_seed: d.day_seed,
         ..Default::default()
-    }
+    };
+    // (the fork) the moon's own light, which the classic picture has nowhere else to get
+    // it from; before `apply_weather`, so that a cloud deck damps it as it damps the rest
+    add_moonlight(&mut l, d);
+    l
 }
 
 /// What the weather does to the light: an overcast sky takes the sun away and turns

@@ -259,6 +259,11 @@ impl Renderer {
             let u = VanillaSkyUniform {
                 cloud: [v.cloud_height, v.cloud_size, v.cloud_offset[0], v.cloud_offset[1]],
                 haze: [v.fog_range, v.visibility, if v.overcast { 1.0 } else { 0.0 }, ro.z as f32],
+                // (the fork) the moon, for the classic sky to draw
+                moon: {
+                    let m = lighting.moon_dir.normalize_or_zero();
+                    [m.x, m.y, m.z, lighting.moon_illum.clamp(0.0, 1.0)]
+                },
             };
             self.queue.write_buffer(&self.vanilla_sky_buf, 0, bytemuck::bytes_of(&u));
         }

@@ -154,6 +154,8 @@ fn vs_main(@location(0) pos: vec3<f32>) -> VsOut {
 struct VanillaSkyUniform {
     cloud: vec4<f32>,
     haze: vec4<f32>,
+    // (the fork) xyz towards the moon (unit), w how much of its disc is lit
+    moon: vec4<f32>,
 };
 @group(1) @binding(9) var t_vclouds: texture_2d<f32>;
 @group(1) @binding(10) var<uniform> vsky: VanillaSkyUniform;
@@ -235,6 +237,58 @@ fn vanilla_cloud_reach(d: vec3<f32>) -> vec2<f32> {
     }
     return vec2<f32>(r, 1.0);
 }
+
+// (the fork) The moon's angular radius (rad): a quarter of a degree, as it is seen.
+const MOON_R: f32 = 0.00465;
+
+// (the fork) The moon in the classic sky, which has no model of the night to put it in -
+// the Enhanced sky draws its own from the atmosphere (sky_enhanced.wgsl `night_sky`).
+//
+// It is a lit sphere, not a disc with a bite out of it: the point of the sphere seen in
+// each direction is worked out, and how much of it is lit is the angle between that point's
+// own normal and the sun. That is what makes the terminator a smooth curve rather than a
+// straight edge, and it gives the phase for free from where the sun stands.
+//
+// `dark` is how far into the night the sky has gone (the dome's twilight and night weights):
+// the moon is up by day as often as not, and then it is barely a pale mark.
+fn vanilla_moon(d: vec3<f32>, dark: f32) -> vec3<f32> {
+    let m = vsky.moon.xyz;
+    let lit = vsky.moon.w;
+    // (below the horizon, or new: nothing to draw)
+    if (lit <= 0.0 || m.z < -0.03 || dot(m, m) < 0.5) {
+        return vec3<f32>(0.0);
+    }
+    let cm = dot(d, m);
+    if (cm < cos(MOON_R * 9.0)) {
+        return vec3<f32>(0.0);
+    }
+    let s = normalize(camera.sun_dir.xyz);
+    let right = normalize(cross(m, vec3<f32>(0.0, 0.0, 1.0)) + vec3<f32>(1e-5, 0.0, 0.0));
+    let up = cross(right, m);
+    let q = vec2<f32>(dot(d, right), dot(d, up)) / MOON_R;
+    let q2 = dot(q, q);
+    // the glow the air spreads round it, which is most of what one sees of a bright moon
+    let halo = 0.09 * exp(-q2 * 0.06) * dark;
+    var face = 0.0;
+    if (q2 < 1.2) {
+        // the point of the sphere this ray meets, and its normal there
+        let nz = sqrt(max(1.0 - q2, 0.0));
+        let n = normalize(right * q.x + up * q.y - m * nz);
+        // the sun on that point: a soft terminator, and a trace of earthshine on the rest
+        // (the dark limb of a crescent, lit by the earth, which the eye does pick up)
+        let sun_side = smoothstep(-0.05, 0.1, dot(n, s));
+        let rim = 1.0 - smoothstep(0.93, 1.03, sqrt(q2));
+        // the seas: the broad grey patches that make it a face and not a lamp
+        let sea = smoothstep(0.45, 0.7, cloud_fbm(q * 1.7 + vec2<f32>(3.1, 7.7)));
+        face = rim * (sun_side + 0.02 * lit) * (1.0 - 0.33 * sea);
+    }
+    // a full moon is the brightest thing in a night sky by far; a crescent is a sliver
+    return MOON_COLOUR * (face * mix(0.22, 1.0, dark) + halo * lit);
+}
+
+// (the fork) The moon's own colour: a touch warm of white (the blue of moonlight is the
+// eye's, not the moon's - at that little light the rods see no colour at all).
+const MOON_COLOUR = vec3<f32>(1.04, 1.0, 0.93);
 
 // (the fork) Lightning runs at some 25 000 K: a touch blue of white.
 const LIGHTNING_TINT = vec3<f32>(0.82, 0.88, 1.0);
@@ -330,7 +384,9 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     if (encoded) {
         out = srgb_decode(col);
     }
-    // (the fork) the lightning, added in linear light whichever of the two terms the sky
-    // itself was blended in
+    // (the fork) the moon, behind whatever cloud lies in front of it, and the lightning:
+    // both added in linear light whichever of the two terms the sky itself was blended in
+    let dark = clamp(camera.sky.z * 0.5 + camera.sky.w, 0.0, 1.0);
+    out = out + vanilla_moon(d, dark) * (1.0 - clamp(cloud, 0.0, 1.0));
     return vec4<f32>(out + lightning_sky(d, cloud), 1.0);
 }

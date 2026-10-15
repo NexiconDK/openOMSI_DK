@@ -2706,6 +2706,9 @@ pub(crate) struct VanillaSkyUniform {
     cloud: [f32; 4],
     /// fog range, visibility, 1 for an overcast type, the render origin's height
     haze: [f32; 4],
+    /// (the fork) xyz towards the moon (unit), w how much of its disc is lit (0 new moon,
+    /// 1 full): the classic sky draws it, as the Enhanced one does from its own model
+    moon: [f32; 4],
 }
 
 /// Half size of the area around the camera covered by the near shadow cascade (m).
