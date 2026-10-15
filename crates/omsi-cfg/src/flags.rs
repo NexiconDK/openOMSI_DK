@@ -423,7 +423,7 @@ flags! {
     OMSI_SHADOW_NEAR_EVERY_FRAME: Bool, Switch, Frame, "off", "Redraw the near shadow map every frame.";
     OMSI_SKIP_OBJECT: Text, Test, Use, "-", "Leave out the objects whose file name contains this text.";
     OMSI_SKIP_PIPE: Text, Test, Frame, "-", "Pipeline kinds to leave out of the main pass (comma-separated numbers).";
-    OMSI_SNOWSTORM: Num, Tuning, Frame, "0", "A snowstorm on top of the weather's snow, 0 to 1: the view closes in to some 40 m, twice the flakes, a gale with gusts, and the flakes drawn out along their flight. 0 = the snowfall exactly as the weather asks.";
+    OMSI_SNOWSTORM: Num, Tuning, Frame, "0", "A snowstorm on top of the weather's snow, 0 to 1: the view closes in to some 40 m, twice the flakes, a gale with gusts, and the flakes drawn out along their flight. 0 = the snowfall exactly as the weather asks. The weather menu has a slider of its own that takes over during the session.";
     OMSI_SPOT_SELECT: Num, Test, Use, "-", "Turn on spotlight n (headlight pictures).";
     OMSI_STOP_SIGNS_PREVIEW: Text, Test, Test, "-", "City map stop sign preview test: the folder for its pictures.";
     OMSI_SURFACE_BIAS: Num, Tuning, Use, "-24", "Depth bias of road surfaces.";
@@ -436,7 +436,7 @@ flags! {
     OMSI_TEST_WINE_DIR: Text, Test, Test, "-", "Plugin demo test: folder holding omsi-plugin-host.exe for Wine.";
     OMSI_TEXTURE_MEMORY: Num, Tuning, Use, "settings", "Texture budget in MB.";
     OMSI_TEXTURE_RAIN: Bool, Switch, Use, "off", "OMSI 2's own texture rain on the glass instead of the drops.";
-    OMSI_THUNDER: Text, Switch, Use, "auto", "Lightning and thunder: auto takes it from the weather (a METAR report with TS, or a heavy shower), off has none, on or a number 0..1 lays a storm of that strength over whatever the weather says.";
+    OMSI_THUNDER: Text, Switch, Use, "auto", "Lightning and thunder: auto takes it from the weather (a METAR report with TS, or a heavy shower), off has none, on or a number 0..1 lays a storm of that strength over whatever the weather says. The weather menu has a slider of its own that takes over during the session.";
     OMSI_THUNDER_LOG: Bool, Test, Use, "off", "With the lightning: log the storm, the strikes and the flash every ten seconds.";
     OMSI_TONE_CONTRAST: Text, Tuning, Once, "1", "day[,night]: tone mapping contrast.";
     OMSI_TOUCH: Bool, Test, Use, "off", "The on-screen touch controls on a computer.";

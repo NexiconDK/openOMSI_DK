@@ -17,6 +17,28 @@ const HEADLIGHT_INTENSITY: f32 = 1800.0;
 /// Grand Paris-Moulon Citaro's 450), less a low beam (the stock 100, that Citaro's 200).
 const FULL_BEAM_RANGE: f32 = 300.0;
 
+/// (the fork) The snowstorm the session is running, as the bits of an f32, with a negative
+/// value meaning "nobody has chosen one yet, take `OMSI_SNOWSTORM`". It is kept here rather
+/// than in the session state because `weather_lighting` is handed the weather alone, and the
+/// offscreen pictures take it as the window does.
+static SNOWSTORM: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0xbf80_0000);
+
+/// How hard the storm blows now (0..1): the weather menu's slider, or `OMSI_SNOWSTORM` until
+/// it is moved.
+pub(crate) fn snowstorm() -> f32 {
+    let v = f32::from_bits(SNOWSTORM.load(std::sync::atomic::Ordering::Relaxed));
+    if v < 0.0 {
+        omsi_cfg::flags::OMSI_SNOWSTORM.parse::<f32>().unwrap_or(0.0).clamp(0.0, 1.0)
+    } else {
+        v
+    }
+}
+
+/// Set the storm from the weather menu (see `snowstorm`).
+pub(crate) fn set_snowstorm(v: f32) {
+    SNOWSTORM.store(v.clamp(0.0, 1.0).to_bits(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// A headlight's strength in the classic picture, as a map lamp's (`PointLight::intensity`).
 /// Measured against OMSI 2 from above, the stock NL202 at night in Spandau: its pool is
 /// some 18 of 255 over the unlit cobbles 1.5 - 2.5 m ahead, 12 at 4 - 5 m and nearly gone
@@ -99,12 +121,13 @@ pub fn apply_weather(
     l.overcast = overcast;
     l.rain = rain;
     l.snowfall = if precip_kind == 2 { rain } else { 0.0 };
-    // (the fork) `OMSI_SNOWSTORM=0..1`: a storm over the weather's own snow. It snows at
-    // least this hard whatever the weather file says, so that it can be turned on and seen
-    // at once; the renderer takes the view in, thickens the flakes, raises a gale with gusts
-    // and draws each flake out along its flight (`snowfall_extinction`, `snowfall_flakes`,
-    // snow.wgsl). At 0 nothing here changes.
-    l.snow_storm = omsi_cfg::flags::OMSI_SNOWSTORM.parse::<f32>().unwrap_or(0.0).clamp(0.0, 1.0);
+    // (the fork) a snowstorm over the weather's own snow (`snowstorm`: the weather menu's
+    // own slider, `OMSI_SNOWSTORM` to begin with). It snows at least this hard whatever the
+    // weather file says, so that it can be turned on and seen at once; the renderer takes
+    // the view in, thickens the flakes, raises a gale with gusts and draws each flake out
+    // along its flight (`snowfall_extinction`, `snowfall_flakes`, snow.wgsl). At 0 nothing
+    // here changes.
+    l.snow_storm = snowstorm();
     if l.snow_storm > 0.0 {
         l.snowfall = l.snowfall.max(l.snow_storm);
     }

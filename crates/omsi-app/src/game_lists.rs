@@ -1164,6 +1164,9 @@ fn steps_of(verb: &str) -> Option<Vec<f32>> {
             v
         }
         "rain_amt" | "wet" => (0..=100).map(|v| v as f32 / 100.0).collect(),
+        // (the fork) the snowstorm, and the thunderstorm with Auto a step below nothing
+        "snowstorm" => (0..=20).map(|v| v as f32 / 20.0).collect(),
+        "thunder" => std::iter::once(-1.0).chain((0..=20).map(|v| v as f32 / 20.0)).collect(),
         "brightness" => (0..=30).map(|v| v as f32 * 0.05).collect(),
         "humidity" => (0..=100).map(|v| v as f32).collect(),
         "temp" => (-20..=45).map(|v| v as f32).collect(),
@@ -1313,6 +1316,9 @@ fn option_now(app: &App, verb: &str, arg: &str) -> Option<f32> {
         "hour" => ((app.clock.time / 3600.0) as i64).rem_euclid(24) as f32,
         "minute" => (((app.clock.time / 60.0) as i64) % 60) as f32,
         "visibility" => app.session.weather.as_ref()?.fog.0,
+        // (the fork) the storms the session is running
+        "snowstorm" => crate::lights::snowstorm(),
+        "thunder" => crate::thunder::chosen(),
         "rain_amt" => {
             let w = app.session.weather.as_ref()?;
             if w.precip.first().copied().unwrap_or(0.0) < 0.5 { 0.0 } else { (w.precip.get(1).copied().unwrap_or(0.0) / 255.0).clamp(0.0, 1.0) }
@@ -1556,6 +1562,16 @@ fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option<(&'static 
         }
         "wet" => {
             let mut c=custom_state(app); c.road_wetness=v; app.set_custom_weather(c); None
+        }
+        // (the fork) the storms: they lie over whatever weather is running and take hold at
+        // once, so neither touches the weather itself
+        "snowstorm" => {
+            crate::lights::set_snowstorm(v);
+            None
+        }
+        "thunder" => {
+            crate::thunder::set_chosen(v);
+            None
         }
         "brightness" => {
             let mut c=custom_state(app); c.brightness=v; app.set_custom_weather(c); None
@@ -2802,6 +2818,9 @@ fn world_pages(app: &App) -> Vec<Page> {
         weather.extend(slider_row(app, "wet", "Wet roads", "How wet the roads are now (they dry in the sun, wet in the rain).", &pct));
         weather.extend(switch_row(app,"snow_cover","Snow cover","Snow lying on the world and ground."));
         weather.extend(switch_row(app,"snow_road","Snow on road","Treat the road surface as snow-covered."));
+        // (the fork) the two storms, which lie over whatever weather is running
+        weather.extend(slider_row(app,"snowstorm","Snowstorm","A blizzard over the weather's own snow: the view closes in, twice the flakes, and a gale with gusts.",&|v| if v <= 0.0 { omsi_ui::tr("Off").into_owned() } else { format!("{:.0} %", v * 100.0) }));
+        weather.extend(slider_row(app,"thunder","Thunderstorm","Lightning and thunder. Auto follows the weather - a METAR report with TS, or a heavy shower.",&|v| if v < 0.0 { omsi_ui::tr("Auto").into_owned() } else if v <= 0.0 { omsi_ui::tr("Off").into_owned() } else { format!("{:.0} %", v * 100.0) }));
         climate.extend(slider_row(app, "temp", "Temperature", "The air temperature.", &|v| format!("{} °C", v as i64)));
         let dew_temp=app.session.weather.as_ref().map(|w|w.temp.0).unwrap_or(15.0);
         climate.extend(slider_row(app,"humidity","Humidity","Relative humidity of the air.",&|v|format!("{:.0} % · dew {:.0} °C",v,crate::weather_setup::dew_point_c(dew_temp,v))));

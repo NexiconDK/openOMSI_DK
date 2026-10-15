@@ -304,7 +304,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_SHADOW_NEAR_EVERY_FRAME` | bool | off | frame | render | Redraw the near shadow map every frame. |
 | `OMSI_TERRAIN_ALIGN` | bool | off | use | app | Align the terrain to the splines again at load (A/B; Omsi.exe does not). |
 | `OMSI_TEXTURE_RAIN` | bool | off | use | app | OMSI 2's own texture rain on the glass instead of the drops. |
-| `OMSI_THUNDER` | text | auto | use | app | Lightning and thunder: auto takes it from the weather (a METAR report with TS, or a heavy shower), off has none, on or a number 0..1 lays a storm of that strength over whatever the weather says. |
+| `OMSI_THUNDER` | text | auto | use | app | Lightning and thunder: auto takes it from the weather (a METAR report with TS, or a heavy shower), off has none, on or a number 0..1 lays a storm of that strength over whatever the weather says. The weather menu has a slider of its own that takes over during the session. |
 | `OMSI_TRACKIR_NATIVE` | text | on | use | app | 0 turns the native TrackIR interface off. |
 | `OMSI_TRAFFIC_ALL_GROUPS` | bool | off | use | app | Let restricted AI groups (aircraft, depot fleets) drive everywhere. |
 | `OMSI_TYRE_SUSPENSION` | bool | off | once | sim | The old suspension with wheel mass, tyre and bump stops (A/B). |
@@ -331,7 +331,7 @@ effect. On Android, `openOMSI/env.txt` holds `NAME=value` lines that are set bef
 | `OMSI_PUDDLE_F0` | num | 0.08 | use | render | Puddle reflectance at normal incidence (0.02 to 0.2). |
 | `OMSI_PUDDLE_THICKNESS` | num | 0.12 | use | render | Puddle water film thickness. |
 | `OMSI_RUNNER_CHANCE` | num | settings | use | sim | Chance a late passenger runs for a bus standing at a stop (0: never, 1: every bus); over the setting pax_runners. |
-| `OMSI_SNOWSTORM` | num | 0 | frame | app | A snowstorm on top of the weather's snow, 0 to 1: the view closes in to some 40 m, twice the flakes, a gale with gusts, and the flakes drawn out along their flight. 0 = the snowfall exactly as the weather asks. |
+| `OMSI_SNOWSTORM` | num | 0 | frame | app | A snowstorm on top of the weather's snow, 0 to 1: the view closes in to some 40 m, twice the flakes, a gale with gusts, and the flakes drawn out along their flight. 0 = the snowfall exactly as the weather asks. The weather menu has a slider of its own that takes over during the session. |
 | `OMSI_SURFACE_BIAS` | num | -24 | use | render | Depth bias of road surfaces. |
 | `OMSI_SURFACE_FLUSH` | num | 0.12 | once | app | Height in metres under which a surface counts as flush with the road. |
 | `OMSI_TEXTURE_MEMORY` | num | settings | use | app | Texture budget in MB. |

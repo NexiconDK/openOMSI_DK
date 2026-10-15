@@ -35,6 +35,32 @@ const CLAP_VARIANTS: usize = 3;
 /// over the weather.
 static STATE: parking_lot::Mutex<Option<Thunder>> = parking_lot::Mutex::new(None);
 
+/// What the session asks of the storm, as the bits of an f32: 0..1 its strength, -1 for the
+/// weather to decide, and below -1 for nobody having chosen yet, when `OMSI_THUNDER` stands.
+/// Kept here as `lights::SNOWSTORM` is, so that the offscreen pictures take it as the window
+/// does.
+static CHOSEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0xc000_0000);
+
+/// What the weather menu asks of the storm: 0..1, or -1 for the weather to decide. Until it
+/// is set, `OMSI_THUNDER` (whose `auto` is the same -1).
+pub(crate) fn chosen() -> f32 {
+    let v = f32::from_bits(CHOSEN.load(std::sync::atomic::Ordering::Relaxed));
+    if v >= -1.0 {
+        return v;
+    }
+    match omsi_cfg::flags::OMSI_THUNDER.var() {
+        Some("off") | Some("0") | Some("false") => 0.0,
+        Some("on") | Some("true") => 1.0,
+        Some(s) => s.parse::<f32>().map(|v| v.clamp(0.0, 1.0)).unwrap_or(-1.0),
+        None => -1.0,
+    }
+}
+
+/// Set what the storm should do from the weather menu (see `chosen`).
+pub(crate) fn set_chosen(v: f32) {
+    CHOSEN.store(v.clamp(-1.0, 1.0).to_bits(), std::sync::atomic::Ordering::Relaxed);
+}
+
 /// One frame of `dt` weather seconds (see [`Thunder::step`]).
 pub(crate) fn step(dt: f32, weather: Option<&omsi_content::weather::Weather>, engine: Option<&AudioEngine>, inside: bool) {
     let mut state = STATE.lock();
@@ -147,8 +173,7 @@ impl Thunder {
         engine: Option<&AudioEngine>,
         inside: bool,
     ) {
-        let strength = storm_strength(weather, omsi_cfg::flags::OMSI_THUNDER.var());
-        self.advance(dt, strength, engine, inside);
+        self.advance(dt, storm_strength(weather, chosen()), engine, inside);
     }
 
     /// `step` with the storm's strength already worked out.
@@ -440,20 +465,14 @@ fn clap_band(distance: f32) -> usize {
     }
 }
 
-/// How strong a storm the weather or the switch asks for (0 none, 1 one overhead).
+/// How strong a storm to run (0 none, 1 one overhead).
 ///
-/// `switch` is `OMSI_THUNDER`: `auto` (the default) takes it from the weather, `off` has
-/// none, `on` or a number 0..1 lays one over whatever the weather says.
-fn storm_strength(weather: Option<&omsi_content::weather::Weather>, switch: Option<&str>) -> f32 {
-    match switch {
-        Some("off") | Some("0") | Some("false") => return 0.0,
-        Some("on") | Some("true") => return 1.0,
-        Some(s) => {
-            if let Ok(v) = s.parse::<f32>() {
-                return v.clamp(0.0, 1.0);
-            }
-        }
-        None => {}
+/// `asked` is what the weather menu or `OMSI_THUNDER` asks for: 0..1 lays a storm of that
+/// strength over whatever the weather says, and -1 leaves it to the weather - a METAR report
+/// with `TS`, a `.owt` preset's `[thunder]`, or a heavy shower.
+fn storm_strength(weather: Option<&omsi_content::weather::Weather>, asked: f32) -> f32 {
+    if asked >= 0.0 {
+        return asked.min(1.0);
     }
     let Some(w) = weather else { return 0.0 };
     if w.thunder {
@@ -548,21 +567,26 @@ mod tests {
         let dry = weather(false, vec![0.0, 0.0], 14.0);
         let shower = weather(false, vec![1.0, 230.0], 14.0);
         let sleet = weather(false, vec![1.0, 230.0], 1.0);
-        // `auto` (and an unreadable value) takes the weather
-        for auto in [Some("auto"), Some("yes please")] {
-            assert_eq!(storm_strength(Some(&storm), auto), 1.0);
-            assert_eq!(storm_strength(Some(&dry), auto), 0.0);
-            assert_eq!(storm_strength(None, auto), 0.0);
-            // a heavy shower makes a distant storm, a cold one none (that is sleet)
-            let s = storm_strength(Some(&shower), auto);
-            assert!(s > 0.1 && s < 0.4, "{s}");
-            assert_eq!(storm_strength(Some(&sleet), auto), 0.0);
-        }
-        // the switch wins either way
-        assert_eq!(storm_strength(Some(&storm), Some("off")), 0.0);
-        assert_eq!(storm_strength(Some(&dry), Some("on")), 1.0);
-        assert_eq!(storm_strength(Some(&dry), Some("0.5")), 0.5);
-        assert_eq!(storm_strength(Some(&storm), Some("2")), 1.0);
+        // -1 (the menu's Auto, the switch's `auto`) leaves it to the weather
+        assert_eq!(storm_strength(Some(&storm), -1.0), 1.0);
+        assert_eq!(storm_strength(Some(&dry), -1.0), 0.0);
+        assert_eq!(storm_strength(None, -1.0), 0.0);
+        // a heavy shower makes a distant storm, a cold one none (that is sleet)
+        let s = storm_strength(Some(&shower), -1.0);
+        assert!(s > 0.1 && s < 0.4, "{s}");
+        assert_eq!(storm_strength(Some(&sleet), -1.0), 0.0);
+        // a strength asked for wins either way
+        assert_eq!(storm_strength(Some(&storm), 0.0), 0.0);
+        assert_eq!(storm_strength(Some(&dry), 1.0), 1.0);
+        assert_eq!(storm_strength(Some(&dry), 0.5), 0.5);
+        assert_eq!(storm_strength(Some(&storm), 2.0), 1.0);
+    }
+
+    /// Nothing has been chosen until the menu or the switch says so, and `OMSI_THUNDER` is
+    /// unset in a test run, so the weather decides.
+    #[test]
+    fn the_storm_is_left_to_the_weather_until_it_is_chosen() {
+        assert_eq!(chosen(), -1.0);
     }
 
     /// A flash flickers: it rises in thousandths of a second, dies away in a twentieth, and
