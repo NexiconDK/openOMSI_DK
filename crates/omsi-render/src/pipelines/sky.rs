@@ -13,6 +13,8 @@ pub(crate) struct SkyBase {
     pub cloud_shape_cpu: Vec<u8>,
     /// The classic sky's weather (`VanillaSkyUniform`, binding 10).
     pub vanilla_buf: wgpu::Buffer,
+    /// (the fork) The star catalogue and how the sky stands (`StarSkyUniform`).
+    pub star_buf: wgpu::Buffer,
     pub shader: wgpu::ShaderModule,
     pl: wgpu::PipelineLayout,
 }
@@ -37,6 +39,8 @@ impl SkyBase {
                 sampler_entry(8),
                 float_texture_entry(9),
                 uniform_entry(10, wgpu::ShaderStages::FRAGMENT),
+                // (the fork) the star sky and its catalogue
+                uniform_entry(11, wgpu::ShaderStages::FRAGMENT),
             ],
         });
         let (cloud_shape_view, cloud_detail_view, cloud_sampler, cloud_shape_cpu) = cloud_noise_textures(device, queue, !preview);
@@ -51,7 +55,10 @@ impl SkyBase {
             immediate_size: 0,
         });
         let vanilla_buf = uniform_buffer(device, "vanilla sky", std::mem::size_of::<VanillaSkyUniform>() as u64);
-        SkyBase { layout: sky_layout, cloud_shape_view, cloud_detail_view, cloud_sampler, cloud_shape_cpu, vanilla_buf, shader: sky_shader, pl: sky_pl }
+        // (the fork) the stars, written once: only the head of it changes from frame to frame
+        let star_buf = uniform_buffer(device, "star sky", std::mem::size_of::<StarSkyUniform>() as u64);
+        queue.write_buffer(&star_buf, 0, bytemuck::bytes_of(&StarSkyUniform::new()));
+        SkyBase { layout: sky_layout, cloud_shape_view, cloud_detail_view, cloud_sampler, cloud_shape_cpu, vanilla_buf, star_buf, shader: sky_shader, pl: sky_pl }
     }
 
     pub(crate) fn pipeline(&self, device: &wgpu::Device, f: wgpu::TextureFormat, fs: &str, msaa: u32) -> wgpu::RenderPipeline {

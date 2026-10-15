@@ -82,6 +82,29 @@ Hvad der sker ved fuld styrke:
 
 `OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
 
+### Ny nattehimmel: rigtige stjernebilleder, blink og stjerneskud
+Nattehimlen er bygget om fra bunden — i **alle** grafikindstillinger.
+
+**Rigtige stjernebilleder.** De 518 klareste stjerner kommer nu fra **Yale Bright Star Catalogue**, altså hvor de virkelig står. Hver eneste stjerne lysere end størrelsesklasse 4,0 er med, hvilket er hver eneste stjerne, et stjernebillede tegnes med: Karlsvognens svageste er 3,3, Orions bælte 1,7 til 2,2, Cassiopeias W 2,2 til 3,4. Du kan finde dem.
+
+**Og de står rigtigt.** Himlen drejer efter den lokale **stjernetid** — altså efter datoen, klokkeslettet og kortets egen placering på jorden. Polarstjernen står derfor altid stik nord i præcis den højde, kortets breddegrad siger. Himlen kommer rundt på en stjernedøgn, fire minutter kortere end et soldøgn, og derfor er vinterhimlen ikke sommerhimlen: samme klokkeslæt et halvt år senere vender du mod den modsatte side af himmelkuglen.
+
+**Blinkende stjerner, som de virkelig blinker.** Blinket er luftens værk, ikke stjernens: lommer af luft med lidt forskellig temperatur virker som svage linser, der driver hen over synslinjen, og lyset, de bøjer, kommer frem lidt kraftigere eller svagere mange gange i sekundet. Jo mere luft strålen krydser, jo værre:
+
+- En stjerne i **zenit** står næsten stille — kun et par procent.
+- En stjerne **nær horisonten** ser gennem seks-syv gange så meget luft og flimrer hårdt — og **i farver**, fordi luften bøjer blåt lidt mere end rødt, så de to kommer ud af takt. Det er derfor Sirius lavt på himlen glimter rødt og grønt.
+- Hver stjerne har sin egen rytme, af tre frekvenser mellem 1 og 20 Hz, så der ikke høres nogen takt i det.
+
+**Stjerneskud.** Der falder et cirka hvert **2½ minut**: det brænder mellem en tredjedel og et helt sekund, løber 10-25 grader hen over himlen langs en storcirkel, med hovedet forrest og halen trukket ud bagefter, og det falmer undervejs. En mørk himmel viser i virkeligheden 6-10 i timen — altså et kvarters stirren mellem hvert — og ved den takt ville ingen, der kører bus, nogensinde nå at se et.
+
+**Hvad der skjuler dem.** Stjernerne viser sig præcis så meget, som himlen bag dem er mørk: en mørk landnat giver dem alle, byens lysskær efterlader de få dusin klareste, skumringen ingen. Skyer dækker dem, og fuldmånens eget skær vasker de svageste ud.
+
+Bag kataloget ligger et **slør af svagere stjerner** ned til syvende størrelsesklasse, hvor øjet giver op — de er for mange til at gemme og for svage til at kende fra hinanden, så dem laver shaderen selv.
+
+Det koster ikke noget særligt: kataloget er sorteret efter deklination og skåret i 32 bånd, så et billedpunkt kun går sine egne ~16 stjerner igennem i stedet for alle 518.
+
+*Data fra Yale Bright Star Catalogue via brettonw/YaleBrightStarCatalog (MIT-licens) — selve kataloget er offentlige astronomiske data fra NASA's Astronomical Data Center.*
+
 ### Koldt vejr: tættere udstødning, mens systemet er koldt
 En kold udstødning i kold luft ryger mærkbart mere. Det, man ser af en udstødning om vinteren, er for det meste **vandet i den, der kondenserer** — præcis det samme som ens ånde — og det sker des hurtigere, jo koldere luften er, den blandes ind i. En kold udstødning gør det værre igen: røret tager varmen ud af gassen i stedet for at føre den væk, og en kold motor kører fed oveni.
 

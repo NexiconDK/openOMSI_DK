@@ -371,31 +371,21 @@ fn night_sky(d: vec3<f32>, cover: f32, pix: vec3<f32>) -> vec3<f32> {
         let l = enh.moon_disc.rgb / (PI * r * r * lit_share) * (sun_side + 0.004) * albedo * rim;
         col = col + l * through;
     }
-    // the stars: one candidate in some of the cells of a grid on the sphere
+    // (the fork) the stars, where they really stand (sky.wgsl `star_light`): the
+    // catalogue's own and a veil of fainter ones behind them, twinkling by the air they
+    // are seen through, and a shooting star now and then.
+    //
+    // How many show is the sky behind them: a dark country night lets them all through,
+    // a city's glow leaves the few dozen brightest, and the twilight none. Drawn in the
+    // picture's own exposed terms, as the moon's disc is, so the metering cannot level
+    // them away.
     let vis = enh.moon_disc.w;
     if (vis > 0.0 && d.z > 0.0) {
-        let cells = 140.0;
-        let g = d * cells;
-        let c = vec3<i32>(floor(g));
-        let h = star_hash(c);
-        let density = 0.014;
-        if (h.x < density) {
-            let p = (vec3<f32>(c) + vec3<f32>(0.25) + h.yzw * 0.5) / cells;
-            let sd = normalize(p);
-            let ang = acos(clamp(dot(d, sd), -1.0, 1.0));
-            // a point of light about a pixel across
-            let size = clamp(length(pix) * 0.6, 1e-5, 0.004);
-            let spot = exp(-ang * ang / (size * size));
-            // brightness: many faint ones, a few bright (a power law of the magnitudes)
-            let b = pow(1.0 - h.x / density, 4.0);
-            let tint = mix(vec3<f32>(1.0, 0.86, 0.72), vec3<f32>(0.8, 0.88, 1.0), h.w);
-            // the faintest that shows against the sky behind it (in the picture's own
-            // units): a dark country sky shows thousands, a city's glow the few dozen
-            // brightest, a twilight none
-            let sky_l = dot(sky_table(d), vec3<f32>(0.2126, 0.7152, 0.0722)) * enh.exposure.x;
-            let limit = clamp(sky_l * 90.0 + (1.0 - vis), 0.0, 1.2);
-            let shows = smoothstep(limit, limit + 0.15, b) * (1.0 - smoothstep(0.03, 0.1, sky_l));
-            col = col + tint * (0.04 + 1.4 * b) * spot * shows * through / max(enh.exposure.x, 1e-6) * smoothstep(0.0, 0.15, d.z);
+        let sky_l = dot(sky_table(d), vec3<f32>(0.2126, 0.7152, 0.0722)) * enh.exposure.x;
+        let shows = clamp(vis, 0.0, 1.0) * (1.0 - smoothstep(0.004, 0.05, sky_l)) * through
+            * smoothstep(0.0, 0.12, d.z);
+        if (shows > 0.0) {
+            col = col + star_light(d, shows, length(pix) + 1e-5) / max(enh.exposure.x, 1e-6);
         }
     }
     return col;

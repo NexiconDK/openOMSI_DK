@@ -2,6 +2,9 @@
 
 pub mod atmosphere;
 pub mod clouds;
+/// (the fork) The brightest stars of the Yale Bright Star Catalogue, which the night sky
+/// draws where they really stand.
+pub mod stars;
 mod passes;
 use passes::{Encoders, FrameArgs, FrameEnv, PassTimers, StageClock};
 pub mod pipeline_cache;
@@ -789,6 +792,11 @@ pub struct Lighting {
     /// (the fork) A stroke of lightning burning now: the flash and the channel drawn on the
     /// sky. None while nothing burns, which is nearly always.
     pub lightning: Option<Lightning>,
+    /// (the fork) How the star sky stands: the columns of the turn from the ground's frame
+    /// (x east, y north, z up) into the J2000 equatorial frame the catalogue is in, which
+    /// is where the date, the hour and the map's own place on the earth come in. Identity
+    /// until a daylight model has been worked out.
+    pub star_basis: [Vec3; 3],
     /// Enhanced graphics: the physically based high-range renderer (enhanced.wgsl) with its
     /// computed sky, automatic exposure, glow and tone mapping (post.wgsl).
     pub enhanced: bool,
@@ -936,6 +944,7 @@ impl Default for Lighting {
             snow_ruts: 0.0,
             snow_tracks: false,
             lightning: None,
+            star_basis: [Vec3::X, Vec3::Y, Vec3::Z],
             enhanced: false,
             classic: false,
             inside: None,
@@ -2240,6 +2249,8 @@ pub struct Renderer {
     sky_sampler: wgpu::Sampler,
     /// The classic sky's weather (`VanillaSkyUniform`, sky bind group binding 10).
     vanilla_sky_buf: wgpu::Buffer,
+    /// (the fork) The star catalogue and how the sky stands (`StarSkyUniform`).
+    star_sky_buf: wgpu::Buffer,
     /// The enhanced clouds' noise (clouds.rs): the shape map, the detail volume and their
     /// repeating, mip-mapped sampler (sky bind group bindings 6-8).
     cloud_shape_view: wgpu::TextureView,
@@ -2709,6 +2720,52 @@ pub(crate) struct VanillaSkyUniform {
     /// (the fork) xyz towards the moon (unit), w how much of its disc is lit (0 new moon,
     /// 1 full): the classic sky draws it, as the Enhanced one does from its own model
     moon: [f32; 4],
+}
+
+/// (the fork) The star sky: how it stands now, and the catalogue it is drawn from (see
+/// [`crate::stars`] and sky.wgsl `star_light`). Only the head of it changes from frame to
+/// frame; the stars themselves are written once, when the buffer is made.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub(crate) struct StarSkyUniform {
+    /// The columns of the turn from the ground's frame into the equatorial one.
+    east: [f32; 4],
+    north: [f32; 4],
+    up: [f32; 4],
+    /// x the seconds the twinkling and the meteors run on, y how bright the stars are
+    /// drawn, z how often a meteor falls (s), w unused.
+    params: [f32; 4],
+    /// Where each band of declination starts, four to a vector (`stars::STAR_BANDS`).
+    bands: [[f32; 4]; 9],
+    stars: [[f32; 4]; crate::stars::STARS.len()],
+}
+
+/// (the fork) The head of [`StarSkyUniform`], written every frame: the rest never changes.
+const STAR_SKY_HEAD: u64 = 4 * 16;
+
+/// (the fork) Seconds between shooting stars. A dark sky really shows six to ten an hour,
+/// which is a quarter of an hour of staring between them; at that rate nobody driving a bus
+/// would ever catch one, so they fall rather oftener than the sky's own - about one every
+/// two and a half minutes.
+pub const METEOR_EVERY: f32 = 150.0;
+
+impl StarSkyUniform {
+    /// The catalogue as it goes to the card: the stars and where each band of declination
+    /// starts. The head is written again every frame (`STAR_SKY_HEAD`).
+    pub(crate) fn new() -> StarSkyUniform {
+        let mut bands = [[0.0f32; 4]; 9];
+        for (i, &b) in crate::stars::STAR_BANDS.iter().enumerate() {
+            bands[i / 4][i % 4] = b as f32;
+        }
+        StarSkyUniform {
+            east: [1.0, 0.0, 0.0, 0.0],
+            north: [0.0, 1.0, 0.0, 0.0],
+            up: [0.0, 0.0, 1.0, 0.0],
+            params: [0.0; 4],
+            bands,
+            stars: crate::stars::STARS,
+        }
+    }
 }
 
 /// Half size of the area around the camera covered by the near shadow cascade (m).
@@ -3300,6 +3357,7 @@ impl Renderer {
             sky_layout: sky.layout,
             sky_sampler,
             vanilla_sky_buf: sky.vanilla_buf,
+            star_sky_buf: sky.star_buf,
             cloud_shape_view: sky.cloud_shape_view,
             cloud_detail_view: sky.cloud_detail_view,
             cloud_sampler: sky.cloud_sampler,
@@ -4966,6 +5024,11 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 10,
                     resource: self.vanilla_sky_buf.as_entire_binding(),
+                },
+                // (the fork) the star catalogue and how the sky stands
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: self.star_sky_buf.as_entire_binding(),
                 },
             ],
         });

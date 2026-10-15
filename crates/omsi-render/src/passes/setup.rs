@@ -267,6 +267,20 @@ impl Renderer {
             };
             self.queue.write_buffer(&self.vanilla_sky_buf, 0, bytemuck::bytes_of(&u));
         }
+        // (the fork) how the star sky stands now, and what the night draws it with. Only
+        // the head: the catalogue behind it was written when the buffer was made.
+        {
+            let b = lighting.star_basis;
+            let t = lighting.animation_time.unwrap_or_else(|| self.started.elapsed().as_secs_f32());
+            let head: [[f32; 4]; 4] = [
+                [b[0].x, b[0].y, b[0].z, 0.0],
+                [b[1].x, b[1].y, b[1].z, 0.0],
+                [b[2].x, b[2].y, b[2].z, 0.0],
+                [t, 1.0, METEOR_EVERY, 0.0],
+            ];
+            debug_assert_eq!(std::mem::size_of_val(&head) as u64, STAR_SKY_HEAD);
+            self.queue.write_buffer(&self.star_sky_buf, 0, bytemuck::cast_slice(&head));
+        }
         let cu = CameraUniform {
             post: [
                 if enhanced { 1.0 } else { 0.0 },

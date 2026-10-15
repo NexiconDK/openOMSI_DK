@@ -36,6 +36,8 @@ pub struct Daylight {
     pub moon_dir: Vec3,
     /// How much of the moon's disc is lit (0 new moon .. 1 full moon).
     pub moon_illum: f32,
+    /// (the fork) How the star sky stands now (see [`star_basis`]).
+    pub star_basis: [Vec3; 3],
     /// The day of the year (1..366) and the map's latitude (degrees north): the season.
     pub day_of_year: f32,
     pub latitude: f32,
@@ -60,6 +62,26 @@ fn days_j2000(clock: &SimClock, place: &SunPlace) -> f64 {
     }
     let utc_hours = clock.time / 3600.0 - place.timezone - place.dst_hours(clock);
     days as f64 + (clock.day_of_year - 1) as f64 + utc_hours / 24.0 - 0.5
+}
+
+/// (the fork) Where the stars stand: the columns of the turn from the ground's frame
+/// (x east, y north, z up) into the J2000 equatorial frame a star catalogue is in.
+///
+/// The sky turns once a sidereal day, and which part of it is overhead depends on the date,
+/// the hour and where on the earth the map lies - all of which is in the local sidereal
+/// time, the right ascension standing on the southern meridian. The observer's zenith in
+/// equatorial coordinates is then (cos lat cos lst, cos lat sin lst, sin lat), north is the
+/// horizontal direction towards the pole, and east is what makes the three right-handed.
+pub fn star_basis(clock: &SimClock, place: &SunPlace) -> [Vec3; 3] {
+    let d = days_j2000(clock, place);
+    let lst = (280.460_618_37 + 360.985_647_366_29 * d + place.longitude).to_radians();
+    let (st, ct) = lst.sin_cos();
+    let (sp, cp) = place.latitude.to_radians().sin_cos();
+    [
+        Vec3::new(-st as f32, ct as f32, 0.0),
+        Vec3::new((-sp * ct) as f32, (-sp * st) as f32, cp as f32),
+        Vec3::new((cp * ct) as f32, (cp * st) as f32, sp as f32),
+    ]
 }
 
 /// The moon's altitude, azimuth (degrees; azimuth clockwise from north) and lit fraction
@@ -282,6 +304,7 @@ impl Daylight {
             envir_tint,
             moon_dir,
             moon_illum: moon_illum as f32,
+            star_basis: star_basis(clock, &here),
             day_of_year: clock.day_of_year as f32,
             latitude: here.latitude as f32,
             day_seed,
@@ -373,6 +396,62 @@ mod tests {
         let (alt, az, illum) = moon_position(&c, &berlin);
         assert!((illum - 0.5).abs() < 0.08, "illum {illum}");
         assert!((90.0..200.0).contains(&az) && alt > 0.0, "alt {alt} az {az}");
+    }
+
+    /// (the fork) The turn the star sky is drawn by: Polaris sits within a degree of the
+    /// pole, so it stands due north at the observer's own latitude whatever the date or the
+    /// hour - which is the oldest check there is on a sky, and it pins the whole basis.
+    #[test]
+    fn the_star_sky_stands_on_the_pole() {
+        for (lat, lon) in [(52.5, 13.4), (0.0, 0.0), (-33.9, 151.2), (69.6, 18.9)] {
+            let place = SunPlace { latitude: lat, longitude: lon, timezone: 0.0, dst: Vec::new() };
+            for (day, hour) in [(1, 0.0), (20, 4.67), (180, 13.25), (300, 21.9)] {
+                let c = SimClock { year: 2000, day_of_year: day, time: hour * 3600.0, ..Default::default() };
+                let b = star_basis(&c, &place);
+                // the pole of the sky (0, 0, 1 in the catalogue's frame) seen from the
+                // ground: each column of the basis gives one of its components
+                let pole = Vec3::new(b[0].z, b[1].z, b[2].z);
+                assert!((pole.length() - 1.0).abs() < 1e-5, "{pole:?}");
+                // due north: nothing of it to the east
+                assert!(pole.x.abs() < 1e-5, "east {} at {lat}", pole.x);
+                // and as high over the horizon as the place is north of the equator
+                let alt = pole.z.asin().to_degrees();
+                assert!((alt - lat as f32).abs() < 0.01, "pole at {alt}, latitude {lat}");
+            }
+        }
+    }
+
+    /// (the fork) The sky turns: a star overhead now stands somewhere else six hours on,
+    /// and it comes back round in a sidereal day - four minutes short of a solar one, which
+    /// is why the winter sky is not the summer sky.
+    #[test]
+    fn the_star_sky_turns_with_the_day_and_the_year() {
+        let place = SunPlace { latitude: 52.5, longitude: 13.4, timezone: 0.0, dst: Vec::new() };
+        let at = |day: i32, secs: f64| {
+            let c = SimClock { year: 2000, day_of_year: day, time: secs, ..Default::default() };
+            star_basis(&c, &place)
+        };
+        // a point of the sky seen straight up now: where does it stand later?
+        let up_now = at(1, 0.0)[2];
+        // six hours on it has swung a long way round
+        let b6 = at(1, 6.0 * 3600.0);
+        let still_up = Vec3::new(up_now.dot(b6[0]), up_now.dot(b6[1]), up_now.dot(b6[2]));
+        assert!(still_up.z < 0.8, "hardly moved in six hours: {still_up:?}");
+        // a sidereal day later - 23 h 56 m 4 s - it is overhead again
+        let bd = at(1, 23.0 * 3600.0 + 56.0 * 60.0 + 4.1);
+        let back = Vec3::new(up_now.dot(bd[0]), up_now.dot(bd[1]), up_now.dot(bd[2]));
+        assert!(back.z > 0.9999, "not back overhead after a sidereal day: {back:?}");
+        // Half a year on, the same hour of the night looks at the sky twelve sidereal
+        // hours round: the point that stood overhead - which is the declination of the
+        // place itself, 52.5 - is then at its lower culmination, due north and as far
+        // above the horizon as twice the latitude is past 90 degrees. That is 15 degrees
+        // here, and it is why the winter sky is not the summer sky.
+        let b6m = at(183, 0.0);
+        let half = Vec3::new(up_now.dot(b6m[0]), up_now.dot(b6m[1]), up_now.dot(b6m[2]));
+        assert!(half.x.abs() < 0.02, "it should stand due north: {half:?}");
+        assert!(half.y > 0.0, "it should stand due north: {half:?}");
+        let alt = half.z.asin().to_degrees();
+        assert!((alt - (2.0 * 52.5 - 90.0)).abs() < 0.5, "lower culmination at {alt}, expected 15");
     }
 
     #[test]

@@ -165,6 +165,7 @@ pub fn lighting_from(d: &Daylight, fog_range: f32) -> Lighting {
         envir_tint: d.envir_tint,
         moon_dir: d.moon_dir,
         moon_illum: d.moon_illum,
+        star_basis: d.star_basis,
         day_of_year: d.day_of_year,
         latitude: d.latitude,
         day_seed: d.day_seed,
