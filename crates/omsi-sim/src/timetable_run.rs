@@ -184,6 +184,10 @@ pub struct PlayerDuty {
     /// A page moved the duty back to an earlier stop: `catch_up` must not jump forward
     /// again to a later stop the bus still stands at, until the bus reaches a stop again.
     held_back: bool,
+    /// (the fork) The stops are served by hand, not by where the bus is: the driver says
+    /// when it has arrived at one and when it has left it, as the Rejsekort console's
+    /// manual stop selection has it with the GPS switched off.
+    pub manual_stops: bool,
     /// The first update looks where the bus stands.
     placed: bool,
     /// The current trip changed since the last `take_trip_change`.

@@ -723,8 +723,9 @@ pub enum SheetRow {
     /// A trip: its number, when it leaves and arrives, its line (None: an empty run), where
     /// it goes, how many stops it serves, and where it is in the duty.
     Trip { index: usize, departure: f64, arrival: f64, line: Option<String>, terminus: String, stops: usize, state: TripState },
-    /// A stop of the trip the duty is on.
-    Stop { planned: f64, name: String, state: StopState, last: bool },
+    /// A stop of the trip the duty is on; `index` is its place among the trip's stops,
+    /// which is what the duty counts by (`PlayerDuty::next_stop`).
+    Stop { index: usize, planned: f64, name: String, state: StopState, last: bool },
     /// The break at a terminus before the next trip (minutes).
     Pause { minutes: i64 },
     /// The duty goes on with another line or tour.
@@ -756,9 +757,9 @@ pub fn sheet(d: &DutyState) -> Vec<SheetRow> {
         rows.push(SheetRow::Trip { index: k + 1, departure: trip.departure, arrival: trip.end, line: d.shown_line(k), terminus: trip.terminus.trim().to_string(), stops: stops.len(), state });
         if k == focus {
             let n = stops.len();
-            for (j, (_, st)) in stops.into_iter().enumerate() {
+            for (j, (i, st)) in stops.into_iter().enumerate() {
                 let state = if finished { StopState::Done } else { stop_state(j, now) };
-                rows.push(SheetRow::Stop { planned: st.arr, name: st.name.trim().to_string(), state, last: j + 1 == n });
+                rows.push(SheetRow::Stop { index: i, planned: st.arr, name: st.name.trim().to_string(), state, last: j + 1 == n });
             }
         }
     }
@@ -908,7 +909,7 @@ pub(crate) fn draw_sheet_list(pen: &mut Pen, rows: &[SheetRow], view: Rect, scro
                 pen.text_in(terminus, 13.5 * s, Weight::Bold, Rect::new(nx, cy - 9.0 * s, (x1 - aw - 8.0 * s - nx).max(0.0), 18.0 * s), Align::Left, ink);
                 pen.text_in(&trip_sub(line.as_deref(), *stops), 11.0 * s, Weight::Medium, Rect::new(nx, r.y + 26.0 * s, (x1 - nx).max(0.0), 14.0 * s), Align::Left, if *state == TripState::Done { TEXT_FAINT } else { TEXT_DIM });
             }
-            SheetRow::Stop { planned, name, state, last } => {
+            SheetRow::Stop { planned, name, state, last, .. } => {
                 // (as Omsi-Hub's live duty: the pin on the rail, the time, the name)
                 let (weight, c) = time_style(*state);
                 pen.text_in(&hhmm(*planned), 12.0 * s, weight, Rect::new(x0 + 22.0 * s, r.y, 44.0 * s, r.h), Align::Left, c);

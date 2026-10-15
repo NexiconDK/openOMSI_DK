@@ -55,6 +55,13 @@ pub enum Ask {
     Trips(String),
     /// Take on trip `pos` (in order of departure) of tour `tour` of line `line`.
     Start { line: String, tour: String, pos: usize },
+    /// (the fork) The console's GPS key: off puts the duty into manual stop selection,
+    /// where the stops are served by hand instead of by where the bus is.
+    Gps(bool),
+    /// (the fork) With the GPS off: **Ankommet** (true) or **Afgået** (false).
+    AtStop(bool),
+    /// (the fork) With the GPS off: the bus is driving to this stop of the current trip.
+    HeadFor(usize),
 }
 
 /// Switch the page on or off, on `port` (from the settings; live).
@@ -235,6 +242,13 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
             (Some(line), Some(tour), Some(pos)) => json_of(ask(Ask::Start { line, tour, pos })),
             _ => ("400 Bad Request", "text/plain; charset=utf-8", b"which trip?".to_vec()),
         },
+        // (the fork) the console's GPS key and, with it off, its manual stop selection
+        ("POST", "/gps") => json_of(ask(Ask::Gps(field(body, "on").as_deref() == Some("1")))),
+        ("POST", "/at_stop") => json_of(ask(Ask::AtStop(field(body, "at").as_deref() == Some("1")))),
+        ("POST", "/head_for") => match field(body, "stop").and_then(|s| s.parse().ok()) {
+            Some(stop) => json_of(ask(Ask::HeadFor(stop))),
+            None => ("400 Bad Request", "text/plain; charset=utf-8", b"which stop?".to_vec()),
+        },
         ("GET", p) if p.starts_with("/tex/") => match picture(&p[5..]) {
             Some(b) => {
                 let kind = if p.to_ascii_lowercase().ends_with(".png") { "image/png" } else { "image/jpeg" };
@@ -293,9 +307,13 @@ fn state_name(s: StopState) -> &'static str {
 }
 
 /// The page's own words, in the interface's language.
+///
+/// They come in two halves and are put together here: `json!` builds its object by one
+/// macro step per field, and the whole list in one go reaches the recursion limit the
+/// doctests are built with.
 fn labels() -> Value {
     let tr = |k: &str| omsi_ui::tr(k).into_owned();
-    json!({
+    let mut v = json!({
         "in_game": tr("In the game"),
         "delay": tr("Delay"),
         "trip": tr("Trip"),
@@ -308,11 +326,24 @@ fn labels() -> Value {
         "line": tr("Line"),
         "tour": tr("Tour"),
         "all": tr("All"),
-        // (the fork) the console's own wording when a trip is chosen
+    });
+    // (the fork) the console's own words, from the Rejsekort manual
+    let fork = json!({
         "start_q": tr("You have chosen this trip. Is that right?"),
         "question": tr("Question"),
         "warning": tr("Warning"),
         "end_trip": tr("End trip"),
+        "arrived": tr("Arrived"),
+        "departed": tr("Departed"),
+        "manual_pos": tr("((41)) : Manual position"),
+        "menu": tr("Menu"),
+        "lock_console": tr("Lock console"),
+        "driver_change": tr("Driver change"),
+        "telebus": tr("Telebus"),
+        "set_sound": tr("Set sound"),
+        "maintenance": tr("Maintenance"),
+        "console_locked": tr("The driver console is locked"),
+        "lock_hint": tr("Type the password\nPress ESC for a driver change"),
         "yes": tr("Yes"),
         "no": tr("No"),
         "duty": tr("Duty"),
@@ -324,12 +355,16 @@ fn labels() -> Value {
         "driver": tr("Driver number"),
         "password": tr("Password"),
         "login_hint": tr("Type a driver number and a password (any will do)"),
-        // (the fork) the console's start-up, as the Rejsekort manual has it
+        // the console's start-up, as the manual's page 7 has it
         "starting": tr("Starting managers… Please wait…"),
         "updating": tr("Update under way.\nIt takes 3 minutes at most"),
         "no_wifi_title": tr("No wi-fi"),
         "no_wifi": tr("The console has no wi-fi connection. Press OK to go on."),
-    })
+    });
+    if let (Some(all), Some(fork)) = (v.as_object_mut(), fork.as_object()) {
+        all.extend(fork.iter().map(|(k, w)| (k.clone(), w.clone())));
+    }
+    v
 }
 
 /// What the page shows, in the interface's language: the texts are made here, the page only
@@ -372,12 +407,14 @@ fn state(duty: Option<&PlayerDuty>, time: f64, date: &str, bus: Option<glam::DVe
                 "terminus": terminus,
                 "state": match state { TripState::Done => "done", TripState::Now => "now", TripState::Ahead => "ahead" },
             }),
-            SheetRow::Stop { planned, name, state, last } => {
+            SheetRow::Stop { index, planned, name, state, last } => {
                 // (off the plan: when the bus will be there, for the stops still to come)
                 let coming = state == StopState::Ahead || (state == StopState::Now && !ds.at_stop);
                 let expected = late.filter(|_| coming).map(|l| planned + l).filter(|e| nav_duty::hhmm(*e) != nav_duty::hhmm(planned));
                 json!({
                     "k": "stop",
+                    // (the fork) the console sends this back when a stop is picked by hand
+                    "i": index,
                     "time": nav_duty::hhmm(planned),
                     "exp": expected.map(nav_duty::hhmm),
                     "exp_tone": late.map(tone),
@@ -412,6 +449,8 @@ fn state(duty: Option<&PlayerDuty>, time: f64, date: &str, bus: Option<glam::DVe
         // it draws beside a stop means the bus is standing at it
         "tour": d.tour.trim(),
         "at_stop": ds.at_stop,
+        // (the fork) the GPS key's own state: off, and the stops are served by hand
+        "gps": !d.manual_stops,
         "trip": format!("{} / {}", ds.focus() + 1, ds.trips.len()),
         "next": next,
         "rows": rows,

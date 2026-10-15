@@ -106,6 +106,40 @@
   /* the crowd in the strip stands there while a trip is under way */
   .strip i.crowd svg { display: none; }
   #duty .strip i.crowd svg { display: block; }
+  /* (the fork) the GPS key, as the manual's page 12 has it: press it and the cell goes
+     grey, and from then on the stops are served by hand */
+  .strip i.gps { cursor: pointer; }
+  .nogps .strip i.gps { background: #cdd0d6; }
+  /* with the GPS off the driver's own key stands over the blue panel */
+  .drive .side.manual .panel { grid-row: span 3; }
+  .drive .stop.pickable { cursor: pointer; }
+  .drive .stop.pickable:active { background: var(--pick); }
+
+  /* (the fork) the console's Menu, as the manual's page 17 has it: a deep blue field over
+     two rows and six keys under it. Telebus, the sound and the maintenance belong to the
+     real console, so they stand grey - the console's own way of saying a key leads
+     nowhere. The bar loses its pram and its arrows here, as the manual's picture has it. */
+  .menu { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u));
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(6, 1fr);
+    background: #d8e0e3; border-top: 1px solid #6b7580; }
+  .menu .sky { grid-column: span 2; grid-row: span 2; background: #2f3192; }
+  .menu .mi { background: #fff; border-right: 1px solid #6b7580; border-bottom: 1px solid #6b7580;
+    display: flex; align-items: center; text-align: left; padding: 0 calc(24 * var(--u));
+    font-size: calc(40 * var(--u)); color: #111; }
+  .menu .mi.off { background: #ccd3d8; color: #6a7278; cursor: default; }
+  .menu .mi:not(.off):active { background: var(--pick); }
+  .menu .slots { grid-column: span 2; display: flex; }
+  .menu .slots i { flex: 1; background: #d8e0e3; border-right: 1px solid #6b7580;
+    border-bottom: 1px solid #6b7580; }
+  #menu .foot .pram, #menu .foot .arrow { visibility: hidden; }
+
+  /* (the fork) the console behind its lock, as the manual's page 18 has it: the same login
+     screen, with the driver's own number standing grey and only the pass code to type */
+  #login.locked .drawn.title { top: calc(150 * var(--u)); font-size: calc(40 * var(--u));
+    font-weight: 400; color: #3b3f9e; letter-spacing: 0; }
+  #login.locked #b-driver { background: #9aa0a6; }
+  #login.locked #driver { color: #111; text-align: center; }
+  #login .drawn.hint { white-space: pre-line; line-height: 1.35; }
 
   /* login: the picture with its two fields */
   #login { background: var(--paper) url("/tex/login.png") no-repeat 0 0 / 100% 100%; }
@@ -219,7 +253,7 @@
 <div id="stage">
   <!-- login: any driver number and password do -->
   <form id="login" class="screen" autocomplete="off">
-    <div class="drawn title u">Web-IBIS</div>
+    <div class="drawn title u" id="l-title">Web-IBIS</div>
     <div class="drawn lbl u" id="l-driver" style="top:calc(390*var(--u))"></div>
     <div class="drawn lbl u" id="l-password" style="top:calc(460*var(--u))"></div>
     <div class="drawn box u here" id="b-driver" style="left:calc(477*var(--u));top:calc(378*var(--u));width:calc(661*var(--u));height:calc(51*var(--u))"></div>
@@ -275,7 +309,7 @@
         <g stroke="#d9242e" stroke-width="2.6" stroke-linecap="round"><path d="M3.4 20.2 20.6 4.4"/><path d="M3.4 4.4 20.6 20.2"/></g></svg></i>
       <i title="Printer"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="5" fill="#90a4ae"/><rect x="2.5" y="8" width="19" height="8.5" rx="1.2" fill="#78909c"/>
         <rect x="6" y="14" width="12" height="7" fill="#eceff1" stroke="#546e7a" stroke-width="1"/><circle cx="18.6" cy="11" r="1.1" fill="#4caf50"/></svg></i>
-      <i class="green" title="GPS"><svg viewBox="0 0 24 24"><circle cx="13" cy="14.4" r="6.6" fill="#2b3f4a"/>
+      <i class="green gps" title="GPS"><svg viewBox="0 0 24 24"><circle cx="13" cy="14.4" r="6.6" fill="#2b3f4a"/>
         <path d="M6.6 12.6h12.8M13 7.8v13.2" stroke="#9fd8e6" stroke-width="1.1" fill="none"/>
         <ellipse cx="13" cy="14.4" rx="3.1" ry="6.6" fill="none" stroke="#9fd8e6" stroke-width="1.1"/>
         <path d="M3.4 3.2 8 7.8" stroke="#2b3f4a" stroke-width="1.6" stroke-linecap="round"/>
@@ -325,12 +359,36 @@
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <div class="drive" id="duty-body"></div>
     <div class="foot" data-foot></div>
+    <div class="ask" id="warn"><div class="box">
+      <div class="ttl"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
+        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg>
+        <span data-l="warning">Advarsel</span></div>
+      <div class="mid"><div class="what" id="warn-what"></div></div>
+      <div class="btns"><button class="lone" id="warn-ok">Ok</button></div>
+    </div></div>
+  </section>
+
+  <!-- (the fork) the console's Menu, as the manual's pages 17 to 21 have it -->
+  <section id="menu" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="menu">
+      <div class="sky"></div>
+      <button class="mi" data-m="lock" data-l="lock_console">L&aring;s konsol</button>
+      <button class="mi off" disabled data-l="telebus">Telebus</button>
+      <button class="mi" data-m="logout" data-l="log_out">Log ud</button>
+      <button class="mi off" disabled data-l="set_sound">Indstil lyd</button>
+      <button class="mi" data-m="change" data-l="driver_change">Chauff&oslash;rskift</button>
+      <button class="mi off" disabled data-l="maintenance">Vedligeholdelse</button>
+      <div class="slots"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="foot" data-foot></div>
   </section>
 
   <!-- (the fork) the console's bar along the foot of every screen but the login -->
   <template id="foot-keys">
     <button class="esc" data-key="esc">ESC</button>
-    <button class="off" disabled>Menu</button>
+    <button class="off" data-key="menu">Menu</button>
     <button class="blue" disabled>Billetter</button>
     <button class="now" data-key="linje">Linje</button>
     <button class="blue" disabled>Betjening</button>
@@ -371,10 +429,23 @@ pic.src = "/tex/login.png";
 function show(name) {
   screen = name;
   document.querySelectorAll(".screen").forEach((e) => e.classList.toggle("on", e.id === name));
+  footTabs(name);
   if (name === "lines") loadLines();
   if (name === "trips") loadTrips();
   if (name === "duty") drawDuty();
-  if (name === "login") { padClose(); $("driver").value = ""; $("password").value = ""; }
+  // (the login keeps what stands in it while the console is locked: the driver's number)
+  if (name === "login") { padClose(); if (!locked) { $("driver").value = ""; $("password").value = ""; } }
+}
+
+// (the fork) which of the console's menus the bar shows us standing in: yellow is the one
+// we are in, blue and grey are the ones that lead nowhere (the manual's page 5)
+function footTabs(name) {
+  document.querySelectorAll(".foot").forEach((f) => {
+    const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
+    if (!menu || !linje) return;
+    menu.className = name === "menu" ? "now" : "off";
+    linje.className = name === "menu" ? "blue" : "now";
+  });
 }
 
 // (the fork) the console's strip of status cells and its bar of keys stand on more than
@@ -387,7 +458,14 @@ function words() {
   document.querySelectorAll("[data-l]").forEach((e) => { const w = labels[e.dataset.l]; if (w != null) e.textContent = w; });
   // (the console writes a colon after each of the two, and the manual's picture with it)
   $("l-driver").textContent = (labels.driver ?? "") + ":"; $("l-password").textContent = (labels.password ?? "") + ":";
-  $("l-hint").textContent = labels.login_hint ?? ""; $("lost").textContent = labels.lost ?? "⚠";
+  loginWords(); $("lost").textContent = labels.lost ?? "⚠";
+}
+
+// (the fork) the login screen says two different things: the one the console shows when
+// it starts up, and the one it shows while it is locked behind its own driver's pass code
+function loginWords() {
+  $("l-title").textContent = locked ? (labels.console_locked ?? "") : "Web-IBIS";
+  $("l-hint").textContent = (locked ? labels.lock_hint : labels.login_hint) ?? "";
 }
 
 // (the fork) The console's number pad, as the Rejsekort manual has it: tapping a field
@@ -446,9 +524,17 @@ $("login").addEventListener("submit", (e) => {
   if (!$("password").value.trim()) return padOpen("password");
   store.set("driver", $("driver").value.trim());
   $("password").value = "";
-  show("lines");
+  unlock();
+  // (back to the trip, when one is under way: a driver change leaves it standing)
+  show(state && state.duty ? "duty" : "lines");
 });
-document.querySelector("#login .esc").addEventListener("click", () => { padClose(); $("driver").value = ""; $("password").value = ""; });
+// locked, ESC is the manual's "tast ESC for chaufførskift"; otherwise it empties the fields
+document.querySelector("#login .esc").addEventListener("click", () => {
+  padClose();
+  unlock();
+  $("driver").value = ""; $("password").value = "";
+  padOpen("driver");
+});
 
 async function getJson(url, opts) {
   const r = await fetch(url, Object.assign({ cache: "no-store" }, opts));
@@ -532,8 +618,37 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
     if (screen === "lines") { store.set("driver", null); return show("login"); }
     return show("lines");
   }
+  if (k === "menu") return show("menu");
   if (k === "linje") return show(screen !== "duty" && state && state.duty ? "duty" : "lines");
   leaf(k === "down" ? 1 : -1);
+}));
+
+// (the fork) CHAUFFØRSKIFTE - LÅS KONSOL, the manual's pages 17 to 21. Lås konsol holds
+// the console over a short break - the same driver types the pass code to open it again.
+// Chaufførskift hands the bus on: the line and the trip stay, only the driver changes.
+// Log ud is for coming back to the garage.
+let locked = false;
+function lockConsole() {
+  locked = true;
+  $("login").classList.add("locked");
+  $("driver").value = store.get("driver") || "";
+  $("password").value = "";
+  loginWords();
+  show("login");
+  padOpen("password");
+}
+function unlock() {
+  locked = false;
+  $("login").classList.remove("locked");
+  loginWords();
+}
+document.querySelectorAll("#menu [data-m]").forEach((b) => b.addEventListener("click", () => {
+  const m = b.dataset.m;
+  if (m === "lock") return lockConsole();
+  unlock();
+  if (m === "logout") store.set("driver", null);   // (a change keeps the duty and the number)
+  show("login");
+  padOpen("driver");
 }));
 
 function leaf(d) {
@@ -593,15 +708,19 @@ function drawDuty() {
   const head = stops.length ? stops[0].name : "";
   if (head !== dutyHead) { dutyHead = head; page.duty = 0; }   // (the bus moved on)
   page.duty = Math.max(0, Math.min(page.duty, leaves(stops.length, PER.duty) - 1));
+  // with the GPS off the driver picks the stop ahead himself, but only while rolling
+  const hand = d.gps === false, pick = hand && !d.at_stop;
   const from = page.duty * PER.duty, shown = stops.slice(from, from + PER.duty);
   let right = shown.map((s, i) => {
     const at = from + i;
     const mark = d.at_stop ? (at === now ? HAND : "") : at === now - 1 ? GONE : at === now ? COMING : "";
-    return `<div class="stop"><span class="n">${esc(s.name)}</span>
+    const take = pick && at > now && s.i != null;
+    return `<div class="stop${take ? " pickable" : ""}"${take ? ` data-stop="${s.i}"` : ""}><span class="n">${esc(s.name)}</span>
       <span class="t">${esc(s.exp || s.time)}</span>${mark}</div>`;
   }).join("");
   for (let i = shown.length; i < PER.duty; i++) right += `<div class="slot"></div>`;
-  box.innerHTML = `<div class="side">
+  box.innerHTML = `<div class="side${hand ? " manual" : ""}">
+      ${hand ? `<button class="end" id="at-stop">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
       <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
         <span>${esc(L.tour)}: ${esc(d.tour || "")}</span>
         <span>${esc(L.delay)}: ${esc(d.delay)}</span></div>
@@ -609,7 +728,36 @@ function drawDuty() {
       <div class="slot"></div>
     </div><div class="stops">${right}</div>`;
   $("end-trip").addEventListener("click", endTrip);
+  // (the fork) the manual's four steps: Afgået when the doors are shut, Ankommet before
+  // they open again, and a tap on a stop further down to leave one out on the way
+  if (hand) $("at-stop").addEventListener("click", () => tell("/at_stop", { at: d.at_stop ? "0" : "1" }));
+  box.querySelectorAll("[data-stop]").forEach((e) =>
+    e.addEventListener("click", () => tell("/head_for", { stop: e.dataset.stop })));
 }
+
+// a word to the game, and the answer straight back into the screen
+async function tell(what, body) {
+  try { await getJson(what, { method: "POST", body: new URLSearchParams(body) }); } catch (e) { return; }
+  try { state = await getJson("/state"); } catch (e) {}
+  if (screen === "duty") drawDuty();
+}
+
+// (the fork) the console's GPS key: pressing it turns the stops over to the driver, and
+// the console says so with the manual's own message. Pressing it again gives them back.
+let warnTimer = 0;
+function warn(text) {
+  $("warn-what").textContent = text || "";
+  $("warn").classList.add("on");
+  clearTimeout(warnTimer);
+  warnTimer = setTimeout(() => $("warn").classList.remove("on"), 5000);
+}
+$("warn-ok").addEventListener("click", () => { clearTimeout(warnTimer); $("warn").classList.remove("on"); });
+document.querySelectorAll(".strip .gps").forEach((e) => e.addEventListener("click", async () => {
+  if (!state || !state.duty) return;
+  const on = state.duty.gps === false;   // the key turns it to the other side
+  await tell("/gps", { on: on ? "1" : "0" });
+  if (!on) warn(labels.manual_pos);      // "((41)) : Manuel position"
+}));
 
 // the manual: Afslut tur takes back the chosen trip, and the console stands on Turvalg
 async function endTrip() {
@@ -662,6 +810,8 @@ async function tick() {
     if (s.labels) {
       const first = !state;
       state = s; labels = s.labels; words();
+      // (the fork) the GPS cell goes grey on every screen while the stops are by hand
+      document.body.classList.toggle("nogps", !!(s.duty && s.duty.gps === false));
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
       if (first) { if (!booting) route(); }

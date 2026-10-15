@@ -20,6 +20,7 @@ fn early_departure_duty() -> PlayerDuty {
         served_terminus: None,
         left_late: Some(0.0),
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -89,6 +90,7 @@ fn ibox_busstop_is_prepositioned_when_the_timetable_jumps() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -130,6 +132,7 @@ fn duty_place_keeps_first_stop_while_its_place_is_unknown() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -293,6 +296,7 @@ fn resumed_duty_keeps_its_trip_and_stop_before_the_first_script_frame() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: false,
         trip_changed: false,
         skipped: None,
@@ -380,6 +384,7 @@ fn a_stop_placed_only_once_its_tile_loads_is_reached() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -423,6 +428,7 @@ fn the_next_trip_starts_at_its_first_stop_though_the_last_one_was_missed() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -462,6 +468,7 @@ fn the_next_trip_starts_at_its_first_stop_though_the_last_one_was_missed() {
         served_terminus: None,
         left_late: Some(0.0),
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -482,7 +489,7 @@ fn the_next_trip_starts_at_its_first_stop_though_the_last_one_was_missed() {
 fn the_next_stop_can_be_skipped() {
     let trip = planned(0.0, &[(0.0, 0.0, 0.0), (100.0, 60.0, 60.0), (500.0, 120.0, 120.0), (1000.0, 200.0, 200.0)]);
     let next = planned(400.0, &[(1040.0, 400.0, 400.0), (1500.0, 500.0, 500.0)]);
-    let mut d = PlayerDuty { line: "5".into(), tour: "1".into(), trips: vec![trip, next], trip_index: 0, first_trip: 0, next_stop: 0, at_stop: false, arrived_late: None, done: false, served_terminus: None, left_late: None, held_back: false, placed: true, trip_changed: false, skipped: None, run: 0, finished: None, reopened: None, picked: true, first_update: None, heading: 90.0, position: None };
+    let mut d = PlayerDuty { line: "5".into(), tour: "1".into(), trips: vec![trip, next], trip_index: 0, first_trip: 0, next_stop: 0, at_stop: false, arrived_late: None, done: false, served_terminus: None, left_late: None, held_back: false, manual_stops: false, placed: true, trip_changed: false, skipped: None, run: 0, finished: None, reopened: None, picked: true, first_update: None, heading: 90.0, position: None };
     // at the first stop and away from it: the next is s1
     d.advance(glam::DVec3::new(0.0, 0.0, 0.0), 0.0);
     d.advance(glam::DVec3::new(50.0, 0.0, 0.0), 10.0);
@@ -527,6 +534,7 @@ fn a_page_can_go_back_to_an_earlier_stop() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -582,6 +590,7 @@ fn a_loop_does_not_jump_to_the_stop_over_the_road() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -620,6 +629,7 @@ fn stops_passed_without_stopping_are_told_once() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: true,
         trip_changed: false,
         skipped: None,
@@ -693,6 +703,7 @@ fn a_duty_starts_with_the_trip_that_fits_the_time() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: false,
         trip_changed: false,
         skipped: None,
@@ -749,6 +760,7 @@ fn a_duty_starts_with_a_trip_the_bus_can_reach() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: false,
         trip_changed: false,
         skipped: None,
@@ -796,6 +808,7 @@ fn ibis_skips_a_service_leg_for_the_player_display() {
         served_terminus: None,
         left_late: None,
         held_back: false,
+        manual_stops: false,
         placed: false,
         trip_changed: false,
         skipped: None,

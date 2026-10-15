@@ -166,6 +166,7 @@ impl PlayerDuty {
             served_terminus: None,
             left_late: None,
             held_back: false,
+            manual_stops: false,
             placed: false,
             trip_changed: false,
             skipped: None,
@@ -541,6 +542,61 @@ impl PlayerDuty {
         self.skip_to(self.next_stop + 1).then_some(name)
     }
 
+    /// (the fork) The console's **Ankommet**, with the GPS switched off: the bus is at the
+    /// stop it is due at. The arrival is counted as the bus reaching it would have counted
+    /// it, and the trip's last stop ends the trip. False when there is nothing to arrive at
+    /// - the trip is over, or the bus is already standing there.
+    pub fn arrive_by_hand(&mut self, day_time: f64) -> bool {
+        let day_time = self.duty_time(day_time);
+        if self.done || self.at_stop {
+            return false;
+        }
+        let last = self.trip().stops.len().saturating_sub(1);
+        let Some(arr) = self.trip().stops.get(self.next_stop).map(|s| s.arr) else { return false };
+        self.held_back = false;
+        self.arrived_late = Some(day_time - arr);
+        self.at_stop = true;
+        if self.next_stop == last {
+            self.done = true;
+            self.finish(TripEnd::Arrived);
+        }
+        true
+    }
+
+    /// (the fork) The console's **Afgået**, with the GPS switched off: the bus has left the
+    /// stop it stood at, and the one after it is the next. Returns how late the bus arrived
+    /// and left, the way [`PlayerDuty::update`] hands a served stop back; None when the bus
+    /// was not standing at one.
+    pub fn depart_by_hand(&mut self, day_time: f64) -> Option<(f64, f64)> {
+        let day_time = self.duty_time(day_time);
+        if !self.at_stop {
+            return None;
+        }
+        let last = self.trip().stops.len().saturating_sub(1);
+        let stop = self.trip().stops.get(self.next_stop)?;
+        let (stops, dep) = (stop.stops, stop.dep);
+        self.at_stop = false;
+        let late = day_time - dep;
+        self.left_late = Some(late);
+        // (OMSI counts a stop only with its arrival: the original)
+        let served = match (stops, self.arrived_late.take()) {
+            (true, Some(arrived)) => Some((arrived, late)),
+            _ => None,
+        };
+        self.next_stop = (self.next_stop + 1).min(last);
+        log::debug!("duty: left stop by hand, next stop now {}", self.next_stop);
+        served
+    }
+
+    /// (the fork) With the GPS switched off, the driver taps the stop the bus is driving
+    /// to: everything between is given up unserved. True when the duty moved.
+    pub fn head_for(&mut self, stop: usize) -> bool {
+        if self.done || self.at_stop || stop <= self.next_stop {
+            return false;
+        }
+        stop < self.trip().stops.len() && self.skip_to(stop)
+    }
+
     pub(crate) fn set_trip(&mut self, index: usize) {
         self.trip_index = index;
         self.run = next_run();
@@ -824,6 +880,11 @@ impl PlayerDuty {
                 self.trip().name,
                 self.trip().terminus
             );
+        }
+        // (the fork) with the GPS switched off the stops are served by hand instead: the
+        // trips still roll on by the clock above, but where the bus stands means nothing
+        if self.manual_stops {
+            return None;
         }
         let mut served = None;
         let trip = &self.trips[self.trip_index];

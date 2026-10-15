@@ -3210,6 +3210,47 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
             let error = (!ok).then(|| app.service_msg.as_ref().map(|m| m.0.clone()).unwrap_or_default());
             json!({ "ok": ok, "error": error })
         }
+        // (the fork) The console's GPS key. Switched off, the duty stops serving its stops
+        // by where the bus is and waits to be told, as the Rejsekort manual's manual stop
+        // selection has it. Switched on again, the duty catches up with the bus by itself
+        // on the very next update.
+        Ask::Gps(on) => {
+            let Some(d) = app.session.duty.as_mut() else { return json!({ "ok": false, "error": "no duty" }) };
+            d.manual_stops = !on;
+            log::info!("tablet: GPS {}", if on { "on" } else { "off (stops served by hand)" });
+            json!({ "ok": true, "gps": on })
+        }
+        // "Ankommet" and "Afgået": what the GPS would otherwise have seen
+        Ask::AtStop(at) => {
+            let now = app.clock.time;
+            let Some(d) = app.session.duty.as_mut() else { return json!({ "ok": false, "error": "no duty" }) };
+            if !d.manual_stops {
+                return json!({ "ok": false, "error": "the GPS is on" });
+            }
+            let moved = if at { d.arrive_by_hand(now) } else { d.depart_by_hand(now).is_some() || !d.at_stop() };
+            after_duty_moved(app);
+            json!({ "ok": moved })
+        }
+        // the stop the bus is driving towards, with everything before it given up
+        Ask::HeadFor(stop) => {
+            let Some(d) = app.session.duty.as_mut() else { return json!({ "ok": false, "error": "no duty" }) };
+            if !d.manual_stops {
+                return json!({ "ok": false, "error": "the GPS is on" });
+            }
+            let moved = d.head_for(stop);
+            after_duty_moved(app);
+            json!({ "ok": moved })
+        }
+    }
+}
+
+/// (the fork) After the console moved the duty by hand: the destination sign and the
+/// driver's timetable follow it, as they do when the bus reaches a stop itself.
+fn after_duty_moved(app: &mut App) {
+    let Some(d) = app.session.duty.as_ref() else { return };
+    let (trip, stop) = d.trip_for_ibis();
+    if let Some(p) = app.player.as_mut() {
+        p.set_duty_destination(trip, stop);
     }
 }
 
