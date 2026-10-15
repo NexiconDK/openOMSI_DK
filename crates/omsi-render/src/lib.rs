@@ -754,6 +754,10 @@ pub struct Lighting {
     /// enhanced picture the view they take (`enhanced_weather_fog`) - falling snow takes far
     /// more of it than rain of the same water does.
     pub snowfall: f32,
+    /// (the fork) A snowstorm on top of the weather's own snow, 0 to 1 (`OMSI_SNOWSTORM`):
+    /// the view closes in, the flakes thicken and are drawn out along their flight, and the
+    /// wind comes in gusts. 0 leaves the snowfall exactly as the weather asks for it.
+    pub snow_storm: f32,
     /// The weather's wind (m/s, world): the snowfall drifts with it.
     pub wind: Vec3,
     /// The condensation on the player's bus's panes as optical depths (the share of the
@@ -851,6 +855,7 @@ impl Default for Lighting {
             vanilla_sky: VanillaSky::default(),
             shadows: true,
             snowfall: 0.0,
+            snow_storm: 0.0,
             wind: Vec3::ZERO,
             condensation: [0.0; 4],
             lamp_shadows: false,
@@ -8099,7 +8104,7 @@ fn enhanced_weather_fog(lighting: &Lighting) -> f32 {
     } else {
         0.0
     };
-    fog + snowfall_extinction(lighting.snowfall)
+    fog + snowfall_extinction(lighting.snowfall, lighting.snow_storm)
 }
 
 /// How much the lamps round the camera light the night sky over it, relative to a city's
@@ -8301,12 +8306,27 @@ fn headlamp_profile(t: Vec3, dir: Vec3, low: bool) -> f32 {
 /// inversely with the snowfall rate (Rasmussen et al., J. Appl. Meteor. 1999). A
 /// snowflake's big, flat cross-section takes several times the view of a raindrop of
 /// the same water.
-fn snowfall_extinction(s: f32) -> f32 {
+/// (the fork) The wind a snowstorm blows at its full strength (m/s) where the weather asks
+/// for less: a blizzard is over 14 m/s by definition.
+const SNOWSTORM_WIND: f32 = 17.0;
+/// (the fork) How long a flake's flight is drawn out as a streak (s) in a full storm, and
+/// how hard the gusts blow as a share of the wind.
+const SNOWSTORM_STREAK: f32 = 0.014;
+const SNOWSTORM_GUST: f32 = 0.45;
+
+fn snowfall_extinction(s: f32, storm: f32) -> f32 {
     if s <= 0.01 {
         return 0.0;
     }
-    let visibility = 300.0 / s.min(1.0).powf(0.9);
-    3.0 / visibility
+    // (the fork) a storm closes the view right in: the meteorological definition of a
+    // blizzard is under 400 m, and a whiteout is tens of metres, where a driver sees the
+    // bonnet and little else. At its full strength this leaves some 40 m.
+    // (geometrically, not by subtracting: taken off evenly the last tenth of the dial halved
+    // what was left of the view while the first barely moved it. An eighth of the way at its
+    // full strength, so every tenth closes the view by the same share and the dial reads
+    // evenly from end to end.)
+    let visibility = 300.0 / s.min(1.0).powf(0.9) * 0.125f32.powf(storm.clamp(0.0, 1.0));
+    3.0 / visibility.max(12.0)
 }
 
 /// How much of the sun's light gets down through the enhanced fog layer (extinction
@@ -8677,15 +8697,21 @@ fn snow_shader_source() -> String {
 struct SnowUniform {
     wind: [f32; 4],
     fall: [f32; 4],
+    /// (the fork) x the storm (0..1), y how long a flake's flight is drawn out as a streak
+    /// (s), z how hard the gusts blow as a share of the wind.
+    storm: [f32; 4],
 }
 
 /// The snowfall's flakes for a snowfall of strength `s` (0..1): how many each layer of
 /// snow.wgsl holds (the near one at the density of a heavy fall, some 190 a cubic metre,
 /// scaled down for a lighter one) and their mean diameter (m) - a light fall single
 /// crystals of a millimetre, a heavy one aggregates of several.
-fn snowfall_flakes(s: f32) -> ([u32; 3], f32) {
-    let k = 0.08 + 0.92 * s.clamp(0.0, 1.0);
-    ([(70000.0 * k) as u32, (55000.0 * k) as u32, (25000.0 * k) as u32], 0.0006 + 0.0034 * s * s)
+fn snowfall_flakes(s: f32, storm: f32) -> ([u32; 3], f32) {
+    // (the fork) a storm fills the air: twice the flakes at its full strength, and bigger
+    // aggregates with them (a heavy fall rimes and sticks the crystals together)
+    let more = 1.0 + storm.clamp(0.0, 1.0);
+    let k = (0.08 + 0.92 * s.clamp(0.0, 1.0)) * more;
+    ([(70000.0 * k) as u32, (55000.0 * k) as u32, (25000.0 * k) as u32], (0.0006 + 0.0034 * s * s) * (1.0 + 0.5 * storm))
 }
 
 /// Enhanced: the lamps' light in the fog over the drawn picture (`fog_lamps.wgsl`; not
@@ -12558,5 +12584,65 @@ mod lamp_shadow_fade_tests {
         assert_eq!(weight(&slots, k(1)), 0.0, "the lamp that left is still held");
         assert!(weight(&slots, k(3)) > 0.0, "the new lamp got no place");
         assert_eq!(weight(&slots, k(2)), 1.0, "the lamp that stayed was disturbed");
+    }
+}
+
+#[cfg(test)]
+mod snowstorm_tests {
+    use super::*;
+
+    /// The meteorological visibility a snowfall leaves (m): the extinction is 3 / it.
+    fn visibility(s: f32, storm: f32) -> f32 {
+        3.0 / snowfall_extinction(s, storm)
+    }
+
+    /// Without the storm nothing about the snowfall changes: the weather's own fall is what
+    /// it always was.
+    #[test]
+    fn no_storm_leaves_the_weathers_own_snow_alone() {
+        for s in [0.2f32, 0.5, 1.0] {
+            assert!((visibility(s, 0.0) - 300.0 / s.powf(0.9)).abs() < 0.5, "{s}");
+        }
+        assert_eq!(snowfall_flakes(1.0, 0.0), ([70000, 55000, 25000], 0.004));
+        assert_eq!(snowfall_extinction(0.0, 1.0), 0.0, "no storm out of a clear sky");
+    }
+
+    /// A storm is a blizzard by the book: under 400 m of visibility, and at its full
+    /// strength a whiteout of some tens of metres, where a driver sees little past the
+    /// bonnet. (WMO/NWS: a blizzard is visibility under 400 m, a whiteout tens of metres.)
+    #[test]
+    fn a_full_storm_is_a_whiteout() {
+        let open = visibility(1.0, 0.0);
+        let shut = visibility(1.0, 1.0);
+        assert!((295.0..=305.0).contains(&open), "the heaviest fall today is {open:.0} m");
+        assert!((30.0..=60.0).contains(&shut), "the storm leaves {shut:.0} m");
+        // and half the dial is half the way there in stops of visibility
+        let half = visibility(1.0, 0.5);
+        assert!((100.0..=115.0).contains(&half), "half a storm leaves {half:.0} m");
+        assert!(shut < 400.0, "not a blizzard by the definition");
+        // and it closes in without a step on the way
+        let mut last = open;
+        for k in 1..=10 {
+            let v = visibility(1.0, k as f32 / 10.0);
+            assert!(v < last, "the storm did not close the view at {k}/10");
+            // the dial reads evenly: every tenth takes the same share of the view
+            assert!(last / v < 1.3, "it shut from {last:.0} m to {v:.0} m in one tenth");
+            last = v;
+        }
+    }
+
+    /// The air fills: twice the flakes and bigger aggregates, and never fewer than without.
+    #[test]
+    fn a_storm_fills_the_air_with_flakes() {
+        let (calm, d_calm) = snowfall_flakes(1.0, 0.0);
+        let (blown, d_blown) = snowfall_flakes(1.0, 1.0);
+        let (sum_c, sum_b): (u32, u32) = (calm.iter().sum(), blown.iter().sum());
+        assert_eq!(sum_c, 150_000);
+        assert!((295_000..=305_000).contains(&sum_b), "{sum_b} flakes in the storm");
+        assert!(d_blown > d_calm * 1.4, "the flakes did not grow: {d_calm} to {d_blown}");
+        for k in 0..=10 {
+            let (n, _) = snowfall_flakes(1.0, k as f32 / 10.0);
+            assert!(n.iter().sum::<u32>() >= sum_c, "fewer flakes than without the storm");
+        }
     }
 }

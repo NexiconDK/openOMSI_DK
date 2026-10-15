@@ -420,6 +420,7 @@ flags! {
     OMSI_SHADOW_NEAR_EVERY_FRAME: Bool, Switch, Frame, "off", "Redraw the near shadow map every frame.";
     OMSI_SKIP_OBJECT: Text, Test, Use, "-", "Leave out the objects whose file name contains this text.";
     OMSI_SKIP_PIPE: Text, Test, Frame, "-", "Pipeline kinds to leave out of the main pass (comma-separated numbers).";
+    OMSI_SNOWSTORM: Num, Tuning, Frame, "0", "A snowstorm on top of the weather's snow, 0 to 1: the view closes in to some 40 m, twice the flakes, a gale with gusts, and the flakes drawn out along their flight. 0 = the snowfall exactly as the weather asks.";
     OMSI_SPOT_SELECT: Num, Test, Use, "-", "Turn on spotlight n (headlight pictures).";
     OMSI_STOP_SIGNS_PREVIEW: Text, Test, Test, "-", "City map stop sign preview test: the folder for its pictures.";
     OMSI_SURFACE_BIAS: Num, Tuning, Use, "-24", "Depth bias of road surfaces.";

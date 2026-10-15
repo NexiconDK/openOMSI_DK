@@ -64,6 +64,24 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Når bussen er fyldt op til den valgte grænse (sæder og ståpladser tilsammen; **80 %, 90 %, 95 % eller 100 %**, standard 95 %), skifter destinationsskiltet hvert 3. sekund mellem linje og destination og **OPTAGET**. Skiltet tegnes af bussens eget script, så det har bussens egen skrift. Rullebånd og billeder på skiltet bliver stående. I multiplayer ser de andre spillere det også.
 - Kan slås fra under **Indstillinger → Gameplay → Passagerer** (i launcheren) eller i spillets menu: "OPTAGET på destinationsskiltet, når bussen er fuld". Grænsen vælges samme sted under "OPTAGET fra". Slår du det fra, ser du det heller ikke på de andre spilleres busser.
 
+### Snestorm
+Sat på en kontakt, så almindelig sne er præcis som før. I din .cmd før `openomsi.exe`:
+
+```
+set OMSI_SNOWSTORM=1
+```
+
+Tallet går fra 0 til 1, og **dialen er jævn** — hver tiendedel lukker udsynet med samme andel, så 0,5 er halvvejs og ikke "næsten ingenting". Det sner mindst så hårdt, uanset hvad vejrfilen siger, så du kan tænde den og se det med det samme.
+
+Hvad der sker ved fuld styrke:
+
+- **Sigtbarheden går fra 300 m til omkring 40 m.** Et snefog, hvor du ser kølerhjelmen og ikke meget mere. (Definitionen på en snestorm er under 400 m, og et whiteout er nede i titusindvis af meter.)
+- **Dobbelt så mange fnug** — 300.000 i stedet for 150.000 — og større klumper, for i kraftig sne fryser krystallerne sammen.
+- **Kuling med vindstød.** Vinden hæves til 17 m/s i vejrets egen retning, hvis vejrfilen siger mindre, og oven på den ligger to langsomme bølger, der aldrig helt rammer sammen, så det kommer i pust og lun i stedet for at blæse fladt. Stødene er regnet som den præcise integral af vindhastigheden, så et fnug aldrig springer, når vinden drejer.
+- **Fnuggene trækker streger.** Ved 17 m/s flyver et fnug næsten vandret og krydser en god del af en meter, mens øjet holder ét billede — en rund prik ser derfor ud som stillestående luft med sne hængende i. Hvert fnug tegnes nu langs sin egen bane (vind, vindstød, sving og fald), og det, det dækker, fordeles over længden, så en lang streg er en svag streg.
+
+`OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
+
 ### Lys
 - Forlygterne fra en bus eller bil bag dig (andre spillere og AI) lyser ikke længere igennem din bus ind på forruden, instrumentbrættet og kabinen, når du sidder i førerhuset (grafik: Enhanced og Enhanced+).
 - Det gælder nu alle lygter på andre køretøjer (også deres positionslys og de forenklede lygter), og også med grafikken Vanilla og Vanilla+.

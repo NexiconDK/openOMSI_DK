@@ -99,6 +99,15 @@ pub fn apply_weather(
     l.overcast = overcast;
     l.rain = rain;
     l.snowfall = if precip_kind == 2 { rain } else { 0.0 };
+    // (the fork) `OMSI_SNOWSTORM=0..1`: a storm over the weather's own snow. It snows at
+    // least this hard whatever the weather file says, so that it can be turned on and seen
+    // at once; the renderer takes the view in, thickens the flakes, raises a gale with gusts
+    // and draws each flake out along its flight (`snowfall_extinction`, `snowfall_flakes`,
+    // snow.wgsl). At 0 nothing here changes.
+    l.snow_storm = omsi_cfg::flags::OMSI_SNOWSTORM.parse::<f32>().unwrap_or(0.0).clamp(0.0, 1.0);
+    if l.snow_storm > 0.0 {
+        l.snowfall = l.snowfall.max(l.snow_storm);
+    }
     let gloom = (overcast * 0.5 + rain * 0.5).clamp(0.0, 1.0);
     l.night = l.night.max(0.45 * gloom);
     // (night maps on with the street lamps, or where the weather makes it that dark: a

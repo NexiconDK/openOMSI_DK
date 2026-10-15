@@ -49,7 +49,21 @@ struct SnowParams {
     // x how hard it snows (0..1), y the flakes' mean diameter (m), zw how many flakes the
     // first two layers hold (the rest are the third's)
     fall: vec4<f32>,
+    // (the fork) x the storm (0..1), y how long a flake's flight is drawn out as a streak
+    // (s), z how hard the gusts blow as a share of the wind
+    storm: vec4<f32>,
 };
+
+// (the fork) The gusts of a storm, as a share of the wind: two slow waves that never quite
+// line up, so the wind comes in pushes and lulls instead of blowing flat. `gust_at` is the
+// speed at time `t` and `gust_to` the distance it has carried a flake by then - its exact
+// integral, so that raising or dropping the gusts moves no flake where it already is.
+fn gust_at(t: f32) -> f32 {
+    return sin(t * 0.37) * 0.62 + sin(t * 0.91 + 1.3) * 0.38;
+}
+fn gust_to(t: f32) -> f32 {
+    return (1.0 - cos(t * 0.37)) / 0.37 * 0.62 + (cos(1.3) - cos(t * 0.91 + 1.3)) / 0.91 * 0.38;
+}
 @group(1) @binding(0) var<uniform> sp: SnowParams;
 
 struct SnowOut {
@@ -126,7 +140,11 @@ fn vs_snow(@builtin(vertex_index) vid: u32, @builtin(instance_index) k: u32) -> 
     // own, modulo a kilometre, so that it stays put while the render origin moves)
     let world_cam = camera.cam_pos.xyz + vec3<f32>(camera.world_origin.xy, 0.0);
     let start = h1.xyz * size;
-    let drift = sp.wind.xyz * (0.6 * t) + vec3<f32>(cos(ph), sin(ph), 0.0) * sway - vec3<f32>(0.0, 0.0, fall * t);
+    // (the fork) the wind carries it, with the storm's gusts on top (`gust_to` is how far
+    // they have carried it by now, so a flake never jumps when the gust turns)
+    let gust = sp.storm.x * sp.storm.z;
+    let carried = 0.6 * t + gust * gust_to(t);
+    let drift = sp.wind.xyz * carried + vec3<f32>(cos(ph), sin(ph), 0.0) * sway - vec3<f32>(0.0, 0.0, fall * t);
     let lo = world_cam + vec3<f32>(-lh.x, -lh.x, lh.y);
     let q = lo + (((start + drift - lo) % size) + size) % size;
     let p = q - vec3<f32>(camera.world_origin.xy, 0.0);
@@ -155,8 +173,29 @@ fn vs_snow(@builtin(vertex_index) vid: u32, @builtin(instance_index) k: u32) -> 
     }
     var ax = cross(vec3<f32>(0.0, 0.0, 1.0), vdir);
     ax = select(vec3<f32>(1.0, 0.0, 0.0), normalize(ax), length(ax) > 1e-4);
-    let ay = cross(vdir, ax);
-    out.clip = camera.view_proj * vec4<f32>(p + (ax * c.x + ay * c.y) * rs, 1.0);
+    var ay = cross(vdir, ax);
+    // (the fork) In a storm a flake is drawn out along its flight. Blown nearly flat at
+    // fifteen metres a second it crosses a good part of a metre while the eye holds one
+    // picture, and a round speck then reads as still air with snow hanging in it. The axis
+    // is the flake's own velocity - the wind and its gusts, its sway, and its fall - laid
+    // across the view; what it covers of the sky is spread over that length, so a long
+    // streak is a faint one.
+    var long = 1.0;
+    if (sp.storm.x > 0.0) {
+        let vel = sp.wind.xyz * (0.6 + gust * gust_at(t))
+            + vec3<f32>(-sin(ph), cos(ph), 0.0) * (sway * pace)
+            - vec3<f32>(0.0, 0.0, fall);
+        let across = vel - vdir * dot(vel, vdir);
+        let speed = length(across);
+        if (speed > 0.05) {
+            ay = across / speed;
+            ax = normalize(cross(vdir, ay));
+            long = clamp(speed * sp.storm.y / rs, 1.0, 9.0);
+            long = mix(1.0, long, sp.storm.x);
+            out.cover = out.cover / sqrt(long);
+        }
+    }
+    out.clip = camera.view_proj * vec4<f32>(p + (ax * c.x + ay * c.y * long) * rs, 1.0);
     out.uv = c;
     out.pos = p;
     return out;

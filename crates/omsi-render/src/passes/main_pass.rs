@@ -347,10 +347,21 @@ impl Renderer {
         // the snowfall, every flake worked out on the GPU (snow.wgsl), over the world and
         // under the cab of the vehicle the camera is in
         if let Some(snow) = pp.snow_pipeline.as_ref().filter(|_| lighting.snowfall > 0.01 && !f.env.no_snowfall) {
-            let (counts, mean) = snowfall_flakes(lighting.snowfall);
+            let storm = lighting.snow_storm.clamp(0.0, 1.0);
+            let (counts, mean) = snowfall_flakes(lighting.snowfall, storm);
+            // (the fork) a storm blows, whatever the weather file's wind says: under this it
+            // is raised to a gale's, in the wind's own direction (a blizzard is over 14 m/s
+            // by definition, and the flakes then fly nearly flat)
+            let mut wind = lighting.wind;
+            let gale = SNOWSTORM_WIND * storm;
+            if storm > 0.0 && wind.length() < gale {
+                let dir = wind.normalize_or(Vec3::new(0.7, 0.7, 0.0));
+                wind = dir * gale;
+            }
             let u = SnowUniform {
-                wind: lighting.wind.extend(self.started.elapsed().as_secs_f32() % 20000.0).to_array(),
+                wind: wind.extend(self.started.elapsed().as_secs_f32() % 20000.0).to_array(),
                 fall: [lighting.snowfall, mean, counts[0] as f32, counts[1] as f32],
+                storm: [storm, SNOWSTORM_STREAK, SNOWSTORM_GUST, 0.0],
             };
             self.queue.write_buffer(&self.snow_buf, 0, bytemuck::bytes_of(&u));
             pass.set_pipeline(snow);
