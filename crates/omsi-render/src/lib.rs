@@ -1380,6 +1380,14 @@ pub struct Instance {
     /// (from openOMSI's PR 1902) How much snow lies on the roof of this instance's vehicle
     /// (0..1): it rides in the surface code's ten thousands, see `instance_entries`.
     pub roof_snow: f32,
+    /// (the fork) Snow the figure itself carries, on its shoulders and its head (0..1): for
+    /// the people, who gather it out in the open and lose it to the warm of a saloon.
+    ///
+    /// It cannot be the weather's cover times the box test every other surface uses
+    /// (`weather_outside_n`): that is a geometric test, so the snow left a passenger the
+    /// moment they stepped through the door. `None` for everything else, which keeps the
+    /// box test.
+    pub carried_snow: Option<f32>,
     /// Drawn with every slot in model order among the blended draws, as Omsi.exe draws a
     /// model: mesh after mesh, each material subset with its own states and depth write
     /// (0x7c32c4 -> 0x7fd6c4, DrawSubset), not its opaque parts first. Set on the models
@@ -5010,6 +5018,7 @@ impl Renderer {
             shadow_owner: None,
             roof: None,
             roof_snow: 0.0,
+            carried_snow: None,
         });
         if scene.bounds_known.get(mesh).copied().unwrap_or(false) {
             scene.bounds_users.push(scene.instances.len() - 1);
@@ -5066,6 +5075,7 @@ impl Renderer {
             shadow_owner: None,
             roof: None,
             roof_snow: 0.0,
+            carried_snow: None,
         });
         if scene.bounds_known.get(mesh).copied().unwrap_or(false) {
             scene.bounds_users.push(scene.instances.len() - 1);
@@ -5178,6 +5188,23 @@ impl Renderer {
             // (a fortieth: the steps the shader tells apart)
             if (i.roof_snow - snow).abs() >= 0.0125 {
                 i.roof_snow = snow;
+                Self::mark_changed(scene, instance);
+            }
+        }
+    }
+
+    /// (the fork) The snow a figure carries on its shoulders and head (0..1), or `None` to
+    /// shade it as everything else is (see [`Instance::carried_snow`]).
+    pub fn set_carried_snow(&self, scene: &mut Scene, instance: usize, snow: Option<f32>) {
+        if let Some(i) = scene.instances.get_mut(instance) {
+            // (a fiftieth: finer than the eye tells apart on a shoulder, and it keeps a
+            // crowd of figures from writing their instances again every frame)
+            let same = match (i.carried_snow, snow) {
+                (Some(a), Some(b)) => (a - b).abs() < 0.02,
+                (a, b) => a.is_none() == b.is_none(),
+            };
+            if !same {
+                i.carried_snow = snow;
                 Self::mark_changed(scene, instance);
             }
         }
@@ -6107,6 +6134,12 @@ impl Renderer {
                     // ten thousands: road_snow.wgsl `vehicle_snow`
                     let snow = (i.roof_snow.clamp(0.0, 1.0) * 40.0).round();
                     -(5000.0 + z.clamp(-4000.0, 4000.0) + 10000.0 * snow)
+                } else if let Some(s) = i.carried_snow.filter(|_| !i.blob && !i.surface) {
+                    // (the fork) a figure's own snow, as -1 to -2: the codes between -1 and
+                    // -500 are free, and every test the shaders make of this one (a surface
+                    // at 0.75 and up, a vehicle part below -500) passes it by as it does 0,
+                    // which is the code these instances had (see the shaders' `carried`)
+                    -(1.0 + s.clamp(0.0, 1.0))
                 } else {
                     surface_instance_code(
                         i.blob,

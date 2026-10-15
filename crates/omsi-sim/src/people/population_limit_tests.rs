@@ -42,6 +42,7 @@ fn the_pool_counts_local_people_and_never_recycles_riders_or_avatars() {
         pose_changed: false,
         interior: 0.0,
         lit: 0.0,
+            snow: 0.0,
         tilt: Mat4::IDENTITY,
         age: 40.0,
         stuck: 0.0,

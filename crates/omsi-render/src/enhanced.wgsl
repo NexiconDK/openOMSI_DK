@@ -903,7 +903,10 @@ fn shade_enhanced(in: FsIn, puddle_weight: ptr<function, vec2<f32>>, capture: bo
     // (not on a shadow blob: whitened, it lit the snow under the bus instead of shading it)
     // (nor on a texture that is the season's snow picture, which shows the map's own snow
     // as OMSI 2 does: see the vanilla shader, #879)
-    let snow_ok = outside * select(1.0, 0.0, in.params2.w > 1.5 || material.ambient.w > 0.5);
+    // (the fork) a figure's own snow stands in place of the box test, which took the snow
+    // off a passenger the moment they stepped through the door (shader.wgsl `carried_snow`)
+    let carried = carried_snow(in.params2.w);
+    let snow_ok = select(outside, 1.0, carried >= 0.0) * select(1.0, 0.0, in.params2.w > 1.5 || material.ambient.w > 0.5);
     // a carriageway under snow that builds up: its own cover, ruts and tracks (road_snow.wgsl)
     let carriageway = !terrain && material.params2.z > 0.0 && road_snow_dynamic();
     var rs = vec3<f32>(0.0);
@@ -916,7 +919,11 @@ fn shade_enhanced(in: FsIn, puddle_weight: ptr<function, vec2<f32>>, capture: bo
     if (vehicle && snow_ok > 0.0) {
         on_vehicle = vehicle_snow(in.params2.w, in.local);
     }
-    let snow = select(select(enh.weather.y, rs.x, carriageway), on_vehicle, vehicle) * snow_ok;
+    var lies = enh.weather.y;
+    if (carriageway) { lies = rs.x; }
+    if (vehicle) { lies = on_vehicle; }
+    if (carried >= 0.0) { lies = carried; }
+    let snow = lies * snow_ok;
     if (rs.y > 0.0) {
         // the slush in the ruts and the tracks: wet and grey, darker than the snow, glossy
         let slush = rs.y * snow_ok;

@@ -514,7 +514,7 @@ impl Offscreen<'_> {
                 .map(|p| p.vehicle.position)
                 .unwrap_or(camera.position);
             let bus = player_ref.as_ref().map(|p| &p.vehicle);
-            view_sync::sync(ViewSync::people(&mut h, bus, center), sim_view, world, renderer, scene);
+            view_sync::sync(ViewSync::people(&mut h, bus, center, Default::default()), sim_view, world, renderer, scene);
             log::info!(
                 "passengers: {} people ({}), request {:?}, paid {:?}, change due {:?}",
                 h.people.len(),

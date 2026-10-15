@@ -103,7 +103,18 @@ impl App {
             // the view sync of the people: the coins and ticket blocks of the player's bus,
             // then everybody's pose (see `view_sync`)
             let bus = self.player.as_ref().map(|p| &p.vehicle);
-            view_sync::sync(ViewSync::people(h, bus, center), &mut self.gfx.sim_view, w, r, scene);
+            // (the fork) what the weather does to the snow they carry: how hard it snows,
+            // and the air of the saloon and the street, which melts it
+            let wt = self.session.weather.as_ref();
+            let snow = view_sync::PeopleSnow {
+                settling: match wt.map(crate::weather_setup::precip_of) {
+                    Some((2, rate)) => rate,
+                    _ => 0.0,
+                },
+                saloon_c: if self.player.is_some() { self.session.cabin_air.temp } else { view_sync::PeopleSnow::default().saloon_c },
+                outside_c: wt.map(|w| w.temp.0).unwrap_or_else(|| view_sync::PeopleSnow::default().outside_c),
+            };
+            view_sync::sync(ViewSync::people(h, bus, center, snow), &mut self.gfx.sim_view, w, r, scene);
         }
         *self.perf.profile.entry("humans").or_default() += __t.elapsed().as_secs_f64();
         self.foot_after_humans();

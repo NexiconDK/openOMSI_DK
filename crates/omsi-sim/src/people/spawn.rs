@@ -497,6 +497,7 @@ impl PeopleSim {
             pose_changed: false,
             interior: 0.0,
             lit: 0.0,
+            snow: 0.0,
             tilt: Mat4::IDENTITY,
 
             age,

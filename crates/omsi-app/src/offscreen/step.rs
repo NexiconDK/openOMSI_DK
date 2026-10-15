@@ -733,7 +733,7 @@ impl Offscreen<'_> {
             }
             if sim_view.people.tracing() {
                 // OMSI_TRACE_PAX wants every frame as a window would draw it
-                view_sync::sync(ViewSync::people(h, None, eye_cam.position), sim_view, world, renderer, scene);
+                view_sync::sync(ViewSync::people(h, None, eye_cam.position, Default::default()), sim_view, world, renderer, scene);
             }
             if let Some(m) = h.take_message() {
                 log::info!("HUD: {m}");

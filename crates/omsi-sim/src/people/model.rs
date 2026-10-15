@@ -133,6 +133,11 @@ pub struct Person {
     /// The interior light as drawn: it follows `interior` over a moment (stepping through
     /// the door, people lit up and went dark again from one frame to the next).
     pub lit: f32,
+    /// (the fork) The snow the person carries on their shoulders and head (0..1): it settles
+    /// on them out in the open while it snows and melts in the warm of a saloon, which the
+    /// view keeps (`view_sync::people`). Before, the snow was the weather's cover times a
+    /// box test, so it left a passenger the moment they stepped through the door.
+    pub snow: f32,
     /// The tilt of the floor the person stands on (a bus pitching under the brakes and
     /// leaning in a bend), without its heading: riders are drawn with it. Upright on the
     /// ground; drawn upright in a tilted bus, their feet sank through the floor on one side.

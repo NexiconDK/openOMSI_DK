@@ -65,7 +65,7 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - Kan slås fra under **Indstillinger → Gameplay → Passagerer** (i launcheren) eller i spillets menu: "OPTAGET på destinationsskiltet, når bussen er fuld". Grænsen vælges samme sted under "OPTAGET fra". Slår du det fra, ser du det heller ikke på de andre spilleres busser.
 
 ### Snestorm
-Sat på en kontakt, så almindelig sne er præcis som før. I din .cmd før `openomsi.exe`:
+Sat på en kontakt, så almindelig sne er præcis som før. Skyderen **Snestorm** under Indstillinger → Vejr (se nedenfor), eller i din .cmd før `openomsi.exe`:
 
 ```
 set OMSI_SNOWSTORM=1
@@ -82,6 +82,28 @@ Hvad der sker ved fuld styrke:
 
 `OMSI_SNOWSTORM=0` (standard) ændrer ingenting — vejrets egen sne er bit for bit som før.
 
+### Snestorm og tordenvejr i vejrmenuen
+Du behøver ikke skrive noget i en .cmd mere. Under **Indstillinger → Vejr**, lige under "Sne på vejen", er der to rækker:
+
+- **Snestorm** — Fra, eller 0-100 %
+- **Tordenvejr** — **Auto** (vejret bestemmer), Fra, eller 0-100 %
+
+Begge virker med det samme og lægger sig oven på hvilket vejr der end kører, så de kan også skrues på, mens METAR-synkroniseringen er tændt — de ændrer ikke vejret, de kommer oven på det.
+
+`OMSI_SNOWSTORM` og `OMSI_THUNDER` virker stadig. De er nu **startværdien**: står der noget i din .cmd, er det der, skyderen står, når du starter, og flytter du den, er det skyderen der gælder resten af turen.
+
+### Sne på passagererne smelter indenfor
+Folk fik sne på skuldre og hoved udenfor, men den forsvandt i samme sekund de trådte ind i bussen. Det var fordi sneen var vejrets snedække ganget med en prøve på, om fladen stod under et køretøjs tag — en ren geometrisk prøve, så sneen forlod passageren i det øjeblik, de kom gennem døren.
+
+Nu **bærer hver figur sin egen sne**:
+
+- Den **lægger sig**, mens de står ude i sneen: knap et minut i kraftig sne, før skuldre og hoved er dækket.
+- Inde i bussen **smelter den efter luften i kabinen** — spillets egen kabinetemperatur, den samme der tåger ruderne til: ca. **1½ minut ved 20 °C**, omkring **6 minutter ved 5 °C**. En bus, der er lige så kold som frosten udenfor, holder sneen: under frysepunktet smelter intet.
+- Den smelter også **udenfor**, når sneen er holdt op og det er over nul.
+- Går de ud i sneen igen, bygger den op igen.
+
+Mængden rider med i figurens egen fladekode (de ubrugte koder mellem -1 og -500), så der skulle ingen ny kanal til grafikkortet.
+
 ### Lyn og torden
 OMSI 2's vejr har ikke tordenvejr. Nu er der lyn, torden og lysglimt, og de kommer **begge veje**: af sig selv i tordenvejr, eller på en kontakt du selv tænder.
 
@@ -90,7 +112,7 @@ Af sig selv sker det, når
 - METAR-rapporten siger tordenvejr (`TS`, fx `TSRA` med regn eller `VCTS` i nærheden). Det læses nu ind fra rapporten — før blev det smidt væk.
 - det regner kraftigt (over 55 % og varmere end 3 °C). Et kraftigt byrd er tordenvejr oftere end ikke, og en vejrfil har ingen måde at sige det. Så kommer der et fjernt lyn nu og da.
 
-På en kontakt, i din .cmd før `openomsi.exe`:
+Du kan også selv skrue på det: skyderen **Tordenvejr** under Indstillinger → Vejr (se ovenfor), eller i din .cmd før `openomsi.exe`:
 
 ```
 set OMSI_THUNDER=on       ; tordenvejr lige over dig, uanset vejret

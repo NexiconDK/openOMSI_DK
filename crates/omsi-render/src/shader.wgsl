@@ -244,6 +244,16 @@ fn weather_outside_n(world: vec3<f32>, n: vec3<f32>, terrain: bool, surface: f32
 }
 @group(0) @binding(0) var<uniform> camera: Camera;
 
+// (the fork) The snow a figure carries on itself, from its instance's surface `code`: the
+// codes between -1 and -500 are free, and a figure's own snow rides there as -(1 + snow)
+// (lib.rs `carried_snow`). Below 0 for everything else, which is shaded as it always was.
+fn carried_snow(code: f32) -> f32 {
+    if (code > -1.0 || code <= -500.0) {
+        return -1.0;
+    }
+    return clamp(-code - 1.0, 0.0, 1.0);
+}
+
 // (the fork) Lightning runs at some 25 000 K: a touch blue of white.
 const LIGHTNING_TINT = vec3<f32>(0.82, 0.88, 1.0);
 
@@ -2254,7 +2264,13 @@ fn shade_vanilla(in: FsIn, puddle_weight: ptr<function, f32>, eye: vec3<f32>) ->
     // (nor on a texture that is the season's snow picture: the map's own WinterSnow
     // textures show the snow as OMSI 2 does, and whitened over, the snowy grass and the
     // grey road went one flat white, the lane markings left standing in it, #879)
-    let snow_ok = outside * select(1.0, 0.0, in.params2.w > 1.5 || camera.sky_color.w > 0.5 || material.ambient.w > 0.5);
+    // (the fork) a figure carries its own snow, which it gathered out in the open and loses
+    // to the warm of a saloon: it rides in the surface code as -1 to -2 (lib.rs
+    // `carried_snow`), and it stands in place of the box test, which took the snow off a
+    // passenger the moment they stepped through the door
+    let carried = carried_snow(in.params2.w);
+    let in_the_open = select(outside, 1.0, carried >= 0.0);
+    let snow_ok = in_the_open * select(1.0, 0.0, in.params2.w > 1.5 || camera.sky_color.w > 0.5 || material.ambient.w > 0.5);
     // a carriageway (a [moisture] texture that is not the terrain) under snow that builds
     // up: its own cover, the ruts of the lanes and the tyres' tracks (road_snow.wgsl)
     let carriageway = material.extra.x < 0.5 && material.params2.z > 0.0 && road_snow_dynamic();
@@ -2268,7 +2284,11 @@ fn shade_vanilla(in: FsIn, puddle_weight: ptr<function, f32>, eye: vec3<f32>) ->
     if (vehicle && snow_ok > 0.0) {
         on_vehicle = vehicle_snow(in.params2.w, in.local);
     }
-    let snow = select(select(camera.ambient.w, rs.x, carriageway), on_vehicle, vehicle) * snow_ok;
+    var lies = camera.ambient.w;
+    if (carriageway) { lies = rs.x; }
+    if (vehicle) { lies = on_vehicle; }
+    if (carried >= 0.0) { lies = carried; }
+    let snow = lies * snow_ok;
     if (snow > 0.0 || rs.y > 0.0) {
         let up = clamp(n.z, 0.0, 1.0);
         let ground = select(0.0, 1.0, material.extra.x > 0.5 || material.params2.z > 0.0);

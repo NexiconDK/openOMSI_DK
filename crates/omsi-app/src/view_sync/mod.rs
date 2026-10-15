@@ -50,6 +50,28 @@ pub(crate) struct People<'a> {
     /// Where the people are seen from when they have no eye (`PeopleSim::eye`): the nearer,
     /// the more often one is posed.
     pub(crate) camera: DVec3,
+    /// (the fork) What the weather is doing to the snow they carry.
+    pub(crate) snow: PeopleSnow,
+}
+
+/// (the fork) What the weather does to the snow people carry on themselves: how thickly it
+/// is settling on those out in the open, and the air of the two places they stand in, which
+/// melts it. A picture that does not care takes `Default` - no snow falling, and air mild
+/// enough that what anyone carries goes within the minute.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PeopleSnow {
+    /// How hard it is snowing (0..1, the weather's precipitation rate where it is snow).
+    pub(crate) settling: f32,
+    /// The air in the saloon of the player's bus (°C).
+    pub(crate) saloon_c: f32,
+    /// The air out in the street (°C).
+    pub(crate) outside_c: f32,
+}
+
+impl Default for PeopleSnow {
+    fn default() -> Self {
+        PeopleSnow { settling: 0.0, saloon_c: 18.0, outside_c: 15.0 }
+    }
 }
 
 /// What a view sync brings up to date: the traffic, the people, or both (in that order).
@@ -66,8 +88,8 @@ impl<'a> ViewSync<'a> {
     }
 
     /// The people alone (see [`People`]).
-    pub(crate) fn people(humans: &'a mut Humans, bus: Option<&'a VehicleInstance>, camera: DVec3) -> ViewSync<'a> {
-        ViewSync { traffic: None, people: Some(People { humans, bus, camera }) }
+    pub(crate) fn people(humans: &'a mut Humans, bus: Option<&'a VehicleInstance>, camera: DVec3, snow: PeopleSnow) -> ViewSync<'a> {
+        ViewSync { traffic: None, people: Some(People { humans, bus, camera, snow }) }
     }
 }
 
@@ -80,10 +102,10 @@ pub(crate) fn sync(what: ViewSync<'_>, view: &mut SimView, world: &World, render
     if let Some(t) = what.traffic {
         t.sync(&mut view.traffic, world, renderer, scene);
     }
-    if let Some(People { humans, bus, camera }) = what.people {
+    if let Some(People { humans, bus, camera, snow }) = what.people {
         if let Some(bus) = bus {
             humans.sync_money(&mut view.people, world, renderer, scene, bus);
         }
-        humans.sync(&mut view.people, renderer, scene, camera);
+        humans.sync(&mut view.people, renderer, scene, camera, snow);
     }
 }

@@ -89,6 +89,19 @@ impl Offscreen<'_> {
         )
     }
 
+    /// (the fork) What the weather does to the snow the people carry, as the window's frame
+    /// works it out (see `view_sync::PeopleSnow`).
+    fn people_snow(&self) -> crate::view_sync::PeopleSnow {
+        crate::view_sync::PeopleSnow {
+            settling: match crate::weather_setup::precip_of(&self.weather) {
+                (2, rate) => rate,
+                _ => 0.0,
+            },
+            saloon_c: self.cabin_air.temp,
+            outside_c: self.weather.temp.0,
+        }
+    }
+
     /// A picture of this moment (as `--snapshots` takes it) and its camera.
     pub(super) fn picture_now(&mut self) -> Result<(Vec<u8>, Camera)> {
         if let Some(t) = self.traffic.as_mut() {
@@ -108,8 +121,9 @@ impl Offscreen<'_> {
                 view.car(k - 1).map(|c| (&c.body, &c.trailers[..]))
             }
         });
+        let pax_snow = self.people_snow();
         if let Some(h) = self.humans_off.as_mut() {
-            view_sync::sync(ViewSync::people(h, None, cam.position), &mut self.sim_view, &self.world, &self.renderer, &mut self.scene);
+            view_sync::sync(ViewSync::people(h, None, cam.position, pax_snow), &mut self.sim_view, &self.world, &self.renderer, &mut self.scene);
         }
         // the time of day of this moment, and its lights: street lamps by night and the
         // vehicles' own (indicators, brake and tail lights) as they are now - without them

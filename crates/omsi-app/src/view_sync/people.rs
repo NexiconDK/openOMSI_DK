@@ -12,8 +12,27 @@
 //! `PeopleView` (`SimView::people`, apart from the `Humans`) for it; the coins handed out,
 //! the ticket blocks and the posing are the view sync's (`view_sync::sync`).
 
+/// (the fork) How long a person standing in the heaviest snow takes to be covered (s).
+const SETTLE_SECONDS: f32 = 45.0;
+/// (the fork) How fast the snow on a person melts, per degree above freezing, per second:
+/// a saloon at 20 °C clears it in about a minute and a half, one at 5 °C in six minutes,
+/// and a bus as cold as the street outside keeps it. Below freezing nothing melts.
+const MELT_PER_DEGREE: f32 = 1.0 / (90.0 * 20.0);
+
+/// (the fork) The snow a person carries after `dt` seconds: settling on them while they are
+/// out in the open and it snows, melting in the air of wherever they are.
+fn carried_snow(had: f32, dt: f32, indoors: bool, w: PeopleSnow) -> f32 {
+    let air = if indoors { w.saloon_c } else { w.outside_c };
+    let mut snow = had - dt * air.max(0.0) * MELT_PER_DEGREE;
+    if !indoors && w.settling > 0.0 {
+        snow += dt * w.settling / SETTLE_SECONDS;
+    }
+    snow.clamp(0.0, 1.0)
+}
+
 use crate::humans::Humans;
 use crate::scene::World;
+use crate::view_sync::PeopleSnow;
 use glam::{DVec3, Mat4, Vec3};
 use hashbrown::HashMap;
 use omsi_render::{AlphaMode, MaterialId, MeshId, Renderer, Scene};
@@ -260,7 +279,7 @@ impl Humans {
     /// Skin the people due for a new pose and push transforms to the renderer. Near people
     /// are posed every frame, far ones every few frames and people out of view rarely; the
     /// posing and skinning run in parallel.
-    pub(super) fn sync(&mut self, view: &mut PeopleView, renderer: &Renderer, scene: &mut Scene, camera: DVec3) {
+    pub(super) fn sync(&mut self, view: &mut PeopleView, renderer: &Renderer, scene: &mut Scene, camera: DVec3, weather: PeopleSnow) {
         self.catch_up_bodies(view, renderer, scene);
         for inst in view.hidden.drain(..) {
             renderer.set_params(scene, inst, &[], false, &[]);
@@ -368,11 +387,17 @@ impl Humans {
             // (riders with the tilt of their floor)
             let tilt = if matches!(p.place, Place::Bus(..)) { p.tilt } else { Mat4::IDENTITY };
             let xf = tilt * Mat4::from_rotation_z((-heading).to_radians() as f32);
-            let lit_to = if matches!(p.place, Place::Bus(..)) { p.interior } else { 0.0 };
+            let indoors = matches!(p.place, Place::Bus(..));
+            let lit_to = if indoors { p.interior } else { 0.0 };
             p.lit += (lit_to - p.lit) * (sdt / 0.4).min(1.0);
+            // (the fork) the snow they carry: it settles while they stand out in the snow
+            // and melts in the air of wherever they are - in a warm saloon within a couple
+            // of minutes, in a cold one hardly at all
+            p.snow = carried_snow(p.snow, sdt, indoors, weather);
             for (_, inst) in &p.meshes {
                 renderer.set_transform(scene, *inst, at, xf);
                 renderer.set_interior(scene, *inst, p.lit * 0.5);
+                renderer.set_carried_snow(scene, *inst, Some(p.snow));
             }
             if self.sim.avatar_hidden.contains_key(&p.id) && omsi_cfg::flags::OMSI_DEBUG_FOOT.is_set() && view.sync_frame % 30 == 0 {
                 log::info!("avatar drawn at ({:.2}, {:.2}, {:.2}) heading {:.0} place {:?} go {}", at.x, at.y, at.z, heading, matches!(p.place, Place::Ground), go);
@@ -436,5 +461,50 @@ impl Humans {
         view.pose_stats.1 += n_due;
         view.pose_stats.2 += started.elapsed().as_secs_f64() * 1000.0;
         view.pose_stats.3 += upload.elapsed().as_secs_f64() * 1000.0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// (the fork) The snow a person carries settles while they stand out in it and melts in
+    /// the warm of a saloon - in a couple of minutes in a heated bus, far longer in a cold
+    /// one, and not at all below freezing. Before this it was the weather's cover times a
+    /// box test, so it left them the moment they stepped through the door.
+    #[test]
+    fn the_snow_people_carry_settles_outside_and_melts_in_the_warm() {
+        let run = |mut s: f32, secs: f32, indoors: bool, w: PeopleSnow| {
+            for _ in 0..(secs * 10.0) as i32 {
+                s = carried_snow(s, 0.1, indoors, w);
+            }
+            s
+        };
+        // out in a heavy fall below freezing: covered within the minute, and nothing melts
+        let falling = PeopleSnow { settling: 1.0, saloon_c: 20.0, outside_c: -4.0 };
+        assert!(run(0.0, 20.0, false, falling) > 0.35, "{}", run(0.0, 20.0, false, falling));
+        assert!(run(0.0, 50.0, false, falling) > 0.99);
+        // a heated saloon takes it off in about a minute and a half
+        assert!(run(1.0, 45.0, true, falling) < 0.6);
+        assert_eq!(run(1.0, 95.0, true, falling), 0.0);
+        // a cool one keeps it far longer - six minutes, not ninety seconds
+        let cool = PeopleSnow { settling: 1.0, saloon_c: 5.0, outside_c: -4.0 };
+        assert!(run(1.0, 90.0, true, cool) > 0.6, "{}", run(1.0, 90.0, true, cool));
+        assert_eq!(run(1.0, 400.0, true, cool), 0.0);
+        // a bus as cold as the frost outside keeps it: nothing melts below freezing
+        let cold = PeopleSnow { settling: 0.0, saloon_c: -2.0, outside_c: -4.0 };
+        assert_eq!(run(1.0, 600.0, true, cold), 1.0);
+        // and it melts out in the open too once the snow has stopped and it is above zero
+        let thaw = PeopleSnow { settling: 0.0, outside_c: 6.0, saloon_c: 18.0 };
+        let left = run(1.0, 120.0, false, thaw);
+        assert!(left > 0.4 && left < 0.8, "{left}");
+    }
+
+    /// Nobody carries more than a full cover, or less than none.
+    #[test]
+    fn the_snow_people_carry_stays_between_none_and_a_cover() {
+        let hard = PeopleSnow { settling: 1.0, saloon_c: 40.0, outside_c: -20.0 };
+        assert_eq!(carried_snow(1.0, 10.0, false, hard), 1.0);
+        assert_eq!(carried_snow(0.0, 10.0, true, hard), 0.0);
     }
 }
