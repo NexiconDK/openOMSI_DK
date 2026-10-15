@@ -9,7 +9,10 @@
 <title>Web-IBIS</title>
 <style>
   /* The screen is the terminal's: 1280 x 720 units, as large as the tablet allows. */
-  :root { --u: 1px; --ink: #000; --line: #555; --soft: #444; --dim: #8a8a8a; --paper: #fff;
+  /* --bar is the height of the console's strip of status cells: 11.3 % of the screen, as
+     the Rejsekort manual's pictures of it have it */
+  :root { --u: 1px; --bar: calc(81 * var(--u));
+    --ink: #000; --line: #555; --soft: #444; --dim: #8a8a8a; --paper: #fff;
     --field: #f2f2f2; --pick: #dff3df; --now: #f0b429; --rail: #2e9e5b; --plate: #ffd23f;
     --early: #c62828; --ontime: #1e7d3c; --late: #d06a00; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -24,14 +27,14 @@
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 
   /* the bar along the top: the login picture's strip, or plain */
-  .bar { position: absolute; left: 0; top: 0; width: 100%; height: calc(64.5 * var(--u));
+  .bar { position: absolute; left: 0; top: 0; width: 100%; height: var(--bar);
     background: var(--paper) url("/tex/login.png") no-repeat 0 0 / 100% auto; }
   .plain .bar { background: var(--paper); border-bottom: 1px solid var(--line); }
-  .clock { position: absolute; right: 0; top: 0; width: calc(124 * var(--u)); height: calc(63 * var(--u));
+  .clock { position: absolute; right: 0; top: 0; width: calc(124 * var(--u)); height: calc(var(--bar) - 1px);
     background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center;
-    line-height: 1.15; font-size: calc(26 * var(--u)); font-variant-numeric: tabular-nums; }
-  .clock .c-date { font-size: calc(17 * var(--u)); }
-  .plain .clock { border-left: 1px solid var(--line); }
+    line-height: 1.2; font-size: calc(30 * var(--u)); font-variant-numeric: tabular-nums; font-weight: 700; }
+  .clock .c-date { font-size: calc(21 * var(--u)); font-weight: 400; }
+  .plain .clock { border-left: 1px solid #a9a9a9; border-bottom: 1px solid #808080; }
   /* the bar along the bottom: what the keys do */
   .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(60 * var(--u)); display: flex;
     border-top: 1px solid var(--line); background: var(--paper); }
@@ -39,7 +42,7 @@
     border-right: 1px solid var(--line); }
   .foot button.right { margin-left: auto; border-right: 0; border-left: 1px solid var(--line); }
   .foot button:active, .key:active, .row:active { background: var(--pick); }
-  .body { position: absolute; left: 0; right: 0; top: calc(65 * var(--u)); bottom: calc(60 * var(--u)); }
+  .body { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(60 * var(--u)); }
   h2 { margin: 0; font-weight: 400; font-size: calc(30 * var(--u)); }
 
   /* login: the picture with its two fields */
@@ -47,18 +50,23 @@
   #login input { position: absolute; border: 0; outline: 0; background: transparent; font: inherit;
     font-size: calc(22 * var(--u)); padding: 0 calc(8 * var(--u)); }
   #login input:focus { background: rgba(0, 120, 255, .06); }
-  #login .esc, #login .ok { position: absolute; bottom: 0; height: calc(60 * var(--u)); font-size: calc(24 * var(--u));
-    padding: 0 calc(17 * var(--u)); }
-  #login .esc { left: 0; } #login .ok { right: 0; }
+  #login .esc { position: absolute; bottom: 0; left: 0; height: calc(60 * var(--u)); font-size: calc(26 * var(--u));
+    font-weight: 700; padding: 0 calc(17 * var(--u)); }
   /* (the picture has its own ESC: the key lies over it) */
-  #login:not(.plain) .esc { color: transparent; }
+  #login:not(.plain) .esc { color: transparent; font-weight: 400; }
   #login .drawn { display: none; }
   #login.plain { background: var(--paper); }
   #login.plain .drawn { display: block; }
-  /* (the fork) the console's own fields: a pale cyan with a thin dark edge */
-  .drawn.box { border: 1px solid #2c3e50; background: #b3e0ec; }
-  .drawn.title { left: 0; right: 0; top: calc(220 * var(--u)); text-align: center; font-size: calc(64 * var(--u));
-    font-weight: 700; color: #5d5e60; letter-spacing: calc(-1 * var(--u)); }
+  /* (the fork) the console's own fields, as the manual's picture has them: a sunken grey
+     edge, white until the field is the one being typed into, and then a pale cyan */
+  .drawn.box { background: #fff; border: 1px solid #7a7a7a;
+    border-top-color: #4a4a4a; border-left-color: #4a4a4a; }
+  .drawn.box.here { background: #afe4e8; }
+  .drawn.title { left: 0; right: 0; top: calc(182 * var(--u)); text-align: center; font-size: calc(92 * var(--u));
+    font-weight: 700; color: #5d5e60; letter-spacing: calc(-2 * var(--u)); }
+  #login .drawn.lbl { font-size: calc(27 * var(--u)); text-align: right; left: calc(120 * var(--u));
+    width: calc(341 * var(--u)); }
+  #login .drawn.hint { left: 0; right: 0; text-align: center; font-size: calc(26 * var(--u)); }
 
   /* lines: big keys */
   .keys { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(70 * var(--u)); bottom: calc(14 * var(--u));
@@ -155,21 +163,23 @@
      tall ENTER whose letters stand one under the other, and CE beside the nought */
   .pad { position: absolute; inset: 0; background: transparent; display: none; z-index: 6; }
   .pad.on { display: block; }
-  .pad .panel { position: absolute; left: calc(470 * var(--u)); top: calc(108 * var(--u));
-    width: calc(720 * var(--u)); height: calc(545 * var(--u)); background: #f6edcb;
-    border: calc(3 * var(--u)) solid #c9b47a; padding: calc(12 * var(--u));
-    display: grid; grid-template-rows: calc(82 * var(--u)) 1fr; gap: calc(14 * var(--u)); }
-  .pad .shown { background: #fffdf2; border: calc(2 * var(--u)) solid #b9a36a; display: flex;
-    align-items: center; padding: 0 calc(20 * var(--u)); font-size: calc(46 * var(--u));
+  .pad .panel { position: absolute; left: calc(483 * var(--u)); top: calc(107 * var(--u));
+    width: calc(738 * var(--u)); height: calc(551 * var(--u)); background: #f8f696;
+    border: calc(2 * var(--u)) solid #e3df72; padding: calc(16 * var(--u)) calc(22 * var(--u)) calc(11 * var(--u));
+    display: grid; grid-template-rows: calc(60 * var(--u)) 1fr; gap: calc(44 * var(--u)); }
+  .pad .shown { background: #fff; border: 1px solid #8f8f8f; border-top-color: #5a5a5a; border-left-color: #5a5a5a;
+    margin: 0 calc(80 * var(--u)) 0 calc(37 * var(--u));
+    display: flex; align-items: center; padding: 0 calc(16 * var(--u)); font-size: calc(40 * var(--u));
     font-variant-numeric: tabular-nums; letter-spacing: calc(4 * var(--u)); overflow: hidden; }
   .pad .grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
-    gap: calc(8 * var(--u)); }
-  .pad .grid button { background: #dfe6ef; border: calc(2 * var(--u)) solid #9aa7b5;
-    font-size: calc(42 * var(--u)); font-weight: 700; }
-  .pad .grid button:active { background: var(--pick); }
+    gap: calc(7 * var(--u)); }
+  .pad .grid button { background: #b4e5eb; border: 1px solid #8cc3ca; border-radius: calc(10 * var(--u));
+    font-size: calc(44 * var(--u)); font-weight: 700; color: #111; }
+  .pad .grid button:active { background: #7fd0da; }
   .pad .enter { grid-column: 4; grid-row: 2 / span 3; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; line-height: 1.05; font-size: calc(30 * var(--u)); }
-  .pad .wide { font-size: calc(32 * var(--u)); }
+    align-items: center; justify-content: center; line-height: 1.12; font-size: calc(36 * var(--u)); }
+  /* (the point key is the grey one on the console, and it types nothing) */
+  .pad .grid button.dot { background: #cfd0d1; border-color: #b4b5b6; font-size: calc(34 * var(--u)); }
 
   /* (the fork) the plain login, where the player has no picture of the console: the screen
      the manual shows, without its owner's marks - the strip of buttons along the top with
@@ -178,15 +188,30 @@
      IFS-FM (which the buses do not use), two spare cells, then wi-fi, the signal, the
      printer, the GPS, the card reader, the alarm and the help - and the date over the
      hour at the end. The icons are drawn here; none of them is anybody's artwork. */
-  #login.plain .strip { position: absolute; left: 0; top: 0; right: calc(124 * var(--u)); height: calc(63 * var(--u));
-    display: flex; border-bottom: 1px solid #808080; background: #d9d9d9; }
-  #login:not(.plain) .strip { display: none; }
-  #login .strip i { flex: 1; border-right: 1px solid #a9a9a9; background: #f0f0f0;
+  .plain .strip { position: absolute; left: 0; top: 0; right: calc(213 * var(--u)); height: calc(var(--bar) - 1px);
+    display: flex; border-bottom: 1px solid #808080; background: #fff; }
+  .plain .clock { width: calc(213 * var(--u)); }
+  .screen:not(.plain) .strip { display: none; }
+  .strip i { flex: 1; border-right: 1px solid #a9a9a9; background: #fff;
     display: flex; align-items: center; justify-content: center; font-style: normal; }
-  #login .strip i svg { width: calc(34 * var(--u)); height: calc(34 * var(--u)); display: block; }
-  #login .strip i.green { background: #46b450; }
-  #login .strip i.ifs { font-size: calc(13 * var(--u)); font-weight: 700; color: #2f7d32;
-    line-height: 1; text-align: center; letter-spacing: 0; }
+  .strip i svg { width: calc(36 * var(--u)); height: calc(36 * var(--u)); display: block; }
+  .strip i.green { background: #51bd36; }
+  .strip i.grey { background: #cdd0d6; }
+  .strip i.ifs { font-size: calc(13 * var(--u)); font-weight: 700; color: #3f9a37;
+    line-height: 1.1; text-align: center; letter-spacing: 0; }
+
+  /* (the fork) the console's start-up, as the Rejsekort manual has it (page 7, "Fuldt
+     udstyr"): the strip of status cells, a white screen with the house mark in the middle
+     and a line underneath saying how far it has come - the managers start, the data is
+     brought up to date, the managers start again, and then the login stands there by
+     itself. Starting the bus where there is no wi-fi puts a message up first. */
+  #start { background: #fff; }
+  #start .mid { position: absolute; left: 0; right: 0; top: var(--bar); bottom: 0; }
+  #start .mark { position: absolute; left: 0; right: 0; top: calc(130 * var(--u)); text-align: center;
+    font-size: calc(92 * var(--u)); font-weight: 700; color: #5d5e60; letter-spacing: calc(-2 * var(--u)); }
+  #start .say { position: absolute; left: 0; right: 0; top: calc(420 * var(--u)); text-align: center;
+    font-size: calc(30 * var(--u)); color: #1c1c1c; line-height: 1.35; white-space: pre-line; }
+  .ask .btns button.lone { flex: 0 0 calc(240 * var(--u)); margin: 0 auto; }
 </style>
 </head>
 <body>
@@ -194,48 +219,69 @@
   <!-- login: any driver number and password do -->
   <form id="login" class="screen" autocomplete="off">
     <div class="drawn title u">Web-IBIS</div>
-    <div class="drawn u" id="l-driver" style="left:calc(100*var(--u));top:calc(413*var(--u));width:calc(230*var(--u));text-align:right"></div>
-    <div class="drawn u" id="l-password" style="left:calc(100*var(--u));top:calc(465*var(--u));width:calc(222*var(--u));text-align:right"></div>
-    <div class="drawn box u" style="left:calc(339*var(--u));top:calc(411*var(--u));width:calc(577*var(--u));height:calc(33*var(--u))"></div>
-    <div class="drawn box u" style="left:calc(337*var(--u));top:calc(461*var(--u));width:calc(579*var(--u));height:calc(34*var(--u))"></div>
-    <div class="drawn u" id="l-hint" style="left:0;right:0;top:calc(558*var(--u));text-align:center"></div>
-    <input id="driver" inputmode="numeric" style="left:calc(340*var(--u));top:calc(412*var(--u));width:calc(575*var(--u));height:calc(31*var(--u))">
-    <input id="password" type="password" inputmode="numeric" style="left:calc(338*var(--u));top:calc(462*var(--u));width:calc(577*var(--u));height:calc(32*var(--u))">
-    <div class="strip drawn">
-      <i class="ifs">IFS&#8209;<br>FM</i><i></i><i></i>
-      <i title="Wi-fi"><svg viewBox="0 0 24 24" fill="none" stroke="#37474f" stroke-width="2.2" stroke-linecap="round">
-        <path d="M3.5 9.5a13 13 0 0 1 17 0"/><path d="M6.5 13a8.5 8.5 0 0 1 11 0"/><path d="M9.5 16.4a4 4 0 0 1 5 0"/><circle cx="12" cy="19.6" r="1.3" fill="#37474f" stroke="none"/></svg></i>
-      <i title="Signal"><svg viewBox="0 0 24 24"><rect x="3" y="15" width="3.4" height="6" fill="#2e7d32"/><rect x="8.2" y="11.5" width="3.4" height="9.5" fill="#2e7d32"/>
-        <rect x="13.4" y="8" width="3.4" height="13" fill="#2e7d32"/><rect x="18.6" y="4" width="3.4" height="17" fill="#2e7d32"/></svg></i>
-      <i title="Printer"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="5" fill="#90a4ae"/><rect x="2.5" y="8" width="19" height="8.5" rx="1.2" fill="#78909c"/>
-        <rect x="6" y="14" width="12" height="7" fill="#eceff1" stroke="#546e7a" stroke-width="1"/><circle cx="18.6" cy="11" r="1.1" fill="#4caf50"/></svg></i>
-      <i class="green" title="GPS"><svg viewBox="0 0 24 24"><path d="M12 2.5c-3.6 0-6.5 2.9-6.5 6.5 0 4.9 6.5 12.5 6.5 12.5s6.5-7.6 6.5-12.5c0-3.6-2.9-6.5-6.5-6.5z" fill="#fff"/>
-        <circle cx="12" cy="9" r="2.7" fill="#2e7d32"/></svg></i>
-      <i title="Kortl&#230;ser"><svg viewBox="0 0 24 24"><rect x="7.5" y="2.5" width="9" height="19" rx="2.2" fill="#5c7cfa" stroke="#2f3d7a" stroke-width="1.2"/>
-        <circle cx="12" cy="9" r="2.6" fill="#bbdefb"/><rect x="9.5" y="14" width="5" height="1.6" fill="#bbdefb"/><rect x="9.5" y="17" width="5" height="1.6" fill="#bbdefb"/></svg></i>
-      <i class="green" title="Alarm"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
-        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg></i>
-      <i title="Hj&#230;lp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.6" fill="#1565c0"/>
-        <text x="12" y="17.2" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg></i>
-    </div>
+    <div class="drawn lbl u" id="l-driver" style="top:calc(390*var(--u))"></div>
+    <div class="drawn lbl u" id="l-password" style="top:calc(460*var(--u))"></div>
+    <div class="drawn box u here" id="b-driver" style="left:calc(477*var(--u));top:calc(378*var(--u));width:calc(661*var(--u));height:calc(51*var(--u))"></div>
+    <div class="drawn box u" id="b-password" style="left:calc(477*var(--u));top:calc(448*var(--u));width:calc(661*var(--u));height:calc(51*var(--u))"></div>
+    <div class="drawn hint u" id="l-hint" style="top:calc(528*var(--u))"></div>
+    <input id="driver" inputmode="numeric" style="left:calc(479*var(--u));top:calc(380*var(--u));width:calc(657*var(--u));height:calc(47*var(--u));font-size:calc(28*var(--u))">
+    <input id="password" type="password" inputmode="numeric" style="left:calc(479*var(--u));top:calc(450*var(--u));width:calc(657*var(--u));height:calc(47*var(--u));font-size:calc(28*var(--u))">
+    <div class="strip" data-strip></div>
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <button type="button" class="esc">ESC</button>
-    <button type="submit" class="ok">OK</button>
     <div class="pad" id="pad"><div class="panel">
       <div class="shown" id="pad-shown"></div>
       <div class="grid">
         <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button>
-        <button type="button" data-k="9">9</button><button type="button" data-k="x" class="wide">X</button>
+        <button type="button" data-k="9">9</button><button type="button" data-k="x">X</button>
         <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button>
         <button type="button" data-k="6">6</button>
         <button type="button" data-k="enter" class="enter"><span>E</span><span>N</span><span>T</span><span>E</span><span>R</span></button>
         <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button>
         <button type="button" data-k="3">3</button>
-        <button type="button" data-k="0">0</button><button type="button" data-k=".">.</button>
-        <button type="button" data-k="ce" class="wide">CE</button>
+        <button type="button" data-k="0">0</button><button type="button" class="dot" disabled>&middot;</button>
+        <button type="button" data-k="ce">CE</button>
       </div>
     </div></div>
   </form>
+
+  <!-- (the fork) the console's own start-up, as the manual's three pictures have it -->
+  <section id="start" class="screen">
+    <div class="bar"></div>
+    <div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="mid">
+      <div class="mark">Web-IBIS</div>
+      <div class="say" id="say"></div>
+    </div>
+    <div class="ask" id="wifi"><div class="box">
+      <h2 data-l="no_wifi_title">Ingen wi-fi</h2>
+      <p data-l="no_wifi">Konsollen har ingen wi-fi-forbindelse. Tryk OK for at forts&aelig;tte.</p>
+      <div class="btns"><button class="yes lone" id="wifi-ok">OK</button></div>
+    </div></div>
+  </section>
+
+  <template id="strip-cells">
+      <i class="ifs">IFS&#8201;&#8211;<br>FM</i><i></i><i></i><i></i>
+      <i title="Signal"><svg viewBox="0 0 24 24"><rect x="2.6" y="15.4" width="3.2" height="5.6" fill="#3f9a37"/>
+        <rect x="7.4" y="12.2" width="3.2" height="8.8" fill="#3f9a37"/><rect x="12.2" y="8.6" width="3.2" height="12.4" fill="#3f9a37"/>
+        <rect x="17" y="4.6" width="3.2" height="16.4" fill="#3f9a37"/>
+        <g stroke="#d9242e" stroke-width="2.6" stroke-linecap="round"><path d="M3.4 20.2 20.6 4.4"/><path d="M3.4 4.4 20.6 20.2"/></g></svg></i>
+      <i title="Printer"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="5" fill="#90a4ae"/><rect x="2.5" y="8" width="19" height="8.5" rx="1.2" fill="#78909c"/>
+        <rect x="6" y="14" width="12" height="7" fill="#eceff1" stroke="#546e7a" stroke-width="1"/><circle cx="18.6" cy="11" r="1.1" fill="#4caf50"/></svg></i>
+      <i class="green" title="GPS"><svg viewBox="0 0 24 24"><circle cx="13" cy="14.4" r="6.6" fill="#2b3f4a"/>
+        <path d="M6.6 12.6h12.8M13 7.8v13.2" stroke="#9fd8e6" stroke-width="1.1" fill="none"/>
+        <ellipse cx="13" cy="14.4" rx="3.1" ry="6.6" fill="none" stroke="#9fd8e6" stroke-width="1.1"/>
+        <path d="M3.4 3.2 8 7.8" stroke="#2b3f4a" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="3.2" cy="3" r="1.9" fill="#fff" stroke="#2b3f4a" stroke-width="1.1"/></svg></i>
+      <i title="Kortl&#230;ser"><svg viewBox="0 0 24 24"><rect x="7.4" y="2.6" width="9.2" height="18.8" rx="2.6" fill="#2f5f6b" stroke="#17323a" stroke-width="1.1"/>
+        <circle cx="12" cy="8.6" r="3" fill="#2fa8d8"/><circle cx="12" cy="8.6" r="1.3" fill="#bfeaf8"/>
+        <rect x="9.4" y="14.2" width="5.2" height="1.5" rx="0.6" fill="#8fb6bf"/><rect x="9.4" y="17" width="5.2" height="1.5" rx="0.6" fill="#8fb6bf"/></svg></i>
+      <i class="green" title="Alarm"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
+        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg></i>
+      <i class="grey" title="Hj&#230;lp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.6" fill="#1565c0"/>
+        <text x="12" y="17.2" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg></i>
+  </template>
 
   <section id="lines" class="screen">
     <div class="bar"></div><div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
@@ -264,7 +310,7 @@
     <div class="body" id="duty-body"></div>
     <div class="foot"><button data-go="lines">ESC</button><button class="right" data-go="lines" data-l="lines"></button></div>
   </section>
-  <div class="lost" id="lost"></div>
+  <div class="lost" id="lost">&#9888;</div>
 </div>
 <script>
 "use strict";
@@ -295,9 +341,15 @@ function show(name) {
   if (name === "login") { padClose(); $("driver").value = ""; $("password").value = ""; }
 }
 
+// (the fork) the console's strip of status cells stands on the start-up screen as well as
+// on the login, so it is written once and put in both places
+document.querySelectorAll("[data-strip]").forEach((e) => e.appendChild($("strip-cells").content.cloneNode(true)));
+
 function words() {
-  document.querySelectorAll("[data-l]").forEach((e) => { e.textContent = labels[e.dataset.l] ?? ""; });
-  $("l-driver").textContent = labels.driver ?? ""; $("l-password").textContent = labels.password ?? "";
+  // (a text the game has no word for keeps the one the page was written with)
+  document.querySelectorAll("[data-l]").forEach((e) => { const w = labels[e.dataset.l]; if (w != null) e.textContent = w; });
+  // (the console writes a colon after each of the two, and the manual's picture with it)
+  $("l-driver").textContent = (labels.driver ?? "") + ":"; $("l-password").textContent = (labels.password ?? "") + ":";
   $("l-hint").textContent = labels.login_hint ?? ""; $("lost").textContent = labels.lost ?? "⚠";
 }
 
@@ -309,14 +361,19 @@ let padFor = null, padVal = "";
 
 function padOpen(which) {
   padFor = which; padVal = "";
-  padShow();
+  padShow(); padHere(which);
   $("pad").classList.add("on");
+}
+// (the field being typed into is the pale cyan one; the other stands white)
+function padHere(which) {
+  $("b-driver").classList.toggle("here", which !== "password");
+  $("b-password").classList.toggle("here", which === "password");
 }
 function padShow() {
   // the pass code is not shown as it is typed, any more than it is on the console
   $("pad-shown").textContent = padFor === "password" ? "*".repeat(padVal.length) : padVal;
 }
-function padClose() { $("pad").classList.remove("on"); padFor = null; }
+function padClose() { $("pad").classList.remove("on"); padFor = null; padHere("driver"); }
 
 $("pad").addEventListener("click", (e) => {
   // (a tap beside the panel closes it, as ESC does)
@@ -455,6 +512,41 @@ function drawDuty() {
   if (keep != null) right.scrollTop = keep; else if (now) right.scrollTop = Math.max(0, now.offsetTop - 8);
 }
 
+// (the fork) The console's start-up, as the Rejsekort manual has it (page 7, "Fuldt
+// udstyr"): the managers start, the data is brought up to date, the managers start again,
+// and then the login stands there by itself. The manual's wi-fi message belongs to a bus
+// started out of reach of the network; here it comes when the console cannot reach the
+// game at all. A tap carries on past the start-up, as nobody wants to watch it twice.
+const BOOT = [["starting", 2000], ["updating", 2400], ["starting", 1600]];
+let booting = true, bootAt = 0, bootTimer = 0;
+
+function bootStep() {
+  if (!booting) return;
+  if (bootAt >= BOOT.length) return bootDone();
+  const [key, ms] = BOOT[bootAt++];
+  $("say").textContent = labels[key] ?? SAY[key];
+  bootTimer = setTimeout(bootStep, ms);
+}
+function bootDone() {
+  if (!booting) return;
+  booting = false;
+  clearTimeout(bootTimer);
+  if (!state) return $("wifi").classList.add("on");   // nothing answered: no connection
+  if (!route()) show("login");
+}
+// where the console belongs once it is up: back on the duty it was left on, or the login
+function route() {
+  if (!store.get("driver")) return false;
+  show(state && state.duty ? "duty" : "lines");
+  return true;
+}
+$("start").addEventListener("click", bootDone);
+$("wifi-ok").addEventListener("click", () => { $("wifi").classList.remove("on"); if (!route()) show("login"); });
+// (the words the page was written with, until the game sends its own)
+const SAY = { starting: "Starter managers… Vent venligst…", updating: "Opdatering i gang.\nDet tager maks. 3 minutter" };
+show("start");
+bootStep();
+
 async function tick() {
   try {
     const s = await getJson("/state");
@@ -464,7 +556,7 @@ async function tick() {
       state = s; labels = s.labels; words();
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
-      if (first) show(store.get("driver") ? (s.duty ? "duty" : "lines") : "login");
+      if (first) { if (!booting) route(); }
       else if (screen === "duty") drawDuty();
     }
   } catch (e) {

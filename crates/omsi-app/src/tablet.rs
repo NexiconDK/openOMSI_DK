@@ -320,6 +320,11 @@ fn labels() -> Value {
         "driver": tr("Driver number"),
         "password": tr("Password"),
         "login_hint": tr("Type a driver number and a password (any will do)"),
+        // (the fork) the console's start-up, as the Rejsekort manual has it
+        "starting": tr("Starting managers… Please wait…"),
+        "updating": tr("Update under way.\nIt takes 3 minutes at most"),
+        "no_wifi_title": tr("No wi-fi"),
+        "no_wifi": tr("The console has no wi-fi connection. Press OK to go on."),
     })
 }
 
@@ -449,6 +454,30 @@ mod tests {
         }
         assert_eq!(url_decode("Siedlung+B%C3%B6sch%2"), "Siedlung Bösch%2");
         assert_eq!(field("a=1&line=13%2B", "line").as_deref(), Some("13+"));
+    }
+
+    /// (the fork) The page asks for its words by name, and the names are written out twice:
+    /// once in the page and once in [`labels`]. A word the page asks for and the game does
+    /// not send would stand as the Danish the page was written with, so an English player
+    /// would meet a Danish word and nobody would see why. The start-up screen asks for two
+    /// of them from its script rather than from the markup, so they are named here as well.
+    #[test]
+    fn every_word_the_page_asks_for_is_sent_to_it() {
+        let sent = labels();
+        let mut asked = Vec::new();
+        for piece in PAGE.split(r#"data-l=""#).skip(1) {
+            asked.push(piece.split('"').next().unwrap_or_default());
+        }
+        // (the login's own three it asks for by name, not by the markup)
+        asked.extend(["starting", "updating", "driver", "password", "login_hint"]);
+        for key in &asked {
+            assert!(!sent[key].is_null(), "the page asks for {key:?} and labels() has no such word");
+        }
+        assert!(asked.len() >= 16, "only {} words asked for - has the page lost its texts?", asked.len());
+        // the start-up's own three, which the manual shows on page 7
+        for key in ["starting", "updating", "no_wifi"] {
+            assert!(asked.contains(&key), "the start-up screen lost {key:?}");
+        }
     }
 
     #[test]
