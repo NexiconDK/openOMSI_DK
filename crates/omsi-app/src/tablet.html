@@ -245,6 +245,11 @@
   .sale.edit .f.live { background: #ebebe6; color: #1a1a1a; cursor: pointer; }
   .sale.edit .f.live:active { background: var(--pick); }
   .sale .f.w { background: #ececec; color: #1a1a1a; }
+  /* what the customer puts in your hand is typed into the white field, and the field under
+     it works the change out */
+  .sale.pay .f.w { cursor: pointer; }
+  .sale.pay .f.w:active { background: var(--pick); }
+  .sale .mback.owed { background: #ecebc2; color: #1a1a1a; }
   .sale .n1, .sale .t1 { left: calc(36 * var(--u)); width: calc(394 * var(--u)); height: calc(72 * var(--u)); }
   .sale .n2, .sale .t2 { left: calc(456 * var(--u)); width: calc(394 * var(--u)); height: calc(72 * var(--u)); }
   .sale .n1, .sale .n2 { top: calc(32 * var(--u)); }
@@ -752,7 +757,7 @@
       <button class="f live z" id="s-z" type="button">2</button>
       <div class="f dz" id="s-dz">4301</div>
       <div class="f m mprice" id="s-price">22,00</div><span class="dkk m d1">DKK</span>
-      <div class="f w m mpaid" id="s-paid">22,00</div><span class="dkk m d2">DKK</span>
+      <button class="f w m mpaid" id="s-paid" type="button">22,00</button><span class="dkk m d2">DKK</span>
       <div class="f m mback" id="s-back">0,00</div><span class="dkk m d3">DKK</span>
       <fieldset class="valg"><legend data-l="choice">Valg</legend>
         <div class="in">
@@ -903,7 +908,8 @@ function loginWords() {
 // eight digits there and the pass code four; any number does here, as it always did.
 // (a field of another screen asks for the pad by its own name, "vol:key", "sale:z")
 const PAD_LEN = { driver: 8, password: 4 };
-const padLen = (which) => (!which ? 0 : which.startsWith("vol:") ? 3 : which.includes(":") ? 2 : PAD_LEN[which]);
+const padLen = (which) => (!which ? 0 : which.startsWith("vol:") ? 3
+  : which === "sale:paid" ? 4 : which.includes(":") ? 2 : PAD_LEN[which]);
 let padFor = null, padVal = "";
 
 function padOpen(which) {
@@ -935,10 +941,13 @@ $("pad").addEventListener("click", (e) => {
     SND[which].vol = Math.max(0, Math.min(100, parseInt(padVal || "0", 10) || 0));
     padClose(); sndDraw(); return beep(which);
   }
-  // the ticket's own fields: how many of each customer there are, and how many zones
+  // the ticket's own fields: how many of each customer there are, how many zones, and
+  // what the customer put in the driver's hand
   if (k === "enter" && padFor.startsWith("sale:")) {
-    const f = padFor.slice(5), n = Math.max(0, Math.min(99, parseInt(padVal || "0", 10) || 0));
-    sale[f] = f === "z" ? Math.max(1, n) : n;
+    const f = padFor.slice(5), n = parseInt(padVal || "0", 10) || 0;
+    if (f === "paid") sale.paid = Math.max(0, Math.min(9999, n));
+    else if (f === "z") sale.z = Math.max(1, Math.min(99, n));
+    else sale[f] = Math.max(0, Math.min(99, n));
     padClose(); saleDraw(); return beep("key");
   }
   if (k === "enter") {
@@ -1277,7 +1286,9 @@ const FARE = {
   child: (z) => (22 + 10 * Math.max(0, z - 2)) / 2,
   bike: () => 13,
 };
-let sale = { n1: 1, n2: 0, t1: "adult", t2: "child", z: 2, edit: false };
+// `paid` is what the customer put in the driver's hand: nothing yet means he had it
+// counted out, and the field under it has nothing to give back
+let sale = { n1: 1, n2: 0, t1: "adult", t2: "child", z: 2, edit: false, paid: null };
 const kr = (v) => v.toFixed(2).replace(".", ",");
 const salePrice = () => sale.n1 * FARE[sale.t1](sale.z) + sale.n2 * FARE[sale.t2](sale.z);
 
@@ -1285,7 +1296,7 @@ const salePrice = () => sale.n1 * FARE[sale.t1](sale.z) + sale.n2 * FARE[sale.t2
 // written out by hand
 function saleOpen(who, zones) {
   sale = { n1: who === "adult" ? 1 : 0, n2: who === "child" ? 1 : 0,
-           t1: "adult", t2: "child", z: zones || 1, edit: !zones };
+           t1: "adult", t2: "child", z: zones || 1, edit: !zones, paid: null };
   whoClose();
   show("sale");
 }
@@ -1304,10 +1315,13 @@ function saleDraw() {
   // the manual's page 15: the console knows which zone the bus is in, so the driver has
   // only to read the price out
   $("s-dz").textContent = (state && state.duty && state.duty.zone) || "–";
-  const price = salePrice();
+  // the fare, what the customer handed over, and what he has to have back
+  const price = salePrice(), paid = sale.paid == null ? price : sale.paid;
+  const back = Math.max(0, paid - price);
   $("s-price").textContent = kr(price);
-  $("s-paid").textContent = kr(price);
-  $("s-back").textContent = kr(0);
+  $("s-paid").textContent = kr(paid);
+  $("s-back").textContent = kr(back);
+  $("s-back").classList.toggle("owed", back > 0);
 }
 
 // the white fields of the ticket: a number comes from the console's own pad, a customer
@@ -1329,6 +1343,9 @@ $("s-who").addEventListener("click", (e) => {
   if (sale.edit) { whoClose(); padOpen("sale:" + f); }
 }));
 ["t1", "t2"].forEach((f) => $("s-" + f).addEventListener("click", () => { if (sale.edit) whoOpen(f); }));
+// the white field is what the customer came with: type 50 for a fifty, and the field
+// under it says what he has to have back
+$("s-paid").addEventListener("click", () => { if (!sale.edit) padOpen("sale:paid"); });
 
 // the manual's two presses: the first takes the ticket as it is written out (page 17),
 // the second is the one for when the driver HAS the money in his hand (pages 15 and 18).
