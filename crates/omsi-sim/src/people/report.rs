@@ -52,6 +52,15 @@ impl PeopleSim {
         ids
     }
 
+    /// (the fork) Who is in the player's bus now and how old each of them is (years, in
+    /// order of id): the Web-IBIS's row of card readers names the customer type of
+    /// whoever has just checked in or out, and age is what the game knows them by.
+    pub fn riding_ages(&self) -> Vec<(u32, f32)> {
+        let mut v: Vec<(u32, f32)> = self.people.iter().filter(|p| p.inside(BusId::Player)).map(|p| (p.id, p.age)).collect();
+        v.sort_unstable_by_key(|(id, _)| *id);
+        v
+    }
+
     /// People currently in the player's bus.
     pub fn riding(&self) -> usize {
         self.people

@@ -265,7 +265,66 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
 }
 
 /// Called every frame: the state for the page, at most twice a second while it is on.
-pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Option<glam::DVec3>, speed_kmh: f32, passengers: Option<usize>, paused: bool) {
+/// (the fork) The console's row of card readers, as the manual's pages 23, 27 and 28 have
+/// it: a box for each of the last few cards held to a reader, the newest first, with the
+/// customer type written in it and a cross over it when the card was checked out.
+///
+/// The game has no Rejsekort and so no card types to colour the boxes by: every card here
+/// is the blue personal one, which is what most of them are. Who got on and off is real,
+/// though - the riders are told apart by their ids, whatever door they took - and the
+/// customer type is the passenger's own age.
+#[derive(Default)]
+struct Cards {
+    /// Who was in the bus when this was last looked at (id and age, by id).
+    seen: Vec<(u32, f32)>,
+    /// The last few cards: (customer type, checked out).
+    last: Vec<(String, bool)>,
+    /// The first look only takes down who is aboard: a bus already full when the page is
+    /// switched on has nobody checking in.
+    begun: bool,
+}
+
+static CARDS: Mutex<Option<Cards>> = Mutex::new(None);
+
+/// How many boxes the row holds (the manual's picture has five).
+const READERS: usize = 5;
+
+/// The customer type of a passenger that age, in the manual's own words.
+fn customer(age: f32) -> &'static str {
+    match age {
+        a if a < 16.0 => "Barn",
+        a if a < 26.0 => "Ung",
+        a if a >= 65.0 => "Pensionist",
+        _ => "Voksen",
+    }
+}
+
+/// The row of boxes after `riders` got on and off since it was last looked at.
+fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
+    let same = cards.seen.len() == riders.len() && cards.seen.iter().zip(riders).all(|(a, b)| a.0 == b.0);
+    if !same {
+        if cards.begun {
+            let has = |v: &[(u32, f32)], id: u32| v.binary_search_by_key(&id, |(i, _)| *i).is_ok();
+            // (newest first: those who checked in, then those who checked out)
+            for (id, age) in riders.iter() {
+                if !has(&cards.seen, *id) {
+                    cards.last.insert(0, (customer(*age).to_string(), false));
+                }
+            }
+            for (id, age) in cards.seen.iter() {
+                if !has(riders, *id) {
+                    cards.last.insert(0, (customer(*age).to_string(), true));
+                }
+            }
+            cards.last.truncate(READERS);
+        }
+        cards.seen = riders.to_vec();
+        cards.begun = true;
+    }
+    cards.last.iter().map(|(who, out)| json!({ "who": omsi_ui::tr(who).into_owned(), "out": out })).collect()
+}
+
+pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Option<glam::DVec3>, speed_kmh: f32, passengers: Option<usize>, riders: &[(u32, f32)], paused: bool) {
     if !ON.load(Ordering::Relaxed) {
         return;
     }
@@ -279,7 +338,12 @@ pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Optio
     }
     let (day, month) = clock.day_month();
     let date = format!("{day}/{month}/{:02}", clock.year.rem_euclid(100));
-    let v = state(duty, clock.time, &date, bus, speed_kmh, passengers, paused);
+    let mut v = state(duty, clock.time, &date, bus, speed_kmh, passengers, paused);
+    // (the fork) the console's row of card readers, from who came and went in the bus
+    {
+        let mut c = CARDS.lock().unwrap_or_else(|e| e.into_inner());
+        v["cards"] = Value::Array(cards_of(c.get_or_insert_with(Cards::default), riders));
+    }
     *STATE.lock().unwrap_or_else(|e| e.into_inner()) = serde_json::to_vec(&v).unwrap_or_default();
 }
 

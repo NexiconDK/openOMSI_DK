@@ -11,7 +11,7 @@
   /* The screen is the terminal's: 1280 x 720 units, as large as the tablet allows. */
   /* --bar is the height of the console's strip of status cells: 11.3 % of the screen, as
      the Rejsekort manual's pictures of it have it */
-  :root { --u: 1px; --bar: calc(81 * var(--u));
+  :root { --u: 1px; --bar: calc(81 * var(--u)); --row: calc(92.5 * var(--u));
     --ink: #000; --line: #555; --soft: #444; --dim: #8a8a8a; --paper: #fff;
     --field: #f2f2f2; --pick: #dff3df; --now: #f0b429; --rail: #2e9e5b; --plate: #ffd23f;
     --early: #c62828; --ontime: #1e7d3c; --late: #d06a00; }
@@ -58,8 +58,9 @@
 
   /* (the fork) the console's list: six rows between the strip and the bar, a white row for
      every line or trip and a pale blue-grey one for the slots left over */
-  .sheet { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u));
-    display: grid; grid-template-rows: repeat(6, 1fr); background: #d8e0e3;
+  .sheet { position: absolute; left: 0; right: 0; top: var(--bar);
+    bottom: calc(84 * var(--u) + var(--row));
+    display: grid; grid-template-rows: repeat(5, 1fr); background: #d8e0e3;
     border-top: 1px solid #6b7580; }
   .sheet.two { grid-template-columns: repeat(2, 1fr); grid-auto-flow: row; }
   .cell { background: #fff; border-right: 1px solid #6b7580; border-bottom: 1px solid #6b7580;
@@ -84,9 +85,10 @@
      down the left with the line, the tour and how late the bus is, "Afslut tur" under it,
      and the stops still to come down the right - the hand beside the top one while the
      bus stands at it, as the manual's page 11 has it */
-  .drive { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u));
+  .drive { position: absolute; left: 0; right: 0; top: var(--bar);
+    bottom: calc(84 * var(--u) + var(--row));
     display: grid; grid-template-columns: 1fr 1fr; background: #d8e0e3; border-top: 1px solid #6b7580; }
-  .drive .side, .drive .stops { display: grid; grid-template-rows: repeat(6, 1fr); }
+  .drive .side, .drive .stops { display: grid; grid-template-rows: repeat(5, 1fr); }
   .drive .side { border-right: 1px solid #6b7580; }
   .drive .panel { grid-row: span 4; background: linear-gradient(#4f85d2, #6ba2e2); color: #dceaff;
     display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
@@ -119,8 +121,9 @@
      two rows and six keys under it. Telebus, the sound and the maintenance belong to the
      real console, so they stand grey - the console's own way of saying a key leads
      nowhere. The bar loses its pram and its arrows here, as the manual's picture has it. */
-  .menu { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u));
-    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(6, 1fr);
+  .menu { position: absolute; left: 0; right: 0; top: var(--bar);
+    bottom: calc(84 * var(--u) + var(--row));
+    display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(5, 1fr);
     background: #d8e0e3; border-top: 1px solid #6b7580; }
   .menu .sky { grid-column: span 2; grid-row: span 2; background: #2f3192; }
   .menu .mi { background: #fff; border-right: 1px solid #6b7580; border-bottom: 1px solid #6b7580;
@@ -128,10 +131,25 @@
     font-size: calc(40 * var(--u)); color: #111; }
   .menu .mi.off { background: #ccd3d8; color: #6a7278; cursor: default; }
   .menu .mi:not(.off):active { background: var(--pick); }
-  .menu .slots { grid-column: span 2; display: flex; }
-  .menu .slots i { flex: 1; background: #d8e0e3; border-right: 1px solid #6b7580;
-    border-bottom: 1px solid #6b7580; }
   #menu .foot .pram, #menu .foot .arrow { visibility: hidden; }
+
+  /* (the fork) the console's row of card readers, as the manual's pages 23, 27 and 28 have
+     it: the bottom row of every screen, one box for each of the last cards held to a
+     reader. The text is the customer's type and a crossed box is a check-out; a white box
+     is a reader that has not been used. The game has no Rejsekort and so no card types to
+     colour them by, so every card here is the blue personal one. The boxes do nothing:
+     they are the driver's check that the customers remembered to check in and out. */
+  .cards { position: absolute; left: 0; right: 0; bottom: calc(84 * var(--u)); height: var(--row);
+    display: flex; background: #d8e0e3; }
+  .cards i { flex: 1; position: relative; border-right: 1px solid #6b7580;
+    border-top: 1px solid #6b7580; border-bottom: 1px solid #6b7580; background: #fff;
+    display: flex; align-items: center; padding: 0 calc(16 * var(--u));
+    font-style: normal; font-size: calc(24 * var(--u)); color: #fff; overflow: hidden; }
+  .cards i.used { background: #2f7fd0; }
+  .cards i.out::before, .cards i.out::after { content: ""; position: absolute; left: calc(-6 * var(--u));
+    right: calc(-6 * var(--u)); top: 50%; height: calc(2 * var(--u)); background: #1b1b1b; }
+  .cards i.out::before { transform: rotate(20deg); }
+  .cards i.out::after { transform: rotate(-20deg); }
 
   /* (the fork) the console behind its lock, as the manual's page 18 has it: the same login
      screen, with the driver's own number standing grey and only the pass code to type */
@@ -330,6 +348,7 @@
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <div class="sheet two" id="keys"></div>
     <div class="empty" id="no-lines" hidden data-l="no_lines"></div>
+    <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
   </section>
 
@@ -340,6 +359,7 @@
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <div class="sheet" id="trip-list"></div>
     <div class="empty" id="no-trips" hidden data-l="no_trips"></div>
+    <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
     <div class="ask" id="ask"><div class="box">
       <div class="ttl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1565c0"/>
@@ -358,6 +378,7 @@
     <div class="bar"></div><div class="strip" data-strip></div>
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <div class="drive" id="duty-body"></div>
+    <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
     <div class="ask" id="warn"><div class="box">
       <div class="ttl"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
@@ -380,8 +401,8 @@
       <button class="mi off" disabled data-l="set_sound">Indstil lyd</button>
       <button class="mi" data-m="change" data-l="driver_change">Chauff&oslash;rskift</button>
       <button class="mi off" disabled data-l="maintenance">Vedligeholdelse</button>
-      <div class="slots"><i></i><i></i><i></i><i></i><i></i></div>
     </div>
+    <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
   </section>
 
@@ -411,7 +432,7 @@ const store = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { r
 let state = null, labels = {}, screen = null, line = null, lines = [], trips = [], pick = null, failures = 0;
 // (the fork) the console's list is six rows deep, the lines two to a row; the arrows in
 // the bar leaf through it, and `suggest` is the trip the console puts forward on yellow
-const PER = { lines: 12, trips: 6, duty: 6 };
+const PER = { lines: 10, trips: 5, duty: 5 };
 let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = "";
 
 // the screen as large as the tablet allows, at 16:9
@@ -742,6 +763,17 @@ async function tell(what, body) {
   if (screen === "duty") drawDuty();
 }
 
+// (the fork) the row of card readers along the foot of the screen: the last cards held
+// to one, newest first, the crossed ones checked out
+function drawCards() {
+  const c = (state && state.cards) || [];
+  const html = Array.from({ length: 5 }, (_, i) => {
+    const k = c[i];
+    return k ? `<i class="used${k.out ? " out" : ""}">${esc(k.who)}</i>` : "<i></i>";
+  }).join("");
+  document.querySelectorAll("[data-cards]").forEach((e) => { if (e.innerHTML !== html) e.innerHTML = html; });
+}
+
 // (the fork) the console's GPS key: pressing it turns the stops over to the driver, and
 // the console says so with the manual's own message. Pressing it again gives them back.
 let warnTimer = 0;
@@ -812,6 +844,7 @@ async function tick() {
       state = s; labels = s.labels; words();
       // (the fork) the GPS cell goes grey on every screen while the stops are by hand
       document.body.classList.toggle("nogps", !!(s.duty && s.duty.gps === false));
+      drawCards();
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
       if (first) { if (!booting) route(); }

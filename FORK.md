@@ -65,6 +65,8 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
   - **Lås konsol** låser konsollen ved korte pauser: skærmen skriver *Chaufførkonsollen er låst*, dit chaufførnummer står i et gråt felt, og du taster blot adgangskoden igen for at åbne — så er du tilbage, hvor du slap. **ESC** på den skærm er manualens chaufførskift.
   - **Chaufførskift** sender dig til login-skærmen, men **linje og tur bliver stående** — den nye chauffør taster sit eget nummer og kører videre på samme vagt.
   - **Log ud** logger ud og tømmer vagten fra siden (til når bussen er tilbage i garagen).
+- **Kortlæser-rækken** nederst på alle skærme (manualens side 23, 27 og 28): en boks for hvert af de sidste kort, der er holdt hen til en læser, det nyeste først. Teksten er kundetypen — **Barn**, **Ung**, **Voksen** eller **Pensionist** efter passagerens alder — og en boks med **kryds over** er en der checkede ud. Hvid boks betyder, at den læser ikke er brugt. Boksene gør ingenting; de er chaufførens kontrol af, om kunderne huskede at checke ind og ud. Hvem der stiger på og af er helt rigtigt — spillet kender dem på deres id, uanset hvilken dør de bruger — men OMSI har ingen rejsekort og dermed ingen korttyper at farve boksene efter, så de er alle det blå personlige kort.
+- Listerne er nu **fem rækker** og ikke seks, fordi den nederste række er kortlæserne. Det passer nu nøjagtigt med manualens billeder af Linjevalg, Turvalg og køreskærmen.
 - **Dine egne billeder:** læg login-billedet som **login.png** (1280 × 720) i mappen **WebIBIS** i din OMSI-mappe. Billedets øverste stribe bruges også som topbjælke på de andre skærme. Uden billede tegnes simple hvide skærme. Billederne følger ikke med spillet.
 
 ### Turoversigt

@@ -394,6 +394,7 @@ impl App {
                 self.player.as_ref().map(|p| p.vehicle.position),
                 self.player.as_ref().map(|p| p.vehicle.physics.velocity_kmh()).unwrap_or(0.0),
                 self.session.humans.as_ref().map(|h| h.riding()),
+                &self.session.humans.as_ref().map(|h| h.riding_ages()).unwrap_or_default(),
                 self.paused,
             );
             // (the fork) the trip just driven, while its summary is open
