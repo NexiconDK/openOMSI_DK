@@ -3149,6 +3149,17 @@ fn hof_knows(hof: &omsi_vehicle::Hof, name: &str, sign: &str) -> bool {
     [name, sign, bare].iter().any(|n| !n.trim().is_empty() && hof.has_line(n))
 }
 
+/// (the fork) Does this trip belong in the console's Turvalg? A run to or from the garage
+/// is a service leg, and OMSI gives one no line of its own - the `.ttp`'s `line` is blank
+/// while a trip in service carries its number there. The driver cannot take a service leg
+/// on; he takes on the trip after it, and the duty drives the leg before it on its own.
+///
+/// A trip whose `.ttp` cannot be found at all is kept: one trip too many in the list is a
+/// smaller fault than one missing from it.
+fn in_service(own_line: Option<&str>) -> bool {
+    own_line.is_none_or(|l| !l.trim().is_empty())
+}
+
 /// (the fork) The web IBIS's question answered (`crate::tablet`): the lines of the map's
 /// timetable that the bus's depot file knows (all of them without one), a line's trips of
 /// the day in both directions, or a trip taken on.
@@ -3178,10 +3189,13 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
                 for pos in 0..sch.tour_trip_count(&l.name, &t.number) {
                     let stops = sch.tour_trip_stops(&l.name, &t.number, pos);
                     let (Some(first), Some(last)) = (stops.first(), stops.last()) else { continue };
-                    let sign = tour_trip_name(sch, t, first.0)
-                        .and_then(|n| sch.data.trips.iter().find(|x| x.name.eq_ignore_ascii_case(&n)).map(|x| x.line.trim().to_string()))
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or_else(|| line_sign(Some(sch), l));
+                    // (the fork) the trip's own line, out of its `.ttp`
+                    let own = tour_trip_name(sch, t, first.0)
+                        .and_then(|n| sch.data.trips.iter().find(|x| x.name.eq_ignore_ascii_case(&n)).map(|x| x.line.trim().to_string()));
+                    if !in_service(own.as_deref()) {
+                        continue;
+                    }
+                    let sign = own.filter(|s| !s.is_empty()).unwrap_or_else(|| line_sign(Some(sch), l));
                     let driving = duty.as_ref().is_some_and(|(tour, dep)| tour.eq_ignore_ascii_case(&t.number) && dep.is_some_and(|d| (d - first.3).abs() < 1.0));
                     trips.push(json!({
                         "tour": t.number.trim(),
@@ -3231,13 +3245,16 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
             after_duty_moved(app);
             json!({ "ok": moved })
         }
-        // the stop the bus is driving towards, with everything before it given up
+        // the stop the marker is moved to, with everything passed over given up. It keeps
+        // the state it was in: standing at a stop, the bus stands at the new one; rolling,
+        // it rolls towards it.
         Ask::HeadFor(stop) => {
+            let now = app.clock.time;
             let Some(d) = app.session.duty.as_mut() else { return json!({ "ok": false, "error": "no duty" }) };
             if !d.manual_stops {
                 return json!({ "ok": false, "error": "the GPS is on" });
             }
-            let moved = d.head_for(stop);
+            let moved = d.head_for(stop, now);
             after_duty_moved(app);
             json!({ "ok": moved })
         }
@@ -3315,6 +3332,18 @@ mod tests {
         assert!(super::hof_knows(&hof, "Linje 143", ""));
         assert!(super::hof_knows(&hof, "x", "143"));
         assert!(!super::hof_knows(&hof, "Linje 146", "146"));
+    }
+
+    /// (the fork) Turvalg offers the trips in service and not the runs to and from the
+    /// garage. OMSI gives a service leg no line of its own, so its `.ttp` carries a blank
+    /// where a trip in service carries its number.
+    #[test]
+    fn turvalg_leaves_out_the_runs_to_and_from_the_garage() {
+        assert!(super::in_service(Some("143")));
+        assert!(!super::in_service(Some("")), "a run to the garage has no line");
+        assert!(!super::in_service(Some("   ")));
+        // a trip whose .ttp is nowhere to be found is kept, and takes the line's own sign
+        assert!(super::in_service(None));
     }
 
     #[test]

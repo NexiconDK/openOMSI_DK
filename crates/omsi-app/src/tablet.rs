@@ -329,7 +329,7 @@ impl Cards {
     /// How the bus is fitted from the yard: the front reader takes cards in, the rest take
     /// them out. Nulstil puts it back to this.
     fn stock() -> Vec<Reads> {
-        (0..READERS).map(|i| if i == 0 { Reads::In } else { Reads::Out }).collect()
+        (0..READERS).map(|i| if i == SALES_READER { Reads::In } else { Reads::Out }).collect()
     }
 
     /// The reader a card of this kind is held to, and what it leaves behind there. A reader
@@ -359,8 +359,14 @@ impl Cards {
                 self.role = Cards::stock();
                 self.once = None;
             }
-            // the pram: a check-out reader takes one card in, and then is a check-out again
-            "pram" => self.once = (0..READERS).find(|&k| self.role[k] == Reads::Out).map(|k| (k, Reads::In)),
+            // the pram: reader 3, the one by the middle door a pram is wheeled in at, takes
+            // one card in and is a check-out again after it. (It used to be whichever
+            // check-out reader came first, which is reader 2.)
+            "pram" => {
+                if self.role.get(PRAM_READER) != Some(&Reads::In) {
+                    self.once = Some((PRAM_READER, Reads::In));
+                }
+            }
             // Annuller ind: the front reader takes one card out instead
             "cancel_in" => self.once = (0..READERS).find(|&k| self.role[k] == Reads::In).map(|k| (k, Reads::Out)),
             _ => return false,
@@ -373,6 +379,16 @@ static CARDS: Mutex<Option<Cards>> = Mutex::new(None);
 
 /// How many boxes the row holds (the manual's picture has five).
 const READERS: usize = 5;
+
+/// (the fork) Reader 1 is the sales reader: it is the one the driver holds a card to for
+/// the Information screen and for Check ind ekstra, and the one a cash ticket is sold
+/// over. A fault on it will take cash tickets with it, once the console's faults are
+/// built.
+const SALES_READER: usize = 0;
+
+/// (the fork) The reader the pram key turns round for one card: reader 3, by the middle
+/// door a pram is wheeled in at.
+const PRAM_READER: usize = 2;
 
 /// (the fork) How long a card stands in its box before the reader is white again. The box
 /// is the driver's glance at whether the customer remembered, not a record to keep.
@@ -733,6 +749,9 @@ fn state(duty: Option<&PlayerDuty>, time: f64, date: &str, bus: Option<glam::DVe
         // it draws beside a stop means the bus is standing at it
         "tour": d.tour.trim(),
         "at_stop": ds.at_stop,
+        // (the fork) the trip is over - the bus has reached its last stop. The console
+        // ends the trip itself when it sees this, as it would on Afslut tur.
+        "done": d.trip_done(),
         // (the fork) the GPS key's own state: off, and the stops are served by hand
         "gps": !d.manual_stops,
         // (the fork) the fare zone the bus stands in, for the cash ticket's Afgangszone
@@ -821,6 +840,27 @@ mod tests {
         for key in ["starting", "updating", "no_wifi", "question", "warning", "start_q"] {
             assert!(asked.contains(&key), "the page lost {key:?}");
         }
+    }
+
+    /// (the fork) The pram key turns reader 3 round for one card - the reader by the middle
+    /// door a pram is wheeled in at - and it is a check-out again after that one card. It
+    /// used to be whichever check-out reader came first, which is reader 2.
+    #[test]
+    fn the_pram_key_turns_reader_three_round_for_one_card() {
+        let mut c = Cards::default();
+        assert!(c.set("pram"));
+        assert_eq!(c.once, Some((2, Reads::In)), "the pram belongs to reader 3");
+        // that one card goes to reader 3, and the next one checking in to reader 1 again
+        assert_eq!(c.reader_for(false), Some(2));
+        assert_eq!(c.reader_for(false), Some(SALES_READER));
+        // reader 1 is the sales reader and takes cards in from the yard
+        assert_eq!(Cards::stock()[SALES_READER], Reads::In);
+
+        // with every reader taking cards in there is nothing for the key to turn round
+        let mut c = Cards::default();
+        assert!(c.set("all_in"));
+        assert!(c.set("pram"));
+        assert_eq!(c.once, None);
     }
 
     /// (the fork) A card stands in its box for a few seconds and the box is white again.

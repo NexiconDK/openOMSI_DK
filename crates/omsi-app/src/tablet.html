@@ -101,8 +101,6 @@
     padding: 0 calc(12 * var(--u)) 0 calc(24 * var(--u)); font-size: calc(42 * var(--u)); color: #111; }
   .drive .stop .n { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* (the one thing the console does not draw: when the bus is due there) */
-  .drive .stop .t { font-size: calc(24 * var(--u)); color: #5a5a5a; font-variant-numeric: tabular-nums;
-    margin-left: calc(12 * var(--u)); }
   .drive .stop svg { width: calc(54 * var(--u)); height: calc(54 * var(--u)); flex: none; margin-left: calc(8 * var(--u)); }
   .drive .stop.done { color: #8a8a8a; }
   /* (the fork) the crowd in the strip is the group check-in reader - the third kind of
@@ -973,7 +971,8 @@ let state = null, labels = {}, screen = null, line = null, lines = [], trips = [
 const PER = { lines: 10, trips: 5, duty: 5 };
 let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = "", lastDuty = "", lastTrips = "";
 // where ESC puts the console down again, and the screen Billetter was pressed from
-const whence = () => (state && state.duty ? "duty" : "lines");
+const onDuty = () => !!(state && state.duty);
+const whence = () => (onDuty() ? "duty" : "lines");
 let tixBack = null;
 
 // the screen as large as the tablet allows, at 16:9
@@ -1019,8 +1018,10 @@ function footTabs(name) {
     linje.className = inMenu || inServe || inTix ? "blue" : "now";
     const serve = f.querySelector("[data-key='serve']");
     if (serve) serve.className = inServe ? "now" : "blue";
+    // (the fork) Billetter sells against the trip being driven, so the key leads nowhere
+    // until one is chosen - and stands blue and dead until it does
     const tix = f.querySelector("[data-key='tix']");
-    if (tix) tix.className = inTix ? "now" : "blue";
+    if (tix) tix.className = inTix ? "now" : onDuty() ? "blue" : "blue dead";
   });
 }
 
@@ -1227,8 +1228,10 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
   }
   if (k === "menu") return show("menu");
   if (k === "serve") return show("serve");
-  // Billetter: the cash ticket's sales menu, the manual's page 13
+  // Billetter: the cash ticket's sales menu, the manual's page 13. There is nothing to
+  // sell against until a trip is taken on, so the key does nothing until then.
   if (k === "tix") {
+    if (!onDuty()) return;
     if (screen !== "tix" && screen !== "sale") tixBack = screen;
     return show("tix");
   }
@@ -1326,22 +1329,23 @@ function drawDuty() {
   const head = stops.length ? stops[0].name : "";
   if (head !== dutyHead) { dutyHead = head; page.duty = 0; }   // (the bus moved on)
   page.duty = Math.max(0, Math.min(page.duty, leaves(stops.length, PER.duty) - 1));
-  // with the GPS off the driver picks the stop ahead himself, but only while rolling
-  const hand = d.gps === false, pick = hand && !d.at_stop;
+  // (the fork) with the GPS off the driver moves the marker himself, standing or rolling:
+  // pressing a stop moves the red hand there if the bus stands at one, and turns the two
+  // arrows towards it if it rolls. Neither wants Ankommet or Afgået pressed first.
+  const hand = d.gps === false, pick = hand;
   const from = page.duty * PER.duty, shown = stops.slice(from, from + PER.duty);
   let right = shown.map((s, i) => {
     const at = from + i;
     const mark = d.at_stop ? (at === now ? HAND : "") : at === now - 1 ? GONE : at === now ? COMING : "";
-    const take = pick && at > now && s.i != null;
-    return `<div class="stop${take ? " pickable" : ""}"${take ? ` data-stop="${s.i}"` : ""}><span class="n">${esc(s.name)}</span>
-      <span class="t">${esc(s.exp || s.time)}</span>${mark}</div>`;
+    // (the fork) with the GPS off every other stop can be pressed, forwards or back
+    const take = pick && at !== now && s.i != null;
+    return `<div class="stop${take ? " pickable" : ""}"${take ? ` data-stop="${s.i}"` : ""}><span class="n">${esc(s.name)}</span>${mark}</div>`;
   }).join("");
   for (let i = shown.length; i < PER.duty; i++) right += `<div class="slot"></div>`;
   const html = `<div class="side${hand ? " manual" : ""}">
       ${hand ? `<button class="end" data-at="${d.at_stop ? "0" : "1"}">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
       <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
         <span>${esc(L.tour)}: ${esc(d.tour || "")}</span>
-        <span>${esc(L.delay)}: ${esc(d.delay)}</span>
         ${slow ? `<span class="slow">${esc(L.delay_key)}</span>` : ""}</div>
       <button class="end" id="end-trip">${esc(L.end_trip)}</button>
       <div class="slot"></div>
@@ -1732,13 +1736,18 @@ document.querySelectorAll(".strip .gps").forEach((e) => e.addEventListener("clic
   if (!on) warn(labels.manual_pos);      // "((41)) : Manuel position"
 }));
 
+// (one end at a time: the trip ends by itself at the last stop, and the key is there too)
+let ending = false;
 // the manual: Afslut tur takes back the chosen trip, and the console stands on Turvalg.
 // (the fork) It gives the trip back to the game as well, so the bus is not left driving a
 // trip the console has done with - the line and the terminus go out of the windows and the
 // stops stop being served, exactly as the game's own "End the duty" leaves it.
 async function endTrip() {
+  if (ending) return;
+  ending = true;
   const sign = state && state.duty ? state.duty.line : null;
   await tell("/end_trip", {});
+  ending = false;
   if (!lines.length) { try { lines = (await getJson("/lines")).lines || []; } catch (e) {} }
   const l = lines.find((x) => x.sign === sign);
   if (!l) return show("lines");
@@ -1803,6 +1812,11 @@ async function tick() {
       if (first) { if (!booting) route(); }
       else if (screen === "duty") drawDuty();
       else if (screen === "sale") saleDraw();
+      // (the fork) the bus has reached the last stop of the trip: the console gives the
+      // trip back by itself and stands on Turvalg, without waiting for Afslut tur. It does
+      // it a moment after the game has ended the trip, so the trip's own summary is made
+      // first - and only once somebody is logged in to see it.
+      if (!booting && store.get("driver") && s.duty && s.duty.done && !ending) endTrip();
     }
   } catch (e) {
     if (++failures >= 3) { $("lost").classList.add("on"); document.body.classList.add("away"); }

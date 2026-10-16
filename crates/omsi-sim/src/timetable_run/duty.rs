@@ -588,13 +588,25 @@ impl PlayerDuty {
         served
     }
 
-    /// (the fork) With the GPS switched off, the driver taps the stop the bus is driving
-    /// to: everything between is given up unserved. True when the duty moved.
-    pub fn head_for(&mut self, stop: usize) -> bool {
-        if self.done || self.at_stop || stop <= self.next_stop {
+    /// (the fork) With the GPS switched off, the driver moves the marker to a stop himself:
+    /// anything passed over on the way is given up unserved. It works in whichever state
+    /// the marker stands and needs neither **Ankommet** nor **Afgået** pressed first — a
+    /// bus standing at a stop now stands at the one picked, and a bus rolling now rolls
+    /// towards it. (It used to work only while rolling, and only forwards.) True when the
+    /// duty moved.
+    pub fn head_for(&mut self, stop: usize, day_time: f64) -> bool {
+        if stop >= self.trip().stops.len() {
             return false;
         }
-        stop < self.trip().stops.len() && self.skip_to(stop)
+        let standing = self.at_stop && !self.done;
+        if !self.skip_to(stop) {
+            return false;
+        }
+        // standing at one stop, the bus stands at the other: `skip_to` set it rolling
+        if standing {
+            self.arrive_by_hand(day_time);
+        }
+        true
     }
 
     pub(crate) fn set_trip(&mut self, index: usize) {

@@ -955,3 +955,37 @@ fn the_delay_on_the_way_follows_where_the_bus_is() {
     assert!((d.delay(170.0) - 20.0).abs() < 1e-6);
     assert!((d.delay(120.0) + 30.0).abs() < 1e-6);
 }
+
+/// (the fork) With the GPS switched off the driver moves the marker himself, and it keeps
+/// the state it was in: a bus standing at a stop stands at the one he picks, a bus rolling
+/// rolls towards it. Neither wants Ankommet or Afgået pressed first - which is what the
+/// first player asked for, and it used to work only while rolling and only forwards.
+#[test]
+fn the_marker_is_moved_by_hand_in_whichever_state_it_stands() {
+    let four = || {
+        let mut d = early_departure_duty();
+        d.trips[0] = planned(100.0, &[(0.0, 100.0, 100.0), (500.0, 200.0, 200.0), (1000.0, 300.0, 300.0), (1500.0, 400.0, 400.0)]);
+        d.manual_stops = true;
+        d
+    };
+
+    // rolling towards stop 1: pressing stop 3 turns the arrows towards it, still rolling
+    let mut d = four();
+    assert!(d.head_for(3, 250.0));
+    assert_eq!((d.next_stop, d.at_stop), (3, false));
+
+    // standing at stop 1: pressing stop 2 leaves the bus standing, at stop 2
+    let mut d = four();
+    assert!(d.arrive_by_hand(210.0));
+    assert_eq!((d.next_stop, d.at_stop), (1, true));
+    assert!(d.head_for(2, 260.0));
+    assert_eq!((d.next_stop, d.at_stop), (2, true), "the red hand should have moved, not turned into arrows");
+
+    // and back again: the stop behind can be picked as well
+    assert!(d.head_for(1, 280.0));
+    assert_eq!((d.next_stop, d.at_stop), (1, true));
+
+    // the stop it already stands at does nothing, and neither does one off the end
+    assert!(!d.head_for(1, 300.0));
+    assert!(!d.head_for(9, 300.0));
+}
