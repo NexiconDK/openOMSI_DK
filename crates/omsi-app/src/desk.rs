@@ -241,7 +241,14 @@ impl Desk {
         let keys = self.page.update(state);
         if !keys.is_empty() {
             for key in &keys {
-                crate::console::press(key);
+                // a key that asks something of the game is passed on to it. The tablet
+                // posts these over the network; the screen in the bus is drawn on the
+                // game's own thread, so it leaves the question and does not wait.
+                match crate::console::press(key) {
+                    crate::console::Did::Sold => crate::tablet::ask_later(crate::tablet::Ask::Sell),
+                    crate::console::Did::Ended => crate::tablet::ask_later(crate::tablet::Ask::EndTrip),
+                    _ => {}
+                }
             }
             // the console has moved under the page's own hands, so it is shown at once
             // rather than at the next time the game writes its state out

@@ -97,6 +97,14 @@ pub fn hud_line() -> Option<String> {
 }
 
 /// The questions waiting for the game (the frame answers each, then sends the answer).
+/// (the fork) Ask the game for something without waiting for the answer, for the console's
+/// own screen in the bus: it is drawn **on** the game's thread, so it cannot stand still
+/// waiting for that thread to come round and answer. The reply is dropped.
+pub fn ask_later(q: Ask) {
+    let (tx, _) = channel();
+    ASKS.lock().unwrap_or_else(|e| e.into_inner()).push((q, tx));
+}
+
 pub fn take_asks() -> Vec<(Ask, Sender<Value>)> {
     if !ON.load(Ordering::Relaxed) {
         return Vec::new();
@@ -265,8 +273,12 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
         ("POST", "/press") => match field(body, "key") {
             Some(key) => {
                 let did = crate::console::press(&key);
-                // a ticket sold has to reach the game, where a customer may be waiting
+                // a ticket sold has to reach the game, where a customer may be waiting,
+                // and so does a trip given back
                 let sold = did == crate::console::Did::Sold && ask(Ask::Sell)["ok"] == Value::Bool(true);
+                if did == crate::console::Did::Ended {
+                    ask(Ask::EndTrip);
+                }
                 // the console comes back with the answer: a key press is not worth a
                 // second journey for the whole state, which carries every word with it
                 let con = crate::console::with(|c| c.value());

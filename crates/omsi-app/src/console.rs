@@ -386,6 +386,8 @@ pub enum Did {
     Moved,
     /// A ticket was sold, so the game is to hand one to whoever waits at the cash desk.
     Sold,
+    /// **Afslut tur**: the trip is given back, so the game is to end it.
+    Ended,
 }
 
 impl Console {
@@ -451,6 +453,14 @@ impl Console {
                 }
                 self.screen = Screen::Serve;
                 Did::Moved
+            }
+            // (the fork) Afslut tur on the driving screen: the trip given back. The game
+            // ends it and tells the console so, which takes it off the driving screen.
+            "end" => {
+                if !self.on_duty {
+                    return Did::Nothing;
+                }
+                Did::Ended
             }
             // CHECK IND EKSTRA, the manual's pages 24 to 26
             "extra" => self.extra_press(rest),
@@ -1243,5 +1253,22 @@ mod tests {
         c.press("esc");
         assert_eq!(c.driver, None, "the number goes with the driver");
         assert_eq!(c.pad.as_ref().unwrap().into, "driver");
+    }
+
+    /// (the fork) **Afslut tur** is a key like any other now, so the screen in the bus can
+    /// press it too - and whichever screen presses it, the game is the one that ends the
+    /// trip. It used to be the tablet's own route, which the bus's screen cannot reach.
+    #[test]
+    fn afslut_tur_is_a_key_of_the_console() {
+        let mut c = Console::default();
+        assert_eq!(c.press("end"), Did::Nothing, "there is no trip to give back");
+        c.set_duty(true);
+        c.screen = Screen::Duty;
+        assert_eq!(c.press("end"), Did::Ended, "which the game acts on");
+        // the console stays where it is: it is the game that ends the trip, and the
+        // console follows when it is told the trip is over
+        assert_eq!(c.screen, Screen::Duty);
+        c.set_duty(false);
+        assert_eq!(c.press("end"), Did::Nothing);
     }
 }
