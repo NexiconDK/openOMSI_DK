@@ -1036,7 +1036,7 @@ function words() {
   document.querySelectorAll("[data-l]").forEach((e) => { const w = labels[e.dataset.l]; if (w != null) e.textContent = w; });
   // (the console writes a colon after each of the two, and the manual's picture with it)
   $("l-driver").textContent = (labels.driver ?? "") + ":"; $("l-password").textContent = (labels.password ?? "") + ":";
-  loginWords(); shutDraw(); $("lost").textContent = labels.lost ?? "⚠";
+  loginWords(); $("lost").textContent = labels.lost ?? "⚠";
 }
 
 // (the fork) the login screen says two different things: the one the console shows when
@@ -1346,7 +1346,7 @@ function drawDuty() {
       ${hand ? `<button class="end" data-at="${d.at_stop ? "0" : "1"}">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
       <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
         <span>${esc(L.rk_tour)}: ${esc(d.tour || "")}</span>
-        ${slow ? `<span class="slow">${esc(L.delay_key)}</span>` : ""}</div>
+        ${slow() ? `<span class="slow">${esc(L.delay_key)}</span>` : ""}</div>
       <button class="end" id="end-trip">${esc(L.end_trip)}</button>
       <div class="slot"></div>
     </div><div class="stops">${right}</div>`;
@@ -1431,11 +1431,17 @@ document.querySelectorAll("#rds [data-r]").forEach((b) => b.addEventListener("cl
 // apart inside a week.
 const sale = () => (state && state.con && state.con.sale) || null;
 
-// a key of the console: the game decides what it means and sends the console back
+// a key of the console: the game decides what it means and sends the console straight
+// back with the answer, so a key press costs one journey and not two
 async function press(key) {
-  try { await getJson("/press", { method: "POST", body: new URLSearchParams({ key }) }); } catch (e) { return; }
-  try { state = await getJson("/state"); } catch (e) {}
-  saleDraw(); voidKey();
+  let v;
+  try { v = await getJson("/press", { method: "POST", body: new URLSearchParams({ key }) }); } catch (e) { return; }
+  if (state && v && v.con) state.con = v.con;
+  conDraw();
+}
+// whatever of the console is on the screen now
+function conDraw() {
+  saleDraw(); voidKey(); xtrDraw(); shutDraw(); slowDraw();
 }
 
 // a zone key on the sales menu, or Flere... (no zones), which opens the ticket to be
@@ -1528,41 +1534,36 @@ $("v-yes").addEventListener("click", async () => { await press("void"); show("se
 //
 // The card read is the one the Information screen waits for as well: the next card a
 // passenger holds to a reader, getting on or getting off.
-const MOST = 29;            // the manual: at most 29 on one Rejsekort
-const stock = (t) => [{ n: 1, t }, { n: 0, t: "child" }, { n: 0, t: "bike" }];
-let xtr = { step: "hold", rows: stock("adult"), zone: "local", was: "adult", saw: -1, pick: 0 };
 
-function xtrOpen() {
-  xtr = { step: "hold", rows: stock("adult"), zone: "local", was: "adult",
-          saw: state && state.read ? state.read.n : -1, pick: 0 };
+// which slot the customer-type chooser was opened for, and the card read the console is
+// waiting for: the only two things about this screen that are the page's own
+let xtrPick = 0, xtrSaw = -1;
+const xtr = () => (state && state.con && state.con.extra) || null;
+
+async function xtrOpen() {
+  xtrSaw = state && state.read ? state.read.n : -1;
+  await press("extra:open");
   show("extra");
 }
-// the card is read: the console fills the first slot with what the card itself is. A
-// pensioner travelling along is checked in as an adult, which the manual's page 26 says.
-function xtrStart(r) {
-  xtr.was = r && r.who === labels.child ? "child" : "adult";
-  xtr.rows = stock(xtr.was);
-  xtr.zone = "local";
-  xtr.step = "form";
-  xtrDraw();
-}
 function xtrDraw() {
-  const L = labels, total = xtr.rows.reduce((a, r) => a + r.n, 0);
-  $("x-wait").style.display = xtr.step === "form" ? "none" : "flex";
-  $("x-say").textContent = (xtr.step === "again" ? L.hold_again : L.hold_rk) ?? "";
-  xtr.rows.forEach((r, i) => {
+  const L = labels, x = xtr();
+  if (!x) return;
+  $("x-wait").style.display = x.step === "form" ? "none" : "flex";
+  $("x-say").textContent = (x.step === "again" ? L.hold_again : L.hold_rk) ?? "";
+  x.rows.forEach((r, i) => {
     $("x-n" + i).textContent = r.n;
     $("x-t" + i).textContent = L[r.t] ?? r.t;
   });
-  document.querySelectorAll("#extra .zone").forEach((b) => b.classList.toggle("on", b.dataset.zone === xtr.zone));
+  document.querySelectorAll("#extra .zone").forEach((b) =>
+    b.classList.toggle("on", (b.dataset.zone === "far") === x.far));
   // a key that would take the count past its end is marked dead, and sounds like it
   document.querySelectorAll("#extra .cnt button").forEach((b) => {
-    const s = +b.dataset.s, d = +b.dataset.step, n = xtr.rows[s].n + d;
-    b.classList.toggle("dead", n < (s === 0 ? 1 : 0) || (d > 0 && total >= MOST));
+    const r = x.rows[+b.dataset.s];
+    b.classList.toggle("dead", !(+b.dataset.step < 0 ? r.less : r.more));
   });
 }
-function xtrDone() {
-  xtr.step = "hold";
+async function xtrDone() {
+  await press("extra:done");
   show("serve");
   say(labels.extra_done ?? "");
 }
@@ -1572,61 +1573,54 @@ document.querySelectorAll(".strip .crowd").forEach((e) => e.addEventListener("cl
   if (screen !== "login" && screen !== "start") xtrOpen();
 }));
 document.querySelectorAll("#extra .cnt button").forEach((b) => b.addEventListener("click", () => {
-  if (b.classList.contains("dead")) return;
-  xtr.rows[+b.dataset.s].n += +b.dataset.step;
-  xtrDraw();
+  if (!b.classList.contains("dead")) press(`extra:step:${b.dataset.s}:${b.dataset.step}`);
 }));
-document.querySelectorAll("#extra .zone").forEach((b) => b.addEventListener("click", () => { xtr.zone = b.dataset.zone; xtrDraw(); }));
-document.querySelectorAll("#extra [data-pick]").forEach((b) => b.addEventListener("click", () => { xtr.pick = +b.dataset.pick; show("kind"); }));
-document.querySelectorAll("#kind [data-kind]").forEach((b) => b.addEventListener("click", () => {
-  xtr.rows[xtr.pick].t = b.dataset.kind;
+document.querySelectorAll("#extra .zone").forEach((b) => b.addEventListener("click", () => press("extra:zone:" + b.dataset.zone)));
+document.querySelectorAll("#extra [data-pick]").forEach((b) => b.addEventListener("click", () => { xtrPick = +b.dataset.pick; show("kind"); }));
+document.querySelectorAll("#kind [data-kind]").forEach((b) => b.addEventListener("click", async () => {
+  await press(`extra:who:${xtrPick}:${b.dataset.kind}`);
   show("extra");
 }));
-$("x-reset").addEventListener("click", () => { xtr.rows = stock(xtr.was); xtr.zone = "local"; xtrDraw(); });
+$("x-reset").addEventListener("click", () => press("extra:reset"));
 // OK, and the customer holds his card up once more - that is the check-in itself
-$("x-ok").addEventListener("click", () => {
-  xtr.step = "again";
-  xtr.saw = state && state.read ? state.read.n : -1;
-  xtrDraw();
+$("x-ok").addEventListener("click", async () => {
+  xtrSaw = state && state.read ? state.read.n : -1;
+  await press("extra:ok");
 });
 
 // (the fork) LÅS/ÅBEN KORTLÆSERE, the manual's page 34: pressing the card reader key in
 // the strip shuts the readers and hangs a padlock on it, and the console says which way
 // it went. Shut, nobody can hold a card to one, so the row of boxes takes no new cards.
-let shut = false;
-function shutDraw() { document.body.classList.toggle("shut", shut); }
+// Both switches are the console's own now, not the page's: they stand where the driver
+// put them whether he is looking at the tablet or at the screen in the bus, and a reload
+// of the page no longer puts the padlock back on by itself.
+const shut = () => !!(state && state.con && state.con.shut);
+function shutDraw() { document.body.classList.toggle("shut", shut()); }
 // the console's own information box, for whatever it has just been told to say
 function say(text) {
   $("info-what").textContent = text || "";
   $("info").classList.add("on");
   beep("key");
 }
-document.querySelectorAll(".strip .reader").forEach((e) => e.addEventListener("click", () => {
-  shut = !shut;
-  try { localStorage.setItem("shut", shut ? "1" : ""); } catch (e) {}
-  shutDraw();
-  say((shut ? labels.readers_off : labels.readers_on) ?? "");
+document.querySelectorAll(".strip .reader").forEach((e) => e.addEventListener("click", async () => {
+  await press("shut");
+  say((shut() ? labels.readers_off : labels.readers_on) ?? "");
 }));
-try { shut = localStorage.getItem("shut") === "1"; } catch (e) {}
 
 // (the fork) FORSINKELSE, the manual's page 32. On the real console the switch tells the
 // system to work the fare out by how far the journey went and not by how long it took.
 // There are no fares here to work out, so what it does is what the real one does as well:
 // it stands on until the driver puts it off again. The manual's own warning is that one
 // forgets it, so the driving screen says so in yellow for as long as it is on.
-let slow = false;
+const slow = () => !!(state && state.con && state.con.slow);
 function slowDraw() {
-  $("b-delay").classList.toggle("on", slow);
-  document.body.classList.toggle("slow", slow);
+  $("b-delay").classList.toggle("on", slow());
+  document.body.classList.toggle("slow", slow());
 }
-$("b-delay").addEventListener("click", () => {
-  slow = !slow;
-  try { localStorage.setItem("slow", slow ? "1" : ""); } catch (e) {}
-  slowDraw();
+$("b-delay").addEventListener("click", async () => {
+  await press("slow");
   if (screen === "duty") drawDuty();
 });
-try { slow = localStorage.getItem("slow") === "1"; } catch (e) {}
-slowDraw();
 document.querySelectorAll("#serve [data-b]").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.b === "rds") return show("rds");
   if (b.dataset.b === "info") { tab = 0; return show("inf"); }
@@ -1697,7 +1691,7 @@ sndDraw();
 // to one, newest first, the crossed ones checked out
 function drawCards() {
   // (a shut reader can have no card held to it, so every box stands white)
-  const c = shut ? [] : (state && state.cards) || [];
+  const c = shut() ? [] : (state && state.cards) || [];
   const html = Array.from({ length: 5 }, (_, i) => {
     const k = c[i];
     // (a reader nobody has held a card to stands white, as the manual's page 28 has it)
@@ -1783,7 +1777,7 @@ async function tick() {
     failures = 0; $("lost").classList.remove("on"); document.body.classList.remove("away");
     if (s.labels) {
       const first = !state;
-      state = s; labels = s.labels; words();
+      state = s; labels = s.labels; words(); conDraw();
       // (the fork) the GPS cell goes grey on every screen while the stops are by hand
       document.body.classList.toggle("nogps", !!(s.duty && s.duty.gps === false));
       drawCards();
@@ -1791,9 +1785,11 @@ async function tick() {
       // (a fresh card read fills the Information screen as soon as it comes)
       if (screen === "inf" && s.read && s.read.n !== sawRead) { sawRead = s.read.n; infDraw(); }
       // and carries Check ind ekstra from one of the manual's steps to the next
-      if (screen === "extra" && xtr.step !== "form" && s.read && s.read.n !== xtr.saw) {
-        xtr.saw = s.read.n;
-        if (xtr.step === "hold") xtrStart(s.read); else xtrDone();
+      const x = xtr();
+      if (screen === "extra" && x && x.step !== "form" && s.read && s.read.n !== xtrSaw) {
+        xtrSaw = s.read.n;
+        if (x.step === "hold") press("extra:card:" + (s.read.who === labels.child ? "child" : "adult"));
+        else xtrDone();
       }
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });

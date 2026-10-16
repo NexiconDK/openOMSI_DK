@@ -267,7 +267,10 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
                 let did = crate::console::press(&key);
                 // a ticket sold has to reach the game, where a customer may be waiting
                 let sold = did == crate::console::Did::Sold && ask(Ask::Sell)["ok"] == Value::Bool(true);
-                json_of(json!({ "ok": did != crate::console::Did::Nothing, "sold": sold }))
+                // the console comes back with the answer: a key press is not worth a
+                // second journey for the whole state, which carries every word with it
+                let con = crate::console::with(|c| c.value());
+                json_of(json!({ "ok": did != crate::console::Did::Nothing, "sold": sold, "con": con }))
             }
             None => ("400 Bad Request", "text/plain; charset=utf-8", b"which key?".to_vec()),
         },
