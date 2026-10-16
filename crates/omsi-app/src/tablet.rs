@@ -561,6 +561,11 @@ fn labels() -> Value {
         ("pick_line", "Choose a line"),
         ("line", "Line"),
         ("tour", "Tour"),
+        // (the fork) the console's own word for the trip it is driving. Asked for "Tour",
+        // OMSI's Danish table answers "Vagt" - which is OMSI's word for a vehicle's whole
+        // duty and not this console's for one trip of it. The Rejsekort console says Tur,
+        // so the word is written here in Danish, as the rest of its own words are.
+        ("rk_tour", "Tur"),
         ("all", "All"),
         ("start_q", "You have chosen this trip. Is that right?"),
         ("question", "Question"),
@@ -827,7 +832,7 @@ mod tests {
         // the ones the page's script asks for by name rather than through the markup
         asked.extend([
             "starting", "updating", "driver", "password", "login_hint", "lost",
-            "no_duty", "line", "tour", "delay", "end_trip",
+            "no_duty", "line", "tour", "rk_tour", "delay", "end_trip",
             // the cash ticket and Check ind ekstra write the customer types, and the
             // console's own messages, into their screens from the script
             "adult", "child", "bike", "dog", "hold_rk", "hold_again", "extra_done",

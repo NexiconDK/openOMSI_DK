@@ -37,9 +37,9 @@
   .clock { border-left: 1px solid #a9a9a9; border-bottom: 1px solid #808080; }
   /* (the fork) the bar along the bottom is the console's own, as the Rejsekort manual has
      it: ESC, Menu, Billetter, Linje, Betjening, the pram and the two arrows. The manual's
-     page 5 gives the colours their meaning - the yellow key is the menu you are standing
-     in, and a grey or a blue one is another of the console's menus. A key that does
-     nothing at all is marked dead here, and sounds like it. */
+     page 5 gives the colours their meaning: a key you can press stands white, one you
+     cannot stands grey - and sounds dead - and the yellow one is the menu you are
+     standing in. */
   .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(84 * var(--u));
     display: flex; gap: calc(4 * var(--u)); padding: calc(5 * var(--u)); background: #cfd6dc; }
   .foot button { flex: 1; border: 1px solid #9aa3ab; border-radius: calc(4 * var(--u));
@@ -47,8 +47,7 @@
     display: flex; align-items: center; justify-content: center; }
   .foot button.dead, .foot button.off { cursor: default; }
   .foot .esc { flex: 1.25; font-size: calc(26 * var(--u)); font-weight: 400; }
-  .foot .off { background: #ccd3d8; }
-  .foot .blue { background: #a3b4d2; }
+  .foot .off { background: #ccd3d8; color: #6a7278; }
   .foot .now { background: #ecebc2; }
   .foot .arrow { flex: 0 0 calc(100 * var(--u)); }
   .foot .arrow svg, .foot .pram svg { width: calc(40 * var(--u)); height: calc(40 * var(--u)); display: block; }
@@ -915,9 +914,9 @@
   <template id="foot-keys">
     <button class="esc" data-key="esc">ESC</button>
     <button class="off" data-key="menu">Menu</button>
-    <button class="blue" data-key="tix" type="button">Billetter</button>
+    <button data-key="tix" type="button">Billetter</button>
     <button class="now" data-key="linje">Linje</button>
-    <button class="blue" data-key="serve" type="button">Betjening</button>
+    <button data-key="serve" type="button">Betjening</button>
     <button class="pram" data-key="pram" type="button" title="Barnevogn"><svg viewBox="0 0 24 24">
       <path d="M5.4 8h9V5.4a2.8 2.8 0 0 1 2.8-2.8h1a2.8 2.8 0 0 1 2.8 2.8v6a3.2 3.2 0 0 1-3.2 3.2H8.6a3.2 3.2 0 0 1-3.2-3.2z" fill="#1b1b1b"/>
       <path d="M5.5 8.2C5.2 5.4 4.4 3.6 2.2 3.4" fill="none" stroke="#1b1b1b" stroke-width="1.5" stroke-linecap="round"/>
@@ -1010,18 +1009,20 @@ function footTabs(name) {
   document.querySelectorAll(".foot").forEach((f) => {
     const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
     if (!menu || !linje) return;
+    // (the fork) a key you can press stands white, one you cannot stands grey, and the
+    // menu you are standing in stands yellow - the manual's page 5
     const inMenu = name === "menu" || name === "sound";
     const inServe = name === "serve" || name === "rds" || name === "inf" || name === "void"
       || name === "extra" || name === "kind";
     const inTix = name === "tix" || name === "sale";
-    menu.className = inMenu ? "now" : "off";
-    linje.className = inMenu || inServe || inTix ? "blue" : "now";
+    menu.className = inMenu ? "now" : "";
+    linje.className = inMenu || inServe || inTix ? "" : "now";
     const serve = f.querySelector("[data-key='serve']");
-    if (serve) serve.className = inServe ? "now" : "blue";
+    if (serve) serve.className = inServe ? "now" : "";
     // (the fork) Billetter sells against the trip being driven, so the key leads nowhere
-    // until one is chosen - and stands blue and dead until it does
+    // until one is chosen - and stands grey and dead until it does
     const tix = f.querySelector("[data-key='tix']");
-    if (tix) tix.className = inTix ? "now" : onDuty() ? "blue" : "blue dead";
+    if (tix) tix.className = inTix ? "now" : onDuty() ? "" : "off dead";
   });
 }
 
@@ -1345,7 +1346,7 @@ function drawDuty() {
   const html = `<div class="side${hand ? " manual" : ""}">
       ${hand ? `<button class="end" data-at="${d.at_stop ? "0" : "1"}">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
       <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
-        <span>${esc(L.tour)}: ${esc(d.tour || "")}</span>
+        <span>${esc(L.rk_tour)}: ${esc(d.tour || "")}</span>
         ${slow ? `<span class="slow">${esc(L.delay_key)}</span>` : ""}</div>
       <button class="end" id="end-trip">${esc(L.end_trip)}</button>
       <div class="slot"></div>
