@@ -218,10 +218,12 @@ $("k-linje").onclick = () => { O.trigger(S("s_con_on_duty") === "" ? "go:lines" 
 // which pane the console's screen is drawn in; the rest are not drawn here yet, and say so
 var PANE = { duty: "duty", login: "login", start: "login" };
 var PANES = ["duty", "login", "plain", "pad"];
-// what the console calls each screen, for the pane that only names it
-var NAME = { lines: "line_choice", trips: "trip_choice", menu: "menu", sound: "set_sound",
-             serve: "operation", tix: "tickets", sale: "tickets", void: "void_sale",
-             extra: "extra_check_in", kind: "extra_check_in", rds: "rds", inf: "information" };
+// what the console calls each screen, for the pane that only names it. They are the
+// console's own Danish words, as the tablet has them written out too.
+var NAME = { lines: "Linjevalg", trips: "Turvalg", menu: "Menu", sound: "Indstil lyd",
+             serve: "Betjening", tix: "Billetter", sale: "Billetter", void: "Annuller salg",
+             extra: "Check ind ekstra", kind: "Check ind ekstra", rds: "RDS",
+             inf: "Information" };
 
 function paint() {
   var scr = S("s_con_screen");
@@ -242,8 +244,8 @@ function paint() {
   if (pane === "login") { paintLogin(); }
   if (pane === "pad") { paintPad(); }
   if (pane === "plain") {
-    $("p-title").textContent = W(NAME[scr] || "", "Web-IBIS");
-    $("p-under").textContent = W("use_tablet", "Brug tavlen imens");
+    $("p-title").textContent = NAME[scr] || "Web-IBIS";
+    $("p-under").textContent = scr && NAME[scr] ? "Tegnes her senere — brug tavlen imens" : "";
   }
 }
 

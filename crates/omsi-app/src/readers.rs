@@ -99,6 +99,19 @@ pub struct Readers {
     skins: [Option<usize>; 2],
     /// (the two instances of one stander, where it stands)
     standers: Vec<([usize; 2], Mat4)>,
+    /// When `standere.txt` was last written, and when that was last looked at: the player
+    /// puts the standers in their places by trying a line and looking, so the file is read
+    /// again when he saves it rather than making him start the game over.
+    wrote: Option<std::time::SystemTime>,
+    looked: std::time::Instant,
+}
+
+/// How often `standere.txt` is looked at for a change.
+const LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// When the file was last written, or `None` when there is none.
+fn written(path: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(path).ok()?.modified().ok()
 }
 
 impl Readers {
@@ -113,10 +126,11 @@ impl Readers {
         let dir = Self::folder(&world.root);
         let made_for = (bus.ty.def.path.clone(), dir.clone());
         let file = dir.join(MESH);
-        let Ok(mesh) = omsi_o3d::load_mesh(&file).map_err(|e| log::warn!("{}: {e}", file.display())) else {
-            return Readers { made_for, skins: [None; 2], standers: Vec::new() };
-        };
         let spots = dir.join(SPOTS);
+        let blank = || Readers { made_for: made_for.clone(), skins: [None; 2], standers: Vec::new(), wrote: written(&spots), looked: std::time::Instant::now() };
+        let Ok(mesh) = omsi_o3d::load_mesh(&file).map_err(|e| log::warn!("{}: {e}", file.display())) else {
+            return blank();
+        };
         if !spots.is_file() {
             let _ = std::fs::create_dir_all(&dir);
             let _ = std::fs::write(&spots, BLANK);
@@ -126,7 +140,7 @@ impl Readers {
         let name = bus.ty.def.path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         let mine: Vec<Spot> = Spot::read(&text).into_iter().filter(|s| s.fits(&name)).collect();
         if mine.is_empty() {
-            return Readers { made_for, skins: [None; 2], standers: Vec::new() };
+            return blank();
         }
 
         let data = mesh_from_o3d(&mesh);
@@ -152,7 +166,32 @@ impl Readers {
             })
             .collect();
         log::info!("rejsekort: {} standers in {}", standers.len(), name);
-        Readers { made_for, skins: [Some(0), Some(1)], standers }
+        Readers { made_for, skins: [Some(0), Some(1)], standers, wrote: written(&spots), looked: std::time::Instant::now() }
+    }
+
+    /// Whether `standere.txt` has been saved again since the standers were put up, so
+    /// they are to be put up afresh. The disk is asked at most twice a second.
+    pub fn moved(&mut self, root: &Path) -> bool {
+        if self.looked.elapsed() < LOOK_EVERY {
+            return false;
+        }
+        self.looked = std::time::Instant::now();
+        let now = written(&Self::folder(root).join(SPOTS));
+        if now == self.wrote {
+            return false;
+        }
+        self.wrote = now;
+        log::info!("{SPOTS}: saved again, putting the standers up afresh");
+        true
+    }
+
+    /// Take the standers down again, before others are put up in their place.
+    pub fn take_down(&self, renderer: &Renderer, scene: &mut Scene) {
+        for (pair, _) in &self.standers {
+            for inst in pair {
+                renderer.remove_instance(scene, *inst);
+            }
+        }
     }
 
     pub fn is_empty(&self) -> bool {

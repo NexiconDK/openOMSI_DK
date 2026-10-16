@@ -285,6 +285,10 @@ pub(crate) struct InputState {
     /// The left button is held on a page of the bus (an `[htmltexture]`): its script texture
     /// index and the place on it the pointer was last seen.
     pub(crate) html_pressed: Option<(usize, f32, f32)>,
+    /// (the fork) The left button is held on the console's own screen in the bus
+    /// (`desk::Desk`): where on the page it went down, so the release is the same tap
+    /// even when the finger has slipped off the screen.
+    pub(crate) desk_pressed: Option<glam::Vec2>,
     /// The same for a page of a scenery object: its map id, script texture index and place.
     pub(crate) html_object_pressed: Option<(i64, usize, f32, f32)>,
     /// The currently held scenery object switch: its map id and event name.

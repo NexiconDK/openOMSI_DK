@@ -78,6 +78,7 @@ mod tablet;
 /// own screen in the bus.
 mod console;
 mod console_screen;
+mod desk;
 /// (the fork) The Rejsekort standers drawn in the bus.
 mod readers;
 mod telemetry;
@@ -751,6 +752,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
             own_shift,
             dragging: false,
             html_pressed: None,
+            desk_pressed: None,
             html_object_pressed: None,
             pressed_scenery_object: None,
             drag_delta: (0.0, 0.0),

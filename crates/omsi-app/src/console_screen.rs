@@ -222,6 +222,26 @@ mod tests {
             img.save(&out).expect("written");
             println!("{}", out.display());
         }
+
+        // what one frame of it costs. The page is drawn again only when something has
+        // moved - the clock's second, a key - so this is what it costs about once a
+        // second, on a thread that is not the one drawing the world.
+        let mut s = ConsoleScreen::new();
+        let mut c = Console::default();
+        c.set_duty(true);
+        c.screen = crate::console::Screen::Duty;
+        let mut worst = std::time::Duration::ZERO;
+        let mut total = std::time::Duration::ZERO;
+        for i in 0..20 {
+            let v = serde_json::json!({ "con": c.value(), "clock": format!("09:20:{i:02}"), "duty": { "line": "1A", "stops": stops } });
+            let at = std::time::Instant::now();
+            s.update(&v);
+            s.frame().expect("the clock moved, so the page is drawn again");
+            let took = at.elapsed();
+            worst = worst.max(took);
+            total += took;
+        }
+        println!("one frame: {:?} on average, {worst:?} at worst", total / 20);
     }
 
     /// (the fork) The page is drawn again only when something has moved, so a screen that

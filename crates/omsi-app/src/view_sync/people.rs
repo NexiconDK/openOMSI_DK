@@ -70,6 +70,8 @@ pub(crate) struct PeopleView {
     pub(crate) ticket_blocks: Option<crate::money::TicketBlocks>,
     /// (the fork) The Rejsekort standers in the player's bus (`readers::Readers`).
     pub(crate) readers: Option<crate::readers::Readers>,
+    /// (the fork) The driver console in the player's bus (`desk::Desk`).
+    pub(crate) desk: Option<crate::desk::Desk>,
 }
 
 impl PeopleView {
@@ -90,6 +92,7 @@ impl PeopleView {
             }),
             ticket_blocks: None,
             readers: None,
+            desk: None,
         }
     }
 
@@ -279,12 +282,37 @@ impl Humans {
         }
         // (the fork) the Rejsekort standers, in the skin the console says each is set to
         let dir = crate::readers::Readers::folder(&world.root);
-        let fresh = view.readers.as_ref().is_none_or(|r| r.made_for != (bus.ty.def.path.clone(), dir.clone()));
+        let fresh = match view.readers.as_mut() {
+            None => true,
+            Some(r) => r.made_for != (bus.ty.def.path.clone(), dir.clone()) || r.moved(&world.root),
+        };
         if fresh {
+            if let Some(old) = view.readers.take() {
+                old.take_down(renderer, scene);
+            }
             view.readers = Some(crate::readers::Readers::new(world, renderer, scene, bus));
         }
         if let Some(r) = view.readers.as_ref().filter(|r| !r.is_empty()) {
             r.sync(renderer, scene, bus, &crate::tablet::reader_roles());
+        }
+        // (the fork) the console itself: the desk hung in the bus, with the page drawn on
+        // its screen
+        let dir = crate::desk::Desk::folder(&world.root);
+        // (hung afresh for another bus, and again when the player saves the file that
+        // says where it stands - he puts it in its place by trying a line and looking)
+        let fresh = match view.desk.as_mut() {
+            None => true,
+            Some(d) => d.made_for != (bus.ty.def.path.clone(), dir.clone()) || d.moved(&world.root),
+        };
+        if fresh {
+            if let Some(old) = view.desk.take() {
+                old.take_down(renderer, scene);
+            }
+            view.desk = Some(crate::desk::Desk::new(world, renderer, scene, bus));
+        }
+        if let Some(d) = view.desk.as_mut().filter(|d| !d.is_empty()) {
+            d.sync(renderer, scene, bus);
+            if let Some(()) = crate::tablet::with_live(|state| d.draw(renderer, scene, state)) {}
         }
     }
 

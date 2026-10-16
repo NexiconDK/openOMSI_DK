@@ -112,7 +112,16 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 
   `<bus>` er bussens `.bus`-filnavn uden mappe, eller `*` for alle busser. `x` er til højre, `y` fremad og `z` opad, i meter fra bussens nulpunkt. Drejningen er grader om lodret; 0 vender standeren mod bussens højre side. Linjer med `#` er kommentarer, og en linje, du har tastet forkert, bliver sprunget over med en besked i loggen i stedet for at tage resten af filen med sig.
 
+  **Du skal ikke genstarte for at flytte på dem.** Gemmer du filen, mens spillet kører, bliver standerne hængt op igen med det samme — du retter et tal, gemmer, og kigger. Det samme gælder `konsol.txt`.
+
   Standerne følger bussen, og **de skifter skind med konsollen**: sætter du dem om under **Kortlæser opsætn.** — *Alle ind*, *Alle ud*, *Nulstil* eller barnevognstasten — bliver standeren i bussen grøn eller rød med det samme. Modellen har ét materiale uden eget teksturnavn, og det er netop dét, der gør skiftet muligt: den samme model hænges op to gange, én i hvert skind, og konsollen bestemmer, hvilken der vises.
+- **Konsollen i bussen — plug and play.** Hele Web-IBIS'en kan nu køres fra bussen selv, på en skærm du hænger op i førerrummet. **Bussens egne filer bliver ikke rørt**: konsollen hænges op på nøjagtig samme måde som standerne, så det virker i enhver bus — også en, du ikke selv har lavet, og også en hvis IBIS kun er en tekstlinje, der slet ikke kunne skiftes ud.
+
+  Læg modellen i undermappen **Konsol** i `Rejsekort`-mappen — alle `.o3d`-filer derinde bliver hængt op sammen med deres teksturer — og skriv konsollens plads i **Rejsekort/konsol.txt**, på samme form som `standere.txt`. Den flade, hvis tekstur hedder **Skærmtexture.png**, bliver selve skærmen: den får siden tegnet på sig i stedet for filens eget billede. Du skal ikke omdøbe noget — det er det navn, modellen i forvejen bruger.
+
+  **Du kan trykke på skærmen.** Et klik på den er en finger på siden, præcis som på tavlen, og tasterne går til den samme konsol: trykker du *Menu* på bussens skærm, står tavlen i menuen med det samme, og omvendt. Der er én konsol, hvor mange skærme der så end tegner den.
+
+  Skærmen tegnes af spillets egen lille HTML-motor (den, `[htmltexture]` bruger) — ingen browser, ingen ekstra program. Motoren er mindre end en browser, så siden i bussen er skrevet til dét, den kan: ingen flexbox, ingen farveovergange, ingen rammer, og Roboto har ingen trekanter — pilene i bundbjælken er bygget af små bjælker, og taltastaturet er en skærm for sig i stedet for en plade ovenpå, for motoren kan ikke lægge noget oven på noget andet. **Køreskærmen, login og taltastaturet er tegnet;** de øvrige skærme skriver deres eget navn og henviser til tavlen, indtil de også er tegnet.
 - **Dine egne billeder:** læg login-billedet som **login.png** (1280 × 720) i mappen **WebIBIS** i din OMSI-mappe. Billedet bruges som baggrund på login-skærmen. **Ikonbjælken tegnes altid ovenpå**, også når du har et billede — dens felter er levende (GPS'en skifter grøn/grå, hængelåsen kommer på kortlæseren, flokken åbner Check ind ekstra, signalet bliver overstreget hvis siden mister spillet), og det kan et stillbillede ikke. Billederne følger ikke med spillet.
 
 ### Turoversigt

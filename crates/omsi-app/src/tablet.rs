@@ -511,7 +511,10 @@ pub fn set_readers(op: &str) -> bool {
 }
 
 pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Option<glam::DVec3>, speed_kmh: f32, passengers: Option<usize>, riders: &[(u32, f32)], paused: bool) {
-    if !ON.load(Ordering::Relaxed) {
+    // (the fork) the console's own screen in the bus draws the same thing the tablet
+    // does, so the state is built for it as well - whether or not the tablet is on
+    let on = ON.load(Ordering::Relaxed);
+    if !on && !crate::desk::wanted() {
         return;
     }
     static LAST: Mutex<Option<Instant>> = Mutex::new(None);
@@ -548,7 +551,20 @@ pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Optio
             v["read"] = facts;
         }
     }
-    *STATE.lock().unwrap_or_else(|e| e.into_inner()) = serde_json::to_vec(&v).unwrap_or_default();
+    if on {
+        *STATE.lock().unwrap_or_else(|e| e.into_inner()) = serde_json::to_vec(&v).unwrap_or_default();
+    }
+    *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(v);
+}
+
+/// (the fork) The last state built, as the console's screen in the bus reads it. The
+/// tablet has it as JSON over the network; the screen in the bus is in the same process,
+/// so it is handed the thing itself.
+static LIVE: Mutex<Option<Value>> = Mutex::new(None);
+
+/// Run `f` on the last state built, when there is one.
+pub fn with_live<T>(f: impl FnOnce(&Value) -> T) -> Option<T> {
+    LIVE.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(f)
 }
 
 /// A colour as CSS.

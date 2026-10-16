@@ -470,6 +470,17 @@ impl App {
                     self.input.dragging = false;
                     return;
                 }
+                // (the fork) the console's own screen in the bus: a finger on the page,
+                // exactly as on the tablet
+                if let Some(at) = self.gfx.sim_view.people.desk.as_ref().and_then(|k| k.aim(&p.vehicle, o, d)) {
+                    p.release();
+                    if let Some(k) = self.gfx.sim_view.people.desk.as_mut() {
+                        k.touch(at, true);
+                    }
+                    self.input.desk_pressed = Some(at);
+                    self.input.dragging = false;
+                    return;
+                }
                 // a tear-off ticket block: a ticket of its type torn off for the passenger
                 if let Some(n) = self.session.humans.as_ref().and(self.gfx.sim_view.people.ticket_blocks.as_ref()).and_then(|b| b.hit(o, d, &p.vehicle)) {
                     log::info!("ticket block {n}: a ticket torn off");
@@ -484,6 +495,17 @@ impl App {
                 if let Some((page, u, v)) = self.input.html_pressed.take() {
                     let (u, v) = p.html_hit(o, d).filter(|h| h.0 == page).map_or((u, v), |h| (h.1, h.2));
                     p.html_pointer(page, u, v, omsi_sim::htmltex::PointerKind::Up);
+                    self.input.dragging = false;
+                    return;
+                }
+                // (the fork) the finger lifted off the console's screen. A finger that
+                // has slipped off it meanwhile is lifted where it went down, so the key
+                // it was put on is the key that is pressed.
+                if let Some(was) = self.input.desk_pressed.take() {
+                    let at = self.gfx.sim_view.people.desk.as_ref().and_then(|k| k.aim(&p.vehicle, o, d)).unwrap_or(was);
+                    if let Some(k) = self.gfx.sim_view.people.desk.as_mut() {
+                        k.touch(at, false);
+                    }
                     self.input.dragging = false;
                     return;
                 }
