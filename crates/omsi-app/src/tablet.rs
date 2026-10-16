@@ -423,6 +423,13 @@ fn labels() -> Value {
         "telebus": tr("Telebus"),
         "set_sound": tr("Set sound"),
         "maintenance": tr("Maintenance"),
+        // the sound settings, as the manual's page 30 has them
+        "snd_key": tr("Key active"),
+        "snd_dead": tr("Key not active"),
+        "snd_fault": tr("Fault"),
+        "volume": tr("Volume"),
+        "test": tr("Test"),
+        "save": tr("Save"),
         "console_locked": tr("The driver console is locked"),
         "lock_hint": tr("Type the password\nPress ESC for a driver change"),
         "yes": tr("Yes"),
