@@ -34,7 +34,7 @@
     background: var(--paper); display: flex; flex-direction: column; align-items: center; justify-content: center;
     line-height: 1.2; font-size: calc(30 * var(--u)); font-variant-numeric: tabular-nums; font-weight: 700; }
   .clock .c-date { font-size: calc(21 * var(--u)); font-weight: 400; }
-  .plain .clock { border-left: 1px solid #a9a9a9; border-bottom: 1px solid #808080; }
+  .clock { border-left: 1px solid #a9a9a9; border-bottom: 1px solid #808080; }
   /* (the fork) the bar along the bottom is the console's own, as the Rejsekort manual has
      it: ESC, Menu, Billetter, Linje, Betjening, the pram and the two arrows. The manual's
      page 5 gives the colours their meaning - a white key can be pressed, a grey or a blue
@@ -119,7 +119,10 @@
   .nogps .strip i.gps { background: #cdd0d6; }
   /* with the GPS off the driver's own key stands over the blue panel */
   .drive .side.manual .panel { grid-row: span 3; }
+  /* (the fork) with the GPS off the stops further down can be pressed, so they are marked:
+     the console's own driver knows it from his training, and nobody here does */
   .drive .stop.pickable { cursor: pointer; }
+  .drive .stop.pickable .n::after { content: " \203A"; color: #2f6fc4; font-weight: 700; }
   .drive .stop.pickable:active { background: var(--pick); }
 
   /* (the fork) the console's Menu, as the manual's page 17 has it: a deep blue field over
@@ -139,8 +142,29 @@
   .menu .mi.off { background: #ccd3d8; color: #6a7278; cursor: default; }
   .menu .mi.on { background: #ecebc2; }
   .menu .mi:not(.dead):active { background: var(--pick); }
-  #menu .foot .arrow, #rds .foot .arrow,
+  #menu .foot .arrow, #rds .foot .arrow, #inf .foot .arrow,
   #serve .foot .arrow, #sound .foot .arrow { visibility: hidden; }
+
+  /* (the fork) INFORMATIONER PÅ REJSEKORT, the manual's pages 35 to 37: what the console
+     knows about the card last held to a reader, under its five tabs */
+  .inf { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u) + var(--row));
+    background: #b0b6ba; color: #111; }
+  .inf .wait { position: absolute; inset: 0; background: #b9bfc4; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: calc(40 * var(--u)); font-size: calc(28 * var(--u)); }
+  .inf .wait .ttl { position: absolute; left: 0; right: 0; top: 0; background: #e4e6ea;
+    border-bottom: 1px solid #6b7580; display: flex; align-items: center; gap: calc(12 * var(--u));
+    padding: calc(7 * var(--u)) calc(16 * var(--u)); font-size: calc(30 * var(--u)); }
+  .inf .wait .ttl svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
+  .inf .tabs2 { display: flex; gap: calc(8 * var(--u)); padding: calc(8 * var(--u)); background: #2f4b9e; }
+  .inf .tabs2 button { flex: 1; height: calc(54 * var(--u)); border: 0; border-radius: calc(5 * var(--u));
+    background: #4760ad; color: #fff; font-size: calc(24 * var(--u)); font-weight: 700; }
+  /* the chosen tab is yellow, as every chosen menu on this console is */
+  .inf .tabs2 button.on { background: #ecebc2; color: #111; }
+  .inf .rows { position: absolute; left: calc(14 * var(--u)); right: calc(14 * var(--u));
+    top: calc(78 * var(--u)); bottom: calc(10 * var(--u)); font-size: calc(26 * var(--u)); }
+  .inf .rows div { display: flex; gap: calc(20 * var(--u)); padding: calc(4 * var(--u)) 0; }
+  .inf .rows b { flex: 0 0 calc(250 * var(--u)); font-weight: 400; color: #27332c; }
+  .inf .rows span { font-weight: 700; }
 
   /* (the fork) ÆNDRING AF KORTLÆSERE, the manual's page 33: what each reader in the bus is
      set to do. Ci takes a card in, Cu takes one out; neither key can be pressed, as the
@@ -302,10 +326,13 @@
      IFS-FM (which the buses do not use), two spare cells, then wi-fi, the signal, the
      printer, the GPS, the card reader, the alarm and the help - and the date over the
      hour at the end. The icons are drawn here; none of them is anybody's artwork. */
-  .plain .strip { position: absolute; left: 0; top: 0; right: calc(213 * var(--u)); height: calc(var(--bar) - 1px);
+  /* (the fork) the strip is drawn on every screen, over the player's own picture as well:
+     its cells are alive - the GPS turns grey, the padlock comes on the card reader, the
+     crowd stands there while a trip runs, the signal crosses out when the game is out of
+     reach - and a picture can do none of that */
+  .strip { position: absolute; left: 0; top: 0; right: calc(213 * var(--u)); height: calc(var(--bar) - 1px);
     display: flex; border-bottom: 1px solid #808080; background: #fff; }
-  .plain .clock { width: calc(213 * var(--u)); }
-  .screen:not(.plain) .strip { display: none; }
+  .clock { width: calc(213 * var(--u)); }
   .strip i { flex: 1; border-right: 1px solid #a9a9a9; background: #fff;
     display: flex; align-items: center; justify-content: center; font-style: normal; }
   .strip i svg { width: calc(46 * var(--u)); height: calc(46 * var(--u)); display: block; }
@@ -534,6 +561,24 @@
     <div class="foot" data-foot></div>
   </section>
 
+  <!-- (the fork) INFORMATIONER PÅ REJSEKORT, the manual's pages 35 to 37 -->
+  <section id="inf" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="inf">
+      <div class="tabs2" id="inf-tabs"></div>
+      <div class="rows" id="inf-rows"></div>
+      <div class="wait" id="inf-wait">
+        <div class="ttl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="url(#g-help)"/>
+          <text x="12" y="17.4" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">i</text></svg>
+          <span data-l="information">Information</span></div>
+        <span data-l="hold_card">Hold et kort hen til salgskortl&aelig;seren</span>
+      </div>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
   <!-- (the fork) ÆNDRING AF KORTLÆSERE, the manual's page 33 -->
   <section id="rds" class="screen">
     <div class="bar"></div><div class="strip" data-strip></div>
@@ -637,7 +682,7 @@ let state = null, labels = {}, screen = null, line = null, lines = [], trips = [
 // (the fork) the console's list is six rows deep, the lines two to a row; the arrows in
 // the bar leaf through it, and `suggest` is the trip the console puts forward on yellow
 const PER = { lines: 10, trips: 5, duty: 5 };
-let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = "";
+let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = "", lastDuty = "", lastTrips = "";
 
 // the screen as large as the tablet allows, at 16:9
 function fit() {
@@ -659,6 +704,7 @@ function show(name) {
   if (name === "trips") loadTrips();
   if (name === "duty") drawDuty();
   if (name === "rds") rdsDraw();
+  if (name === "inf") infDraw();
   // (the login keeps what stands in it while the console is locked: the driver's number)
   if (name === "login") { padClose(); if (!locked) { $("driver").value = ""; $("password").value = ""; } }
 }
@@ -670,7 +716,7 @@ function footTabs(name) {
     const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
     if (!menu || !linje) return;
     const inMenu = name === "menu" || name === "sound";
-    const inServe = name === "serve" || name === "rds";
+    const inServe = name === "serve" || name === "rds" || name === "inf";
     menu.className = inMenu ? "now" : "off";
     linje.className = inMenu || inServe ? "blue" : "now";
     const serve = f.querySelector("[data-key='serve']");
@@ -832,7 +878,8 @@ function drawTrips(keep) {
       <span class="r">${esc(t.from)} - ${esc(t.to)}</span></button>`;
   }).join("");
   for (let i = shown.length; i < PER.trips; i++) html += `<div class="trip gap"></div>`;
-  $("trip-list").innerHTML = html;
+  // (the trip list is drawn again every half minute: the same care as the duty screen)
+  if (lastTrips !== html) { lastTrips = html; $("trip-list").innerHTML = html; }
   $("no-trips").hidden = trips.length > 0;
   $("trip-list").querySelectorAll("[data-i]").forEach((r) =>
     r.addEventListener("click", () => ask(trips[+r.dataset.i])));
@@ -853,7 +900,7 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
   const k = b.dataset.key;
   if (k === "esc") {
     if (screen === "sound") return show("menu");
-    if (screen === "rds") return show("serve");
+    if (screen === "rds" || screen === "inf") return show("serve");
     if (screen === "serve") return show(state && state.duty ? "duty" : "lines");
     if (screen === "menu") return show(state && state.duty ? "duty" : "lines");
     if (screen === "lines") { store.set("driver", null); return show("login"); }
@@ -964,8 +1011,8 @@ function drawDuty() {
       <span class="t">${esc(s.exp || s.time)}</span>${mark}</div>`;
   }).join("");
   for (let i = shown.length; i < PER.duty; i++) right += `<div class="slot"></div>`;
-  box.innerHTML = `<div class="side${hand ? " manual" : ""}">
-      ${hand ? `<button class="end" id="at-stop">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
+  const html = `<div class="side${hand ? " manual" : ""}">
+      ${hand ? `<button class="end" data-at="${d.at_stop ? "0" : "1"}">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
       <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
         <span>${esc(L.tour)}: ${esc(d.tour || "")}</span>
         <span>${esc(L.delay)}: ${esc(d.delay)}</span>
@@ -973,13 +1020,27 @@ function drawDuty() {
       <button class="end" id="end-trip">${esc(L.end_trip)}</button>
       <div class="slot"></div>
     </div><div class="stops">${right}</div>`;
-  $("end-trip").addEventListener("click", endTrip);
-  // (the fork) the manual's four steps: Afgået when the doors are shut, Ankommet before
-  // they open again, and a tap on a stop further down to leave one out on the way
-  if (hand) $("at-stop").addEventListener("click", () => tell("/at_stop", { at: d.at_stop ? "0" : "1" }));
-  box.querySelectorAll("[data-stop]").forEach((e) =>
-    e.addEventListener("click", () => tell("/head_for", { stop: e.dataset.stop })));
+  // (the fork) the screen is drawn again every second, and writing it out afresh while a
+  // finger is on a key loses the press: the key under the finger is no longer the one that
+  // was pressed. So nothing is touched unless something really changed - and what was
+  // written last is kept here rather than read back from the screen, because the screen
+  // gives back its own spelling of it (an SVG comes back written out differently) and the
+  // two would never match.
+  if (lastDuty !== html) {
+    lastDuty = html;
+    box.innerHTML = html;
+  }
 }
+
+// the keys on it are answered from the screen itself, which is never written out again, so
+// a press cannot fall between two drawings
+$("duty-body").addEventListener("click", (e) => {
+  const at = e.target.closest("[data-at]");
+  if (at) return tell("/at_stop", { at: at.dataset.at });
+  if (e.target.closest("#end-trip")) return endTrip();
+  const stop = e.target.closest("[data-stop]");
+  if (stop) tell("/head_for", { stop: stop.dataset.stop });
+});
 
 // a word to the game, and the answer straight back into the screen
 async function tell(what, body) {
@@ -991,6 +1052,36 @@ async function tell(what, body) {
 
 
 
+
+
+// (the fork) INFORMATIONER PÅ REJSEKORT, the manual's pages 35 to 37. The console reads a
+// customer's card at the sales reader and shows what it knows under five tabs. Here the
+// card read is the one a passenger last held to a reader getting on or off, and what the
+// console knows of it is what the console itself decided (see `card_facts`).
+const TABS = ["t_general", "t_purse", "t_period", "t_trips", "t_other"];
+let tab = 0, sawRead = -1;
+
+function infRows(r, L) {
+  const kind = { personal: L.c_personal, flex: L.c_flex, anon: L.c_anon, blocked: L.c_blocked }[r.card] || r.card;
+  if (tab === 0) return [[L.f_type, kind], [L.f_exp, r.exp], [L.f_lang, L.v_danish],
+    [L.f_service, L.v_standard], [L.f_scope, L.v_scope], [L.f_no, r.no], [L.f_customer, r.who + "\u2002\u20021"]];
+  if (tab === 1) return [[L.f_balance, r.card === "flex" || r.card === "anon" || r.card === "personal" ? r.purse : "–"]];
+  if (tab === 2) return [[L.t_period, L.f_none]];
+  if (tab === 3) return [[r.out ? L.f_checked_out : L.f_checked_in, (state && state.clock) || ""]];
+  return [[r.out ? L.f_checked_out : L.f_checked_in, (state && state.clock) || ""], [L.f_no, r.no]];
+}
+
+function infDraw() {
+  const L = labels, r = state && state.read;
+  $("inf-wait").style.display = r ? "none" : "flex";
+  $("inf-tabs").innerHTML = TABS.map((t, i) =>
+    `<button type="button" class="${i === tab ? "on" : ""}" data-tab="${i}">${esc(L[t] ?? "")}</button>`).join("");
+  $("inf-tabs").querySelectorAll("[data-tab]").forEach((b) =>
+    b.addEventListener("click", () => { tab = +b.dataset.tab; infDraw(); }));
+  $("inf-rows").innerHTML = r
+    ? infRows(r, L).map(([k, w]) => `<div><b>${esc(k)}:</b><span>${esc(w)}</span></div>`).join("")
+    : "";
+}
 
 // (the fork) ÆNDRING AF KORTLÆSERE, the manual's page 33: what each reader is set to, and
 // the keys that turn them round. Ci and Cu cannot be pressed, as the manual says - they
@@ -1039,7 +1130,7 @@ try { slow = localStorage.getItem("slow") === "1"; } catch (e) {}
 slowDraw();
 document.querySelectorAll("#serve [data-b]").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.b === "rds") return show("rds");
-  if (b.dataset.b === "info") $("info").classList.add("on");
+  if (b.dataset.b === "info") { tab = 0; return show("inf"); }
 }));
 $("info-ok").addEventListener("click", () => $("info").classList.remove("on"));
 
@@ -1185,7 +1276,10 @@ async function tick() {
       state = s; labels = s.labels; words();
       // (the fork) the GPS cell goes grey on every screen while the stops are by hand
       document.body.classList.toggle("nogps", !!(s.duty && s.duty.gps === false));
-      drawCards(); if (screen === "rds") rdsDraw();
+      drawCards();
+      if (screen === "rds") rdsDraw();
+      // (a fresh card read fills the Information screen as soon as it comes)
+      if (screen === "inf" && s.read && s.read.n !== sawRead) { sawRead = s.read.n; infDraw(); }
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
       if (first) { if (!booting) route(); }

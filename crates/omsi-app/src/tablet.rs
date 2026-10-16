@@ -301,11 +301,16 @@ struct Cards {
     /// The first look only takes down who is aboard: a bus already full when the page is
     /// switched on has nobody checking in.
     begun: bool,
+    /// The card last held to a reader, for the console's Information screen: (who, card
+    /// type, checked out, the rider's id), and how many have been read in all - the page
+    /// tells a new one by the count going up.
+    read: Option<(String, &'static str, bool, u32)>,
+    reads: u64,
 }
 
 impl Default for Cards {
     fn default() -> Cards {
-        Cards { seen: Vec::new(), slot: vec![None; READERS], role: Cards::stock(), once: None, turn: 0, begun: false }
+        Cards { seen: Vec::new(), slot: vec![None; READERS], role: Cards::stock(), once: None, turn: 0, begun: false, read: None, reads: 0 }
     }
 }
 
@@ -375,6 +380,26 @@ fn card_type(id: u32) -> &'static str {
     }
 }
 
+/// (the fork) A spread of a rider's id, so that two riders beside each other do not share
+/// a card number or a purse.
+fn spread(id: u32, salt: u32) -> u32 {
+    (id ^ salt).wrapping_mul(2_246_822_519).rotate_left(13).wrapping_mul(3_266_489_917) >> 8
+}
+
+/// (the fork) What the console's Information screen knows about a rider's card (the
+/// manual's pages 35 to 37). The game has no Rejsekort, so the card is the console's own
+/// invention - but it is the same invention about the same person every time.
+fn card_facts(id: u32, year: i32) -> Value {
+    let n = spread(id, 0x1234) % 1_000_000;
+    let number = format!("308430 400 {:03} {:03} {}", n / 1000, n % 1000, spread(id, 0x55) % 10);
+    let purse = spread(id, 0x99) % 40_000;
+    json!({
+        "no": number,
+        "exp": format!("{:02}.{:02}.{}", spread(id, 7) % 28 + 1, spread(id, 11) % 12 + 1, year + 2 + (spread(id, 3) % 4) as i32),
+        "purse": format!("{},{:02} kr.", purse / 100, purse % 100),
+    })
+}
+
 /// The customer type of a passenger that age, in the manual's own words.
 fn customer(age: f32) -> &'static str {
     match age {
@@ -398,6 +423,8 @@ fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
             for (id, age, out) in held {
                 if let Some(k) = cards.reader_for(out) {
                     cards.slot[k] = Some((customer(age).to_string(), card_type(id), out));
+                    cards.read = Some((customer(age).to_string(), card_type(id), out, id));
+                    cards.reads += 1;
                 }
             }
         }
@@ -439,8 +466,18 @@ pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Optio
     let mut v = state(duty, clock.time, &date, bus, speed_kmh, passengers, paused);
     // (the fork) the console's row of card readers, from who came and went in the bus
     {
-        let mut c = CARDS.lock().unwrap_or_else(|e| e.into_inner());
-        v["cards"] = Value::Array(cards_of(c.get_or_insert_with(Cards::default), riders));
+        let mut guard = CARDS.lock().unwrap_or_else(|e| e.into_inner());
+        let c = guard.get_or_insert_with(Cards::default);
+        v["cards"] = Value::Array(cards_of(c, riders));
+        // (the fork) the card last held to a reader, for the Information screen
+        if let Some((who, card, out, id)) = c.read.clone() {
+            let mut facts = card_facts(id, clock.year);
+            facts["who"] = Value::String(omsi_ui::tr(&who).into_owned());
+            facts["card"] = Value::String(card.to_string());
+            facts["out"] = Value::Bool(out);
+            facts["n"] = Value::from(c.reads);
+            v["read"] = facts;
+        }
     }
     *STATE.lock().unwrap_or_else(|e| e.into_inner()) = serde_json::to_vec(&v).unwrap_or_default();
 }
@@ -522,6 +559,31 @@ fn labels() -> Value {
         ("all_out", "All out"),
         ("cancel_in", "Cancel in"),
         ("reset", "Reset"),
+        // the Information screen, as the manual's pages 35 to 37 have it
+        ("hold_card", "Hold a card to the sales card reader"),
+        ("t_general", "Generelt"),
+        ("t_purse", "E-pung"),
+        ("t_period", "Periodekort"),
+        ("t_trips", "Rejser"),
+        ("t_other", "Andet"),
+        ("f_type", "Korttype"),
+        ("f_exp", "Expiry date"),
+        ("f_lang", "Language"),
+        ("f_service", "Service level"),
+        ("f_scope", "Type"),
+        ("f_no", "Card number"),
+        ("f_customer", "Customer type"),
+        ("f_balance", "Balance"),
+        ("f_none", "None"),
+        ("f_checked_in", "Checked in"),
+        ("f_checked_out", "Checked out"),
+        ("c_personal", "Personligt"),
+        ("c_flex", "Flex"),
+        ("c_anon", "Anonymt"),
+        ("c_blocked", "Barred"),
+        ("v_danish", "Dansk"),
+        ("v_standard", "Standard"),
+        ("v_scope", "Landsdækkende / Extension"),
         ("test", "Test"),
         ("save", "Save"),
         ("console_locked", "The driver console is locked"),
