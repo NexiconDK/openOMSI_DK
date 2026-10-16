@@ -261,6 +261,8 @@ impl Desk {
             return desk;
         }
         let looks_in: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
+        // pictures the model names that the folders do not hold
+        let mut missing: Vec<String> = Vec::new();
 
         for file in &files {
             let Ok(mesh) = omsi_o3d::load_mesh(file).map_err(|e| log::warn!("{}: {e}", file.display())) else {
@@ -289,11 +291,23 @@ impl Desk {
                     };
                     Some(t)
                 } else {
-                    omsi_texture::find_texture(&m.texture, &looks_in)
+                    let found = omsi_texture::find_texture(&m.texture, &looks_in)
                         .and_then(|p| world.textures.get_gpu_fast(&p))
-                        .map(|(img, _)| renderer.add_texture_data(scene, &img))
+                        .map(|(img, _)| renderer.add_texture_data(scene, &img));
+                    // a picture the model names and the folder does not hold leaves that
+                    // face plain, and a plain face looks like a part of the model rather
+                    // than like a file the player forgot to copy, so it is said out loud
+                    if found.is_none() && !m.texture.trim().is_empty() && !missing.contains(&m.texture) {
+                        missing.push(m.texture.clone());
+                    }
+                    found
                 };
-                mats.push(renderer.add_material(scene, tex, AlphaMode::Opaque, m.diffuse, false));
+                // the screen lights itself, as a screen does: the page's own pixels, not
+                // shaded by the sun and not dark at night. Lit like the plastic around
+                // it, it washed out on the sunny side and went grey on the other, which
+                // is how the player found it.
+                let colour = if screen { [1.0; 4] } else { m.diffuse };
+                mats.push(renderer.add_material(scene, tex, AlphaMode::Opaque, colour, screen));
             }
             let inst = renderer.add_instance(scene, id, DVec3::ZERO, Mat4::IDENTITY, mats);
             desk.parts.push(inst);
@@ -301,11 +315,13 @@ impl Desk {
                 log::info!("rejsekort: the console's screen is {}", file.file_name().unwrap_or_default().to_string_lossy());
             }
         }
-        match desk.screen.is_some() {
-            true => say(format!("konsol med {} dele og skærm", desk.parts.len()), true),
+        match (desk.screen.is_some(), missing.as_slice()) {
+            // a missing picture is the player's to put right, so it stays on the screen
+            (_, [_, ..]) => say(format!("{} mangler i {}", missing.join(", "), dirs[0].display()), false),
+            (true, []) => say(format!("konsol med {} dele og skærm", desk.parts.len()), true),
             // every part hung but no face wearing the screen texture: the desk is there
             // and the driver is looking at a blank panel, which is worth saying out loud
-            false => say(format!("konsol med {} dele, men ingen skærm - ingen flade med {SCREEN_TEX}", desk.parts.len()), false),
+            (false, []) => say(format!("konsol med {} dele, men ingen skærm - ingen flade med {SCREEN_TEX}", desk.parts.len()), false),
         }
         WANTED.store(desk.screen.is_some(), std::sync::atomic::Ordering::Relaxed);
         desk
