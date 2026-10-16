@@ -50,6 +50,16 @@ pub const BLANK: &str = "\
 #\n\
 # Der drejes og skaleres om modellens eget nulpunkt, så ret x, y og z til bagefter.\n\
 #\n\
+# MODELLEN\n\
+# checkind.o3d og de to skind ledes der efter her i mappen. Har du dem liggende\n\
+# som et OMSI-sceneryobjekt i forvejen, så lad dem blive, hvor de er, og peg på\n\
+# mappen i stedet:\n\
+#\n\
+#   mappe  Sceneryobjects\\UrbanBacon\\Models\\Rejsekort\n\
+#\n\
+# Stien er fra din OMSI-mappe. Der ledes i mappen selv og i Model/, Texture/ og\n\
+# Textures/ ved siden af, som OMSI plejer at lægge dem.\n\
+#\n\
 # Linjer, der begynder med #, er kommentarer.\n\
 \n\
 # *   -1.00   5.20   1.05    0    0.45\n\
@@ -157,6 +167,38 @@ fn written(path: &Path) -> Option<std::time::SystemTime> {
     std::fs::metadata(path).ok()?.modified().ok()
 }
 
+/// The word that names the folder a model is in, when it is not the stock one.
+pub const FOLDER_WORD: &str = "mappe";
+
+/// The folder a placement file names its model in, if it names one: a `mappe` line
+/// holding a path from the OMSI folder. A model the player already has as an OMSI
+/// scenery object lives under `Sceneryobjects\...`, and there is no sense in making him
+/// copy it out of there into a folder of ours.
+pub fn named_folder(text: &str) -> Option<&str> {
+    text.lines()
+        .map(|l| l.split('#').next().unwrap_or("").trim())
+        .find_map(|l| l.strip_prefix(FOLDER_WORD).map(str::trim).filter(|r| !r.is_empty()))
+}
+
+/// Where a model's own pieces are looked for, in order: the folder the file names, else
+/// `stock`. OMSI keeps a scenery object's meshes in a `Model` folder beside it and its
+/// pictures in `Texture` (or `Textures`, as the player's own console has it), so those
+/// are searched too and the first that holds a thing wins.
+pub fn model_dirs(root: &Path, text: &str, stock: &Path) -> Vec<PathBuf> {
+    let base = match named_folder(text) {
+        Some(rel) => omsi_cfg::resolve_path(root, rel),
+        None => stock.to_path_buf(),
+    };
+    let mut dirs = vec![base.clone()];
+    for sub in ["Model", "Texture", "Textures"] {
+        let d = omsi_cfg::resolve_path(&base, sub);
+        if d != base {
+            dirs.push(d);
+        }
+    }
+    dirs
+}
+
 impl Readers {
     /// The folder the player's model and skins are in.
     pub fn folder(root: &Path) -> PathBuf {
@@ -168,18 +210,25 @@ impl Readers {
     pub fn new(world: &World, renderer: &Renderer, scene: &mut Scene, bus: &VehicleInstance) -> Readers {
         let dir = Self::folder(&world.root);
         let made_for = (bus.ty.def.path.clone(), dir.clone());
-        let file = dir.join(MESH);
         let spots = dir.join(SPOTS);
         let blank = || Readers { made_for: made_for.clone(), skins: [None; 2], standers: Vec::new(), wrote: written(&spots), looked: std::time::Instant::now() };
-        let Ok(mesh) = omsi_o3d::load_mesh(&file).map_err(|e| log::warn!("{}: {e}", file.display())) else {
-            return blank();
-        };
         if !spots.is_file() {
             let _ = std::fs::create_dir_all(&dir);
             let _ = std::fs::write(&spots, BLANK);
             log::info!("{}: written blank, waiting for the standers' places", spots.display());
         }
+        // the file is read before the model, since it is the file that may say where the
+        // model is: a stander the player already keeps as a scenery object stays there
         let text = std::fs::read_to_string(&spots).unwrap_or_default();
+        let dirs = model_dirs(&world.root, &text, &dir);
+        let looks_in: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
+        let Some(file) = looks_in.iter().map(|d| omsi_cfg::resolve_path(d, MESH)).find(|p| p.is_file()) else {
+            log::warn!("{}: no {MESH} there", dirs[0].display());
+            return blank();
+        };
+        let Ok(mesh) = omsi_o3d::load_mesh(&file).map_err(|e| log::warn!("{}: {e}", file.display())) else {
+            return blank();
+        };
         let name = bus.ty.def.path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         let mine: Vec<Spot> = Spot::read(&text).into_iter().filter(|s| s.fits(&name)).collect();
         if mine.is_empty() {
@@ -189,14 +238,14 @@ impl Readers {
         let data = mesh_from_o3d(&mesh);
         let id = renderer.add_mesh(scene, &data);
         let mut skin = |which: usize| -> Option<MaterialId> {
-            let p = omsi_texture::find_texture(SKINS[which], &[dir.as_path()])?;
+            let p = omsi_texture::find_texture(SKINS[which], &looks_in)?;
             let (img, _) = world.textures.get_gpu_fast(&p)?;
             let tex = renderer.add_texture_data(scene, &img);
             Some(renderer.add_material(scene, Some(tex), AlphaMode::Opaque, [1.0; 4], false))
         };
         let mats = [skin(0), skin(1)];
         if mats.iter().any(Option::is_none) {
-            log::warn!("{}: {} or {} is missing", dir.display(), SKINS[0], SKINS[1]);
+            log::warn!("{}: {} or {} is missing", dirs[0].display(), SKINS[0], SKINS[1]);
         }
         let standers: Vec<([usize; 2], Mat4)> = mine
             .iter()

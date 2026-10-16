@@ -29,10 +29,14 @@ use omsi_sim::htmltex::PointerKind;
 use omsi_sim::VehicleInstance;
 use std::path::{Path, PathBuf};
 
-/// The folder in `Rejsekort` the player drops the console's own model in.
+/// The folder in `Rejsekort` the player drops the console's own model in, when he has not
+/// said where it is. A console he already has as an OMSI scenery object stays where it
+/// is and is named with a `mappe` line instead (see [`model_dirs`]).
 pub const FOLDER: &str = "Konsol";
 /// The file that says where the desk stands.
 pub const SPOT: &str = "konsol.txt";
+/// The word that names the folder the model is in, when it is not the stock one.
+pub const FOLDER_WORD: &str = "mappe";
 /// The texture name that makes a face the console's screen. It is the name the player's
 /// own model already uses, so nothing has to be renamed to make the screen live.
 pub const SCREEN_TEX: &str = "skærmtexture";
@@ -58,9 +62,23 @@ pub const BLANK: &str = "\
 #\n\
 # Der drejes og skaleres om modellens eget nulpunkt, så ret x, y og z til bagefter.\n\
 #\n\
-# Selve modellen ligger i undermappen Konsol/ — alle .o3d-filer der bliver hængt op\n\
-# sammen, og den flade, hvis tekstur hedder Skærmtexture.png, bliver skærmen.\n\
+# MODELLEN\n\
+# Har du konsollen liggende som et OMSI-sceneryobjekt i forvejen, så lad den\n\
+# blive, hvor den er, og peg på mappen i stedet for at kopiere filerne ud:\n\
+#\n\
+#   mappe  Sceneryobjects\\UrbanBacon\\Models\\Rejsekort\n\
+#\n\
+# Stien er fra din OMSI-mappe. Alle .o3d-filer i mappen — og i en Model-\n\
+# undermappe, som OMSI plejer at lægge dem i — bliver hængt op sammen, og\n\
+# teksturerne hentes i mappen selv og i Texture/ eller Textures/ ved siden af.\n\
+#\n\
+# Skriver du ingen mappe, ledes der i undermappen Konsol/ her.\n\
+#\n\
+# Den flade, hvis tekstur hedder Skærmtexture.png, bliver selve skærmen.\n\
+# Vil du ikke have en del med — printeren, kablerne — så lad bare dens\n\
+# .o3d-fil være; der hænges kun det op, der ligger der.\n\
 \n\
+# mappe  Sceneryobjects\\UrbanBacon\\Models\\Rejsekort\n\
 # *   -0.95   5.95   0.95   180   1.0\n\
 ";
 
@@ -101,6 +119,17 @@ const LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(500);
 /// When the file was last written, or `None` when there is none.
 fn written(path: &Path) -> Option<std::time::SystemTime> {
     std::fs::metadata(path).ok()?.modified().ok()
+}
+
+/// The folder `konsol.txt` names its model in, if it names one (see
+/// [`crate::readers::named_folder`]).
+pub fn named_folder(text: &str) -> Option<&str> {
+    crate::readers::named_folder(text)
+}
+
+/// Where the console's own pieces are looked for, in order.
+pub fn model_dirs(root: &Path, text: &str) -> Vec<PathBuf> {
+    crate::readers::model_dirs(root, text, &crate::readers::Readers::folder(root).join(FOLDER))
 }
 
 struct Screen {
@@ -167,10 +196,11 @@ impl Desk {
         };
         let local = spot.matrix();
 
-        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
-            .into_iter()
-            .flatten()
-            .flatten()
+        // where the model lies: the folder the file names, or the stock one beside it
+        let dirs = model_dirs(&world.root, &text);
+        let mut files: Vec<PathBuf> = dirs
+            .iter()
+            .flat_map(|d| std::fs::read_dir(d).into_iter().flatten().flatten())
             .map(|e| e.path())
             .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("o3d")))
             .collect();
@@ -178,9 +208,10 @@ impl Desk {
         // keeps the log and any report of it steady)
         files.sort();
         if files.is_empty() {
-            log::info!("{}: no console model there yet", dir.display());
+            log::info!("{}: no console model there yet", dirs[0].display());
             return desk;
         }
+        let looks_in: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
 
         for file in &files {
             let Ok(mesh) = omsi_o3d::load_mesh(file).map_err(|e| log::warn!("{}: {e}", file.display())) else {
@@ -209,7 +240,7 @@ impl Desk {
                     };
                     Some(t)
                 } else {
-                    omsi_texture::find_texture(&m.texture, &[dir.as_path()])
+                    omsi_texture::find_texture(&m.texture, &looks_in)
                         .and_then(|p| world.textures.get_gpu_fast(&p))
                         .map(|(img, _)| renderer.add_texture_data(scene, &img))
                 };
@@ -221,7 +252,7 @@ impl Desk {
                 log::info!("rejsekort: the console's screen is {}", file.file_name().unwrap_or_default().to_string_lossy());
             }
         }
-        log::info!("rejsekort: a console of {} parts in {name}", desk.parts.len());
+        log::info!("rejsekort: a console of {} parts in {name}, out of {}", desk.parts.len(), dirs[0].display());
         WANTED.store(desk.screen.is_some(), std::sync::atomic::Ordering::Relaxed);
         desk
     }
@@ -309,6 +340,35 @@ mod tests {
     fn the_blank_file_holds_no_console() {
         assert!(Spot::read(BLANK).is_empty(), "every line of it is a comment");
         assert!(BLANK.contains("<bus>") && BLANK.contains("Konsol/"));
+        assert_eq!(named_folder(BLANK), None, "and names no folder either");
+    }
+
+    /// (the fork) The player already had the console as an OMSI scenery object, under
+    /// `Sceneryobjects\...`. Making him copy sixteen files out of there would be silly,
+    /// so the file names the folder and the model stays where it is.
+    #[test]
+    fn the_model_can_stay_where_the_player_keeps_it() {
+        let named = "# the console I already have\nmappe  Sceneryobjects\\UrbanBacon\\Models\\Rejsekort\n*  -0.95 5.95 0.95  180\n";
+        assert_eq!(named_folder(named), Some("Sceneryobjects\\UrbanBacon\\Models\\Rejsekort"));
+        // the line that places it is still read as it always was
+        assert_eq!(Spot::read(named).len(), 1, "the mappe line is not a place");
+
+        let root = Path::new("/omsi");
+        let dirs = model_dirs(root, named);
+        assert!(dirs[0].ends_with("Rejsekort"), "{:?}", dirs[0]);
+        // OMSI keeps a scenery object's meshes in Model and its pictures in Texture, and
+        // this one's are in Textures, so all of them are looked in
+        let ends: Vec<String> = dirs.iter().map(|d| d.file_name().unwrap_or_default().to_string_lossy().into_owned()).collect();
+        assert_eq!(ends, ["Rejsekort", "Model", "Texture", "Textures"]);
+
+        // with no mappe line it is the stock folder beside standere.txt
+        let stock = model_dirs(root, "*  0 0 0  0\n");
+        assert!(stock[0].ends_with(FOLDER), "{:?}", stock[0]);
+
+        // a mappe line with nothing after it names no folder
+        for text in ["mappe\n", "mappe   \n", "# mappe Sceneryobjects\n"] {
+            assert_eq!(named_folder(text), None, "{text:?}");
+        }
     }
 
     /// (the fork) The screen is found by the texture the player's own model already names,

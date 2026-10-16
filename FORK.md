@@ -128,7 +128,16 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
   Standerne følger bussen, og **de skifter skind med konsollen**: sætter du dem om under **Kortlæser opsætn.** — *Alle ind*, *Alle ud*, *Nulstil* eller barnevognstasten — bliver standeren i bussen grøn eller rød med det samme. Modellen har ét materiale uden eget teksturnavn, og det er netop dét, der gør skiftet muligt: den samme model hænges op to gange, én i hvert skind, og konsollen bestemmer, hvilken der vises.
 - **Konsollen i bussen — plug and play.** Hele Web-IBIS'en kan nu køres fra bussen selv, på en skærm du hænger op i førerrummet. **Bussens egne filer bliver ikke rørt**: konsollen hænges op på nøjagtig samme måde som standerne, så det virker i enhver bus — også en, du ikke selv har lavet, og også en hvis IBIS kun er en tekstlinje, der slet ikke kunne skiftes ud.
 
-  Læg modellen i undermappen **Konsol** i `Rejsekort`-mappen — alle `.o3d`-filer derinde bliver hængt op sammen med deres teksturer — og skriv konsollens plads i **Rejsekort/konsol.txt**, på samme form som `standere.txt`. Den flade, hvis tekstur hedder **Skærmtexture.png**, bliver selve skærmen: den får siden tegnet på sig i stedet for filens eget billede. Du skal ikke omdøbe noget — det er det navn, modellen i forvejen bruger.
+  Skriv konsollens plads i **Rejsekort/konsol.txt**, på samme form som `standere.txt`. Den flade, hvis tekstur hedder **Skærmtexture.png**, bliver selve skærmen: den får siden tegnet på sig i stedet for filens eget billede. Du skal ikke omdøbe noget — det er det navn, modellen i forvejen bruger. Alle `.o3d`-filer i modelmappen bliver hængt op sammen, så vil du ikke have printeren eller kablerne med, lader du bare deres filer være.
+
+  **Modellen bliver, hvor du har den.** Har du konsollen liggende som et OMSI-sceneryobjekt i forvejen, skal du ikke kopiere seksten filer ud i en ny mappe — du peger på den i stedet, med en `mappe`-linje øverst i filen:
+
+  ```
+  mappe  Sceneryobjects\UrbanBacon\Models\Rejsekort
+  *   -0.95   5.95   0.95   180
+  ```
+
+  Stien er fra din OMSI-mappe. Der ledes i mappen selv og i `Model\`, `Texture\` og `Textures\` ved siden af, som OMSI plejer at lægge dem. Uden en `mappe`-linje ledes der i undermappen `Konsol\` i `Rejsekort`-mappen. Det samme gælder `standere.txt` og standerens egen model.
 
   **Du kan trykke på skærmen.** Et klik på den er en finger på siden, præcis som på tavlen, og tasterne går til den samme konsol: trykker du *Menu* på bussens skærm, står tavlen i menuen med det samme, og omvendt. Der er én konsol, hvor mange skærme der så end tegner den.
 
