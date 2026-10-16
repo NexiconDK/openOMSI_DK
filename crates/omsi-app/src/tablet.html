@@ -253,9 +253,12 @@
   .screen:not(.plain) .strip { display: none; }
   .strip i { flex: 1; border-right: 1px solid #a9a9a9; background: #fff;
     display: flex; align-items: center; justify-content: center; font-style: normal; }
-  .strip i svg { width: calc(36 * var(--u)); height: calc(36 * var(--u)); display: block; }
+  .strip i svg { width: calc(46 * var(--u)); height: calc(46 * var(--u)); display: block; }
   .strip i.green { background: #51bd36; }
   .strip i.grey { background: #cdd0d6; }
+  /* the signal stands crossed out only while the page cannot reach the game */
+  .strip i svg .x { display: none; }
+  body.away .strip i svg .x { display: block; }
   .strip i.ifs { font-size: calc(13 * var(--u)); font-weight: 700; color: #3f9a37;
     line-height: 1.1; text-align: center; letter-spacing: 0; }
 
@@ -324,27 +327,52 @@
 
   <template id="strip-cells">
       <i class="ifs">IFS&#8201;&#8211;<br>FM</i><i></i><i></i>
-      <i class="crowd" title="Gruppe check ind"><svg viewBox="0 0 24 24" fill="#111">
-        <circle cx="7.6" cy="6.2" r="3.1"/><path d="M2.3 20.6a5.3 5.3 0 0 1 10.6 0z"/>
-        <circle cx="16.4" cy="6.2" r="3.1"/><path d="M11.1 20.6a5.3 5.3 0 0 1 10.6 0z"/></svg></i>
-      <i title="Signal"><svg viewBox="0 0 24 24"><rect x="2.6" y="15.4" width="3.2" height="5.6" fill="#3f9a37"/>
-        <rect x="7.4" y="12.2" width="3.2" height="8.8" fill="#3f9a37"/><rect x="12.2" y="8.6" width="3.2" height="12.4" fill="#3f9a37"/>
-        <rect x="17" y="4.6" width="3.2" height="16.4" fill="#3f9a37"/>
-        <g stroke="#d9242e" stroke-width="2.6" stroke-linecap="round"><path d="M3.4 20.2 20.6 4.4"/><path d="M3.4 4.4 20.6 20.2"/></g></svg></i>
-      <i title="Printer"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="5" fill="#90a4ae"/><rect x="2.5" y="8" width="19" height="8.5" rx="1.2" fill="#78909c"/>
-        <rect x="6" y="14" width="12" height="7" fill="#eceff1" stroke="#546e7a" stroke-width="1"/><circle cx="18.6" cy="11" r="1.1" fill="#4caf50"/></svg></i>
-      <i class="green gps" title="GPS"><svg viewBox="0 0 24 24"><circle cx="13" cy="14.4" r="6.6" fill="#2b3f4a"/>
-        <path d="M6.6 12.6h12.8M13 7.8v13.2" stroke="#9fd8e6" stroke-width="1.1" fill="none"/>
-        <ellipse cx="13" cy="14.4" rx="3.1" ry="6.6" fill="none" stroke="#9fd8e6" stroke-width="1.1"/>
-        <path d="M3.4 3.2 8 7.8" stroke="#2b3f4a" stroke-width="1.6" stroke-linecap="round"/>
-        <circle cx="3.2" cy="3" r="1.9" fill="#fff" stroke="#2b3f4a" stroke-width="1.1"/></svg></i>
-      <i title="Kortl&#230;ser"><svg viewBox="0 0 24 24"><rect x="7.4" y="2.6" width="9.2" height="18.8" rx="2.6" fill="#2f5f6b" stroke="#17323a" stroke-width="1.1"/>
-        <circle cx="12" cy="8.6" r="3" fill="#2fa8d8"/><circle cx="12" cy="8.6" r="1.3" fill="#bfeaf8"/>
-        <rect x="9.4" y="14.2" width="5.2" height="1.5" rx="0.6" fill="#8fb6bf"/><rect x="9.4" y="17" width="5.2" height="1.5" rx="0.6" fill="#8fb6bf"/></svg></i>
-      <i class="green" title="Alarm"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
-        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg></i>
-      <i class="grey" title="Hj&#230;lp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.6" fill="#1565c0"/>
-        <text x="12" y="17.2" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg></i>
+      <i class="crowd" title="Gruppe check ind"><svg viewBox="0 0 24 24">
+        <rect x="2" y="2.4" width="20" height="19.4" rx="1.2" fill="#e4e4e4"/>
+        <g fill="#141414">
+          <circle cx="5.9" cy="9.6" r="2.6"/><path d="M5.9 12.8c2.2 0 3.9 1.8 3.9 4v3.8H2v-3.8c0-2.2 1.8-4 3.9-4z"/>
+          <circle cx="18.1" cy="9.6" r="2.6"/><path d="M18.1 12.8c2.2 0 3.9 1.8 3.9 4v3.8h-7.8v-3.8c0-2.2 1.8-4 3.9-4z"/>
+          <g stroke="#e4e4e4" stroke-width=".9">
+            <circle cx="12" cy="7.6" r="2.6"/><path d="M12 10.8c2.2 0 3.9 1.8 3.9 4v5.8H8.1v-5.8c0-2.2 1.8-4 3.9-4z"/></g></g></svg></i>
+      <i title="Signal"><svg viewBox="0 0 24 24"><g fill="#2f9e2f" stroke="#1d6b1d" stroke-width=".7">
+        <rect x="2.6" y="15.2" width="3.7" height="6.2"/><rect x="7.6" y="11.8" width="3.7" height="9.6"/>
+        <rect x="12.6" y="8.2" width="3.7" height="13.2"/><rect x="17.6" y="4.4" width="3.7" height="17"/></g>
+        <g class="x" stroke="#d9242e" stroke-width="2.8" stroke-linecap="round">
+        <path d="M3.2 20.6 20.8 4.2"/><path d="M3.2 4.2 20.8 20.6"/></g></svg></i>
+      <i title="Printer"><svg viewBox="0 0 24 24" stroke="#4d5b66" stroke-width="1" stroke-linejoin="round">
+        <path d="M7 1.2 17.4 2.8l-1.5 6.6-10.4-1.6z" fill="#fff"/>
+        <path d="M2.2 9.2h15.3l3.5 5.4H5.7z" fill="#d7dde2"/>
+        <path d="M5.7 14.6h15.3v4.6H5.7z" fill="#aeb8c0"/>
+        <path d="M8.6 15.4h9.5v6.9H8.6z" fill="#fff"/>
+        <circle cx="19.2" cy="16.9" r=".9" fill="#3f9e3f" stroke="none"/></svg></i>
+      <i class="green gps" title="GPS"><svg viewBox="0 0 24 24">
+        <g stroke="#27357a" stroke-width=".9" stroke-linejoin="round">
+          <path d="M1.2 4.2 4.4 1.8l2 2.7-3.2 2.4z" fill="#f4f6fa"/>
+          <path d="M6.6 8.1 9.8 5.7l2 2.7-3.2 2.4z" fill="#f4f6fa"/>
+          <path d="M4.9 3.4 8.5 8.2" fill="none"/>
+          <circle cx="6.6" cy="6" r="1.3" fill="#c9d2e8"/></g>
+        <circle cx="15.2" cy="15.6" r="6.9" fill="#2f78cc" stroke="#174a8c" stroke-width=".9"/>
+        <g fill="#3f9e36">
+          <path d="M10 12.4c1.3-1.6 3.4-2.5 5.3-2.2l-.5 2.4-2.9 1.6z"/>
+          <path d="M17.4 10.4c2 .8 3.5 2.5 4.1 4.5l-3 .4-1.8-2.1z"/>
+          <path d="M11.4 19.9l3.1-.6 1.4 2.7c-1.8.2-3.5-.6-4.5-2.1z"/></g>
+        <g stroke="#ffe600" stroke-width="1.1"><path d="M15.2 9.5v12.2"/><path d="M9.1 15.6h12.2"/></g></svg></i>
+      <i title="Kortl&#230;ser"><svg viewBox="0 0 24 24">
+        <path d="M8.1 3.2h8.4v14.1a4.2 4.2 0 0 1-4.2 4.2 4.2 4.2 0 0 1-4.2-4.2z" fill="#b6bdc2" stroke="#4e585f" stroke-width="1"/>
+        <path d="M8.1 3.2h3.1v18.2a4.2 4.2 0 0 1-3.1-4.1z" fill="#8d959b"/>
+        <path d="M8.6 3.9h7.4v2.4H8.6z" fill="#dfe4e8"/>
+        <ellipse cx="12.3" cy="15.4" rx="3.3" ry="3.9" fill="#4b4fd0"/>
+        <ellipse cx="12.3" cy="15" rx="1.5" ry="1.8" fill="#9fd8ff"/>
+        <circle cx="12.1" cy="14.6" r=".7" fill="#fff"/></svg></i>
+      <i class="green" title="Alarm"><svg viewBox="0 0 24 24">
+        <path d="M12 2.6c.5 0 .9.3 1.2.8l9 15.6c.5.9-.1 2-1.2 2H3c-1.1 0-1.7-1.1-1.2-2l9-15.6c.3-.5.7-.8 1.2-.8z" fill="#ffd400" stroke="#2b2b2b" stroke-width="1.3"/>
+        <rect x="10.9" y="8.4" width="2.2" height="6.4" rx="1.1" fill="#2b2b2b"/>
+        <rect x="10.9" y="16.2" width="2.2" height="2.2" rx="1.1" fill="#2b2b2b"/></svg></i>
+      <i class="grey" title="Hj&#230;lp"><svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" fill="#1f5fb0"/>
+        <circle cx="12" cy="12" r="10" fill="none" stroke="#8fc4ef" stroke-width="1.4"/>
+        <path d="M6.4 6.2A10 10 0 0 1 17 4.6 10 10 0 0 0 5.2 16a10 10 0 0 1 1.2-9.8z" fill="#5ea3e0" opacity=".55"/>
+        <text x="12" y="17.3" text-anchor="middle" font-size="13.5" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">?</text></svg></i>
   </template>
 
   <!-- (the fork) LINJEVALG, as the manual's page 9 has it: the lines two to a row, six rows
@@ -844,7 +872,7 @@ bootStep();
 async function tick() {
   try {
     const s = await getJson("/state");
-    failures = 0; $("lost").classList.remove("on");
+    failures = 0; $("lost").classList.remove("on"); document.body.classList.remove("away");
     if (s.labels) {
       const first = !state;
       state = s; labels = s.labels; words();
@@ -857,7 +885,7 @@ async function tick() {
       else if (screen === "duty") drawDuty();
     }
   } catch (e) {
-    if (++failures >= 3) $("lost").classList.add("on");
+    if (++failures >= 3) { $("lost").classList.add("on"); document.body.classList.add("away"); }
   }
   setTimeout(tick, 1000);
 }
