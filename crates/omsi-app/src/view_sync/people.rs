@@ -68,6 +68,8 @@ pub(crate) struct PeopleView {
     pub(crate) trace: Option<std::io::BufWriter<std::fs::File>>,
     /// The tear-off ticket blocks of the player's bus (`money::TicketBlocks`).
     pub(crate) ticket_blocks: Option<crate::money::TicketBlocks>,
+    /// (the fork) The Rejsekort standers in the player's bus (`readers::Readers`).
+    pub(crate) readers: Option<crate::readers::Readers>,
 }
 
 impl PeopleView {
@@ -87,6 +89,7 @@ impl PeopleView {
                 w
             }),
             ticket_blocks: None,
+            readers: None,
         }
     }
 
@@ -273,6 +276,15 @@ impl Humans {
         }
         if let Some(b) = view.ticket_blocks.as_ref() {
             b.sync(renderer, scene, bus);
+        }
+        // (the fork) the Rejsekort standers, in the skin the console says each is set to
+        let dir = crate::readers::Readers::folder(&world.root);
+        let fresh = view.readers.as_ref().is_none_or(|r| r.made_for != (bus.ty.def.path.clone(), dir.clone()));
+        if fresh {
+            view.readers = Some(crate::readers::Readers::new(world, renderer, scene, bus));
+        }
+        if let Some(r) = view.readers.as_ref().filter(|r| !r.is_empty()) {
+            r.sync(renderer, scene, bus, &crate::tablet::reader_roles());
         }
     }
 

@@ -496,6 +496,15 @@ fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
 
 /// (the fork) The card reader setup's keys (the manual's page 33). True when the key meant
 /// something.
+/// (the fork) Which way round each reader in the bus is set, for the standers drawn in it
+/// (`crate::readers`): true takes cards in (Ci, the green **Check ind** skin), false takes
+/// them out (Cu, the red **Check ud**).
+pub fn reader_roles() -> Vec<bool> {
+    let mut c = CARDS.lock().unwrap_or_else(|e| e.into_inner());
+    let c = c.get_or_insert_with(Cards::default);
+    (0..READERS).map(|k| c.role.get(k) == Some(&Reads::In)).collect()
+}
+
 pub fn set_readers(op: &str) -> bool {
     let mut c = CARDS.lock().unwrap_or_else(|e| e.into_inner());
     c.get_or_insert_with(Cards::default).set(op)

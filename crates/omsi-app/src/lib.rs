@@ -77,6 +77,8 @@ mod tablet;
 /// (the fork) The driver console's own decisions, shared by the page and by the console's
 /// own screen in the bus.
 mod console;
+/// (the fork) The Rejsekort standers drawn in the bus.
+mod readers;
 mod telemetry;
 mod threads;
 /// (the fork) Lightning and thunder: the flash, the channel on the sky and the clap.

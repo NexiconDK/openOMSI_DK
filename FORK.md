@@ -96,6 +96,21 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 - **Kortlæser-rækken** nederst på alle skærme (manualens side 23, 27 og 28): en boks for hvert af de sidste kort, der er holdt hen til en læser, det nyeste først. Teksten er kundetypen — **Barn**, **Ung**, **Voksen** eller **Pensionist** efter passagerens alder — og en boks med **kryds over** er en der checkede ud. Hvid boks betyder, at den læser ikke er brugt. **Boksen bliver hvid igen efter fem sekunder**, så det næste kort ved den læser kan ses som nyt. Boksene gør ingenting; de er chaufførens kontrol af, om kunderne huskede at checke ind og ud. Hvem der stiger på og af er helt rigtigt — spillet kender dem på deres id, uanset hvilken dør de bruger.
   - **Farven er korttypen** (manualens side 28): **blå** = personligt kort, pendler-, ungdoms- og skolekort; **grøn** = anonymt kort; **gul** = flex; og en sjælden **rød** = spærret kort („BLK“). OMSI har ingen rejsekort at spørge, så konsollens eget system bestemmer korttypen — men den bestemmer det samme om den samme person hver gang (ud fra passagerens id), så et kort skifter ikke farve mellem check ind og check ud.
 - Listerne er nu **fem rækker** og ikke seks, fordi den nederste række er kortlæserne. Det passer nu nøjagtigt med manualens billeder af Linjevalg, Turvalg og køreskærmen.
+- **Rejsekort-standere i bussen.** Læg din egen model og dens to skind i mappen **Rejsekort** i din OMSI-mappe:
+  - `checkind.o3d` — selve standeren
+  - `Checkind.tga` — det grønne **Check ind**-skind
+  - `Checkud.tga` — det røde **Check ud**-skind
+  - `standere.txt` — hvor de står. Findes den ikke, skriver spillet den tom med en vejledning i.
+
+  Hver linje i `standere.txt` er én stander, i den rækkefølge de nummereres — den første er **stander 1, salgskortlæseren**:
+
+  ```
+  <bus>  <x> <y> <z>  <drejning>
+  ```
+
+  `<bus>` er bussens `.bus`-filnavn uden mappe, eller `*` for alle busser. `x` er til højre, `y` fremad og `z` opad, i meter fra bussens nulpunkt. Drejningen er grader om lodret; 0 vender standeren mod bussens højre side. Linjer med `#` er kommentarer, og en linje, du har tastet forkert, bliver sprunget over med en besked i loggen i stedet for at tage resten af filen med sig.
+
+  Standerne følger bussen, og **de skifter skind med konsollen**: sætter du dem om under **Kortlæser opsætn.** — *Alle ind*, *Alle ud*, *Nulstil* eller barnevognstasten — bliver standeren i bussen grøn eller rød med det samme. Modellen har ét materiale uden eget teksturnavn, og det er netop dét, der gør skiftet muligt: den samme model hænges op to gange, én i hvert skind, og konsollen bestemmer, hvilken der vises.
 - **Dine egne billeder:** læg login-billedet som **login.png** (1280 × 720) i mappen **WebIBIS** i din OMSI-mappe. Billedet bruges som baggrund på login-skærmen. **Ikonbjælken tegnes altid ovenpå**, også når du har et billede — dens felter er levende (GPS'en skifter grøn/grå, hængelåsen kommer på kortlæseren, flokken åbner Check ind ekstra, signalet bliver overstreget hvis siden mister spillet), og det kan et stillbillede ikke. Billederne følger ikke med spillet.
 
 ### Turoversigt
