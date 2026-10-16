@@ -277,8 +277,8 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
 struct Cards {
     /// Who was in the bus when this was last looked at (id and age, by id).
     seen: Vec<(u32, f32)>,
-    /// The last few cards: (customer type, checked out).
-    last: Vec<(String, bool)>,
+    /// The last few cards: (customer type, card type, checked out).
+    last: Vec<(String, &'static str, bool)>,
     /// The first look only takes down who is aboard: a bus already full when the page is
     /// switched on has nobody checking in.
     begun: bool,
@@ -288,6 +288,23 @@ static CARDS: Mutex<Option<Cards>> = Mutex::new(None);
 
 /// How many boxes the row holds (the manual's picture has five).
 const READERS: usize = 5;
+
+/// (the fork) Which card a rider is carrying, as the manual's page 28 colours them: blue
+/// for the personal card and the season tickets, green for the anonymous one, yellow for
+/// flex, and now and then a red one the system says is barred.
+///
+/// The game has no Rejsekort to ask, so the console's own system decides - but it decides
+/// the same thing about the same person every time, from their id, so a card cannot change
+/// colour between the customer checking in and checking out again.
+fn card_type(id: u32) -> &'static str {
+    // (a cheap spread, so that neighbouring ids do not all draw the same card)
+    match (id.wrapping_mul(2_654_435_761) >> 13) % 100 {
+        0 => "blocked",
+        1..=14 => "flex",
+        15..=34 => "anon",
+        _ => "personal",
+    }
+}
 
 /// The customer type of a passenger that age, in the manual's own words.
 fn customer(age: f32) -> &'static str {
@@ -308,12 +325,12 @@ fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
             // (newest first: those who checked in, then those who checked out)
             for (id, age) in riders.iter() {
                 if !has(&cards.seen, *id) {
-                    cards.last.insert(0, (customer(*age).to_string(), false));
+                    cards.last.insert(0, (customer(*age).to_string(), card_type(*id), false));
                 }
             }
             for (id, age) in cards.seen.iter() {
                 if !has(riders, *id) {
-                    cards.last.insert(0, (customer(*age).to_string(), true));
+                    cards.last.insert(0, (customer(*age).to_string(), card_type(*id), true));
                 }
             }
             cards.last.truncate(READERS);
@@ -321,7 +338,7 @@ fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
         cards.seen = riders.to_vec();
         cards.begun = true;
     }
-    cards.last.iter().map(|(who, out)| json!({ "who": omsi_ui::tr(who).into_owned(), "out": out })).collect()
+    cards.last.iter().map(|(who, card, out)| json!({ "who": omsi_ui::tr(who).into_owned(), "card": card, "out": out })).collect()
 }
 
 pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Option<glam::DVec3>, speed_kmh: f32, passengers: Option<usize>, riders: &[(u32, f32)], paused: bool) {

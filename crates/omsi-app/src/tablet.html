@@ -140,16 +140,22 @@
      colour them by, so every card here is the blue personal one. The boxes do nothing:
      they are the driver's check that the customers remembered to check in and out. */
   .cards { position: absolute; left: 0; right: 0; bottom: calc(84 * var(--u)); height: var(--row);
-    display: flex; background: #d8e0e3; }
-  .cards i { flex: 1; position: relative; border-right: 1px solid #6b7580;
-    border-top: 1px solid #6b7580; border-bottom: 1px solid #6b7580; background: #fff;
-    display: flex; align-items: center; padding: 0 calc(16 * var(--u));
-    font-style: normal; font-size: calc(24 * var(--u)); color: #fff; overflow: hidden; }
-  .cards i.used { background: #2f7fd0; }
-  .cards i.out::before, .cards i.out::after { content: ""; position: absolute; left: calc(-6 * var(--u));
-    right: calc(-6 * var(--u)); top: 50%; height: calc(2 * var(--u)); background: #1b1b1b; }
-  .cards i.out::before { transform: rotate(20deg); }
-  .cards i.out::after { transform: rotate(-20deg); }
+    display: flex; gap: calc(9 * var(--u)); padding: calc(5 * var(--u)) calc(7 * var(--u));
+    background: #d8e0e3; }
+  .cards i { flex: 1; position: relative; border: calc(2 * var(--u)) solid #1b1b1b;
+    border-radius: calc(22 * var(--u)); background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-style: normal; font-size: calc(26 * var(--u)); color: #111; overflow: hidden; }
+  /* the manual's page 28: the background is the TYPE of card held to the reader */
+  .cards i.personal { background: #3573c2; }   /* personligt, pendler, ungdoms, skole */
+  .cards i.anon { background: #42b23b; }       /* anonymt */
+  .cards i.flex { background: #f5f014; }
+  .cards i.blocked { background: #d6342c; }    /* spærret ("BLK") */
+  /* a crossed box checked out: the two lines run corner to corner */
+  .cards i.out::before, .cards i.out::after { content: ""; position: absolute; left: calc(-8 * var(--u));
+    right: calc(-8 * var(--u)); top: 50%; height: calc(2 * var(--u)); background: #1b1b1b; }
+  .cards i.out::before { transform: rotate(18deg); }
+  .cards i.out::after { transform: rotate(-18deg); }
 
   /* (the fork) the console behind its lock, as the manual's page 18 has it: the same login
      screen, with the driver's own number standing grey and only the pass code to type */
@@ -769,7 +775,7 @@ function drawCards() {
   const c = (state && state.cards) || [];
   const html = Array.from({ length: 5 }, (_, i) => {
     const k = c[i];
-    return k ? `<i class="used${k.out ? " out" : ""}">${esc(k.who)}</i>` : "<i></i>";
+    return k ? `<i class="${esc(k.card || "personal")}${k.out ? " out" : ""}">${esc(k.who)}</i>` : "<i></i>";
   }).join("");
   document.querySelectorAll("[data-cards]").forEach((e) => { if (e.innerHTML !== html) e.innerHTML = html; });
 }
