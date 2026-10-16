@@ -21,6 +21,27 @@ pub const HEIGHT: u32 = 976;
 
 const PAGE: &str = include_str!("console_screen.html");
 
+/// The icons of the status strip along the top.
+///
+/// They are the tablet's own icons, rasterised: the tablet draws them as SVG with
+/// gradients, and this engine draws neither SVG nor a picture written into the page
+/// itself, so on the bus they have to be real pictures. The game carries them rather
+/// than asking the player for files, so there is nothing to put anywhere and nothing
+/// that can go missing. `assets/icons/console/README.md` says how they are made again.
+const ICONS: [(&str, &[u8]); 11] = [
+    ("crowd.png", include_bytes!("../../../assets/icons/console/crowd.png")),
+    ("signal.png", include_bytes!("../../../assets/icons/console/signal.png")),
+    ("printer.png", include_bytes!("../../../assets/icons/console/printer.png")),
+    ("gps.png", include_bytes!("../../../assets/icons/console/gps.png")),
+    ("reader.png", include_bytes!("../../../assets/icons/console/reader.png")),
+    ("reader_lock.png", include_bytes!("../../../assets/icons/console/reader_lock.png")),
+    ("warn.png", include_bytes!("../../../assets/icons/console/warn.png")),
+    ("help.png", include_bytes!("../../../assets/icons/console/help.png")),
+    ("pram.png", include_bytes!("../../../assets/icons/console/pram.png")),
+    ("arrow_up.png", include_bytes!("../../../assets/icons/console/arrow_up.png")),
+    ("arrow_down.png", include_bytes!("../../../assets/icons/console/arrow_down.png")),
+];
+
 /// Flatten `v` into the plain strings the page reads, under `name` and the names of
 /// whatever it holds, joined with `_`: `con`, `con_screen`, `con_sale_price`,
 /// `con_keys_menu`. A list numbers its own entries from zero (`con_rows_0_who`) and says
@@ -76,7 +97,14 @@ impl Default for ConsoleScreen {
 
 impl ConsoleScreen {
     pub fn new() -> ConsoleScreen {
-        ConsoleScreen { page: EngineRenderer::new(WIDTH, HEIGHT, PAGE), last: Vec::new(), started: false }
+        let mut page = EngineRenderer::new(WIDTH, HEIGHT, PAGE);
+        for (name, bytes) in ICONS {
+            match omsi_texture::decode_bytes(bytes, std::path::Path::new(name)) {
+                Ok(pic) => page.hold_picture(name, &pic),
+                Err(e) => log::warn!("the console's screen: the icon {name} cannot be read: {e}"),
+            }
+        }
+        ConsoleScreen { page, last: Vec::new(), started: false }
     }
 
     /// Hand the game down to the page and the page's presses back up. The keys come

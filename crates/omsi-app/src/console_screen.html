@@ -30,13 +30,21 @@
   body { margin: 0px; width: 1024px; height: 976px; background: #d8e0e3; color: #111111;
          font-size: 34px; line-height: 44px; }
 
-  /* the strip of status cells along the top (--bar 81 -> 65) */
+  /* the strip of status cells along the top (--bar 81 -> 65), with the tablet's own
+     icons in them: 46 across on the tablet, so 37 here. They are pictures and not SVG
+     because the engine draws no SVG - the game holds them itself, see console_screen.rs */
   #strip { height: 65px; background: #6b7580; }
   .cell { display: inline-block; width: 84px; height: 63px; margin: 0px 1px 0px 0px;
-          background: #ffffff; text-align: center; font-size: 15px;
-          line-height: 63px; color: #6a7278; }
-  .cell.good { background: #35a44b; color: #ffffff; font-weight: 700; }
-  .cell.bad { background: #d6342c; color: #ffffff; font-weight: 700; }
+          background: #ffffff; text-align: center; }
+  .cell.green { background: #51bd36; }
+  .cell.grey { background: #cdd0d6; }
+  /* a block and not a line of text: the icon sits where it is put, with no line box of
+     the body's 44px under it. (84 - 37) / 2 is the 23 across, (63 - 37) / 2 the 13 down */
+  .cell img { display: block; width: 37px; height: 37px; margin: 13px 0px 0px 23px; }
+  /* nobody checks in before a driver has logged in, so the cell stands blank there */
+  .cell.blank img { display: none; }
+  .cell.ifs { font-size: 10px; line-height: 11px; font-weight: 700; color: #3f9a37;
+              height: 42px; padding: 21px 0px 0px 0px; }
   /* (ten cells of 85 and the clock of 170 fill the 1024 across) */
   #clock { display: inline-block; width: 160px; height: 53px; text-align: right;
            background: #ffffff; font-size: 19px; line-height: 22px;
@@ -115,13 +123,16 @@
          font-weight: 700; border-radius: 4px; }
   .key.off { background: #ccd3d8; color: #6a7278; }
   .key.now { background: #ecebc2; }
-  .key.arrow { width: 76px; padding: 18px 0px 0px 0px; height: 42px; }
+  .key.arrow { width: 76px; }
   /* the pram in the bar is the group check-in reader, the short way to Check ind ekstra */
-  .key.pram { width: 104px; font-size: 19px; }
-
-  /* (the engine draws no borders, so the console's triangles are built of bars) */
-  .b { height: 5px; background: #111111; }
-  .key.off .b { background: #6a7278; }
+  .key.pram { width: 104px; }
+  /* the arrows and the pram are the tablet's own, 40 across there and so 32 here. A block
+     and not a line of text, so no line box of the key's 60 sits under them: (76 - 32) / 2
+     is the 22 across on an arrow, (104 - 32) / 2 the 36 on the pram, (60 - 32) / 2 the 14
+     down on both. A key that cannot be pressed goes grey behind the picture, as the
+     tablet's does - the picture itself stays black. */
+  .key img { display: block; width: 32px; height: 32px; margin: 14px 0px 0px 22px; }
+  .key.pram img { margin-left: 36px; }
 
   /* the number pad (the manual's page 8), a screen of its own here since the engine
      cannot lay one box over another */
@@ -141,11 +152,11 @@
 <body>
 
 <div id="strip">
-  <span class="cell">IFS-FM</span><span class="cell"></span><span class="cell"></span>
-  <span class="cell" id="crowd">Gruppe</span><span class="cell">Signal</span>
-  <span class="cell">Print</span><span class="cell" id="cgps">GPS</span>
-  <span class="cell" id="crdr">Kort</span><span class="cell" id="cwarn">Alarm</span>
-  <span class="cell">?</span>
+  <span class="cell ifs">IFS&#8201;&#8211;<br>FM</span><span class="cell"></span><span class="cell"></span>
+  <span class="cell" id="crowd"><img src="crowd.png"></span><span class="cell"><img src="signal.png"></span>
+  <span class="cell"><img src="printer.png"></span><span class="cell green" id="cgps"><img src="gps.png"></span>
+  <span class="cell" id="crdr"><img src="reader.png" id="irdr"></span><span class="cell green"><img src="warn.png"></span>
+  <span class="cell grey"><img src="help.png"></span>
   <span id="clock"><span class="d" id="date"></span><br><span class="t" id="time"></span></span>
 </div>
 
@@ -193,19 +204,9 @@
 <div id="foot">
   <span class="key" id="k-esc">ESC</span><span class="key" id="k-menu">Menu</span><span
   class="key" id="k-tix">Billetter</span><span class="key" id="k-linje">Linje</span><span
-  class="key" id="k-serve">Betjening</span><span class="key pram" id="k-pram">Gruppe</span><span class="key arrow" id="k-up"
-  ><div class="b" style="width:8px;margin-left:34px"></div
-  ><div class="b" style="width:18px;margin-left:29px"></div
-  ><div class="b" style="width:28px;margin-left:24px"></div
-  ><div class="b" style="width:38px;margin-left:19px"></div
-  ><div class="b" style="width:48px;margin-left:14px"></div
-  ><div class="b" style="width:58px;margin-left:9px"></div></span><span class="key arrow" id="k-down"
-  ><div class="b" style="width:58px;margin-left:9px"></div
-  ><div class="b" style="width:48px;margin-left:14px"></div
-  ><div class="b" style="width:38px;margin-left:19px"></div
-  ><div class="b" style="width:28px;margin-left:24px"></div
-  ><div class="b" style="width:18px;margin-left:29px"></div
-  ><div class="b" style="width:8px;margin-left:34px"></div></span>
+  class="key" id="k-serve">Betjening</span><span class="key pram" id="k-pram"><img src="pram.png"></span><span
+  class="key arrow" id="k-up"><img src="arrow_up.png"></span><span
+  class="key arrow" id="k-down"><img src="arrow_down.png"></span>
 </div>
 
 <script>
@@ -226,6 +227,7 @@ var was = {};
 var set = (id, v) => { if (was["t" + id] !== v) { was["t" + id] = v; $(id).textContent = v; } };
 var cls = (id, v) => { if (was["c" + id] !== v) { was["c" + id] = v; $(id).className = v; } };
 var put = (id, v) => { if (was["h" + id] !== v) { was["h" + id] = v; $(id).innerHTML = v; } };
+var src = (id, v) => { if (was["s" + id] !== v) { was["s" + id] = v; $(id).src = v; } };
 // what the game last sent under that name; "" for anything it has not decided
 var S = (k) => { var v = O.vars.str[k]; return v === undefined || v === null ? "" : String(v); };
 // a word the game sends, or the one this page was written with
@@ -291,10 +293,12 @@ function paint() {
   }
   set("date", S("s_date"));
   set("time", S("s_clock"));
-  // the console's own colours on the cells that have one (the manual's page 24)
-  cls("cgps", "cell " + (S("s_duty_gps") === "" && S("s_con_on_duty") !== "" ? "bad" : "good"));
-  cls("crdr", "cell " + (S("s_con_shut") === "" ? "good" : "bad"));
-  cls("cwarn", "cell good");
+  // the two cells that have something to say (the manual's pages 24 and 34), as the
+  // tablet says it: the GPS goes grey when the position is set by hand, and the card
+  // reader wears the padlock while the readers are shut
+  cls("cgps", "cell " + (S("s_duty_gps") === "" && S("s_con_on_duty") !== "" ? "grey" : "green"));
+  src("irdr", S("s_con_shut") === "" ? "reader.png" : "reader_lock.png");
+  cls("crowd", "cell" + (scr === "login" || scr === "start" ? " blank" : ""));
 
   footKeys();
   paintCards();

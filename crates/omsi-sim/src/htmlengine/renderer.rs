@@ -15,6 +15,9 @@ pub struct EngineRenderer {
     pub(crate) pressed: bool,
     /// The pictures of the page (`<img>`, `background-image`), loaded when first drawn.
     pub(crate) imgs: Arc<ImageStore>,
+    /// Pictures the program handed over itself (see [`EngineRenderer::hold_picture`]).
+    /// Kept here as well so a later `set_asset_dirs` does not throw them away.
+    pub(crate) held: HashMap<String, Arc<Img>>,
     /// The laid-out page of the last `dom.gen`, shared by `render` and `hit_node`.
     pub(crate) cache: Mutex<Option<LayoutCache>>,
     /// `dom.gen` of the last frame handed out.
@@ -65,9 +68,31 @@ impl EngineRenderer {
             start: std::time::Instant::now(),
             pressed: false,
             imgs: Arc::new(ImageStore::new(Vec::new())),
+            held: HashMap::new(),
             cache: Mutex::new(None),
             rendered_gen: 0,
         }
+    }
+
+    /// Hand the page a picture the program holds itself: `<img src="name">` and
+    /// `background-image: url(name)` find it without a file on the disk.
+    ///
+    /// It is for a page the program itself drives and ships with - the console's own
+    /// screen carries its icons this way - so that the artwork cannot go missing and
+    /// nothing has to be written into the player's folders. A name given twice keeps the
+    /// last picture, and a `set_asset_dirs` afterwards leaves these alone.
+    pub fn hold_picture(&mut self, name: &str, pic: &omsi_texture::Image) {
+        let px = pic.width as u64 * pic.height as u64;
+        if px == 0 || pic.rgba.len() as u64 != px * 4 {
+            log::warn!("htmltexture: held picture {name} has an unusable size {}x{}", pic.width, pic.height);
+            return;
+        }
+        let alpha = pic.has_alpha && pic.rgba.chunks_exact(4).any(|p| p[3] != 255);
+        let img = Img { w: pic.width, h: pic.height, rgba: pic.rgba.clone(), alpha };
+        self.held.insert(name.to_string(), Arc::new(img));
+        self.imgs = Arc::new(ImageStore::with_held(self.imgs.dirs().to_vec(), self.held.clone()));
+        *self.cache.lock().unwrap() = None;
+        self.dirty = true;
     }
 
     /// The cached layout when it is still current, else a fresh one.
@@ -347,7 +372,7 @@ impl HtmlRenderer for EngineRenderer {
     }
 
     fn set_asset_dirs(&mut self, dirs: Vec<std::path::PathBuf>) {
-        self.imgs = Arc::new(ImageStore::new(dirs));
+        self.imgs = Arc::new(ImageStore::with_held(dirs, self.held.clone()));
         *self.cache.lock().unwrap() = None;
         self.dirty = true;
     }

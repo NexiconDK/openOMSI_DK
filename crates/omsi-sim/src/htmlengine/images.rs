@@ -32,6 +32,10 @@ struct Scaled {
 
 pub(crate) struct ImageStore {
     dirs: Vec<PathBuf>,
+    /// Pictures the program holds itself, under a name of its own: they are found before
+    /// the disk is looked at, so a page the program drives can carry its own artwork
+    /// without a file anywhere (see [`super::EngineRenderer::hold_picture`]).
+    held: HashMap<String, Arc<Img>>,
     files: Mutex<HashMap<String, Option<Arc<Img>>>>,
     scaled: Mutex<Scaled>,
 }
@@ -39,11 +43,24 @@ pub(crate) struct ImageStore {
 impl ImageStore {
     /// `dirs` are searched in order for a relative path (the page's folder first).
     pub(crate) fn new(dirs: Vec<PathBuf>) -> ImageStore {
-        ImageStore { dirs, files: Mutex::new(HashMap::new()), scaled: Mutex::new(Scaled::default()) }
+        ImageStore::with_held(dirs, HashMap::new())
+    }
+
+    /// As [`ImageStore::new`], with pictures the program holds itself.
+    pub(crate) fn with_held(dirs: Vec<PathBuf>, held: HashMap<String, Arc<Img>>) -> ImageStore {
+        ImageStore { dirs, held, files: Mutex::new(HashMap::new()), scaled: Mutex::new(Scaled::default()) }
+    }
+
+    /// The folders a relative path is looked for in.
+    pub(crate) fn dirs(&self) -> &[PathBuf] {
+        &self.dirs
     }
 
     /// The picture behind `src`, `None` when there is none.
     pub(crate) fn get(&self, src: &str) -> Option<Arc<Img>> {
+        if let Some(hit) = self.held.get(src) {
+            return Some(hit.clone());
+        }
         if let Some(hit) = self.files.lock().unwrap().get(src) {
             return hit.clone();
         }
