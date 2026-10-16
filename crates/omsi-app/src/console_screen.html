@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Web-IBIS</title>
+<!--
+  (the fork) The driver console on the bus's own screen.
+
+  This page is drawn by openOMSI's own little HTML engine (crates/omsi-sim/src/htmlengine),
+  not by a browser, so it keeps to what that engine has: block flow and inline-block, no
+  flexbox and no gradients, and ES5 with arrow functions. It is why this is a page of its
+  own and not the tablet's: that one is written for a browser.
+
+  What it is not is a second console. Every decision - what a ticket costs, which screen is
+  up, which keys are alive - is made in the game (crates/omsi-app/src/console.rs), handed
+  down here as plain names (s_con_screen, s_con_sale_price ...) and drawn. A key sends its
+  name back with omsi.trigger("go:menu"), which is the same key the tablet sends.
+
+  The texture is 1024 by 976, the shape of the console's screen in the model.
+-->
+<style>
+  body { margin: 0px; width: 1024px; height: 976px; background: #ffffff; color: #111111;
+         font-size: 26px; line-height: 32px; }
+
+  /* the strip of status cells along the top (the manual's page 24). The console's own
+     icons are pictures the player has; until this screen is given them, each cell says
+     what it is in a word and carries the console's colour. */
+  #strip { height: 86px; background: #c8ccd0; }
+  .cell { display: inline-block; width: 84px; height: 84px; margin: 0px 1px 0px 0px;
+          background: #ffffff; text-align: center; font-size: 17px;
+          line-height: 84px; color: #6a7278; }
+  .cell.good { background: #35a44b; color: #ffffff; font-weight: 700; }
+  .cell.bad { background: #d6342c; color: #ffffff; font-weight: 700; }
+  #clock { display: inline-block; width: 168px; height: 84px; text-align: right;
+           background: #ffffff; font-size: 22px; line-height: 26px;
+           padding: 16px 10px 0px 0px; }
+  #clock .t { font-size: 32px; font-weight: 700; line-height: 38px; }
+
+  /* the body of whichever screen is up */
+  #body { height: 802px; background: #f2f2f2; }
+  .pane { display: none; }
+  .pane.on { display: block; }
+
+  /* the driving screen (the manual's page 11) */
+  #duty .blue { display: inline-block; width: 330px; height: 790px; background: #2f3192;
+                color: #ffffff; padding: 12px 14px 0px 14px; }
+  #duty .what { font-size: 22px; line-height: 30px; color: #b9bade; }
+  #duty .big { font-size: 40px; line-height: 50px; font-weight: 700; }
+  #duty .end { background: #ffffff; color: #111111; text-align: center; height: 64px;
+               line-height: 64px; font-weight: 700; margin: 22px 0px 0px 0px;
+               border-radius: 6px; font-size: 26px; }
+  #duty .slow { color: #ffd34d; font-weight: 700; font-size: 24px; line-height: 34px; }
+  #duty .stops { display: inline-block; width: 648px; height: 790px; }
+  .stop { height: 60px; margin: 0px 0px 2px 0px; padding: 0px 10px 0px 10px;
+          font-size: 28px; line-height: 60px; background: #ffffff; }
+  .stop .mark { display: inline-block; width: 54px; color: #d6342c; font-weight: 700; }
+  .stop .name { display: inline-block; }
+  .stop.here { background: #e7eaf7; }
+  .stop.past { color: #9aa0a6; }
+
+  /* the list of lines, and anything else that is only a title yet */
+  .title { text-align: center; font-size: 56px; line-height: 70px; font-weight: 700;
+           color: #55595d; padding: 230px 0px 0px 0px; }
+  .under { text-align: center; font-size: 26px; line-height: 34px; color: #7d8287; }
+
+  /* the login (the manual's page 8) */
+  #login .head { text-align: center; font-size: 78px; line-height: 96px; font-weight: 700;
+                 color: #55595d; padding: 120px 0px 60px 0px; }
+  .row { padding: 0px 0px 14px 0px; }
+  .lbl { display: inline-block; width: 390px; text-align: right; font-size: 28px;
+         line-height: 48px; padding: 0px 14px 0px 0px; }
+  .fld { display: inline-block; width: 540px; height: 48px; background: #ffffff;
+         font-size: 28px; line-height: 48px; padding: 0px 8px 0px 8px; }
+  .fld.here { background: #afe4e8; }
+  .hint { text-align: center; font-size: 24px; line-height: 32px; color: #55595d;
+          padding: 24px 0px 0px 0px; }
+
+  /* the bar along the foot (the manual's page 5) */
+  #foot { height: 88px; background: #ccd3d8; padding: 4px 0px 0px 4px; }
+  .key { display: inline-block; width: 160px; height: 78px; margin: 0px 4px 0px 0px;
+         background: #ffffff; text-align: center; font-size: 24px; line-height: 78px;
+         font-weight: 700; border-radius: 4px; }
+  .key.off { background: #ccd3d8; color: #6a7278; }
+  .key.now { background: #ecebc2; }
+  .key.arrow { width: 76px; padding: 22px 0px 0px 0px; height: 56px; }
+
+  /* (the engine draws no borders, so the console's triangles are built of bars: four
+     rows of a filled box, each a little wider or narrower than the one above it) */
+  .b { height: 5px; background: #111111; }
+  .key.off .b { background: #6a7278; }
+
+  /* the number pad (the manual's page 8). The engine lays boxes out in the flow and has
+     no way to stand one over another, so the pad is a screen of its own rather than a
+     panel over the one that asked for it - which is how the console's own pad looks when
+     it is up anyway: it covers nearly everything. */
+  #panel { width: 584px; background: #f2eea8; margin: 0px 0px 0px 220px;
+           padding: 16px 16px 16px 16px; }
+  #into { font-size: 26px; line-height: 40px; color: #55595d; }
+  #shown { height: 56px; background: #ffffff; font-size: 38px;
+           line-height: 56px; padding: 0px 12px 0px 12px; margin: 0px 0px 16px 0px; }
+  .col { display: inline-block; width: 140px; }
+  .pk { display: block; width: 134px; height: 86px; margin: 0px 6px 6px 0px;
+        background: #b6e3e8; text-align: center; font-size: 36px; line-height: 86px;
+        font-weight: 700; border-radius: 6px; }
+  .pk.dead { background: #cccccc; color: #888888; }
+  .pk.tall { height: 178px; line-height: 178px; font-size: 26px; }
+</style>
+</head>
+<body>
+
+<div id="strip">
+  <span class="cell">IFS-FM</span><span class="cell"></span><span class="cell"></span>
+  <span class="cell" id="crowd">Gruppe</span><span class="cell">Signal</span>
+  <span class="cell">Print</span><span class="cell" id="cgps">GPS</span>
+  <span class="cell" id="crdr">Kort</span><span class="cell" id="cwarn">Alarm</span>
+  <span class="cell">?</span>
+  <span id="clock"><span class="d" id="date"></span><br><span class="t" id="time"></span></span>
+</div>
+
+<div id="body">
+  <!-- the driving screen -->
+  <div class="pane" id="duty">
+    <span class="blue">
+      <div class="what" id="w-line">Linje</div>
+      <div class="big" id="v-line">&ndash;</div>
+      <div class="what" id="w-trip">Tur</div>
+      <div class="big" id="v-trip">&ndash;</div>
+      <div class="what" id="w-zone">Zone</div>
+      <div class="big" id="v-zone">&nbsp;</div>
+      <div class="slow" id="v-slow"></div>
+      <div class="end" id="k-end">Afslut tur</div>
+    </span><span class="stops" id="stops"></span>
+  </div>
+
+  <!-- the login -->
+  <div class="pane" id="login">
+    <div class="head" id="l-head">Web-IBIS</div>
+    <div class="row"><span class="lbl" id="l-driver">Chauff&oslash;rnummer:</span><span class="fld" id="f-driver"></span></div>
+    <div class="row"><span class="lbl" id="l-password">Adgangskode:</span><span class="fld" id="f-password"></span></div>
+    <div class="hint" id="l-hint"></div>
+  </div>
+
+  <!-- every other screen of the console, until each is drawn here too -->
+  <div class="pane" id="plain">
+    <div class="title" id="p-title">Web-IBIS</div>
+    <div class="under" id="p-under">Brug tavlen imens</div>
+  </div>
+
+  <!-- the number pad, which is a screen of its own here -->
+  <div class="pane" id="pad">
+    <div id="panel">
+      <div id="into"></div>
+      <div id="shown"></div>
+      <!-- (a column at a time, since the engine has no grid and the tall ENTER would
+           otherwise push the row under it out of line) -->
+      <span class="col"><span class="pk" id="p7">7</span><span class="pk" id="p4">4</span><span class="pk" id="p1">1</span><span class="pk" id="p0">0</span></span><span
+       class="col"><span class="pk" id="p8">8</span><span class="pk" id="p5">5</span><span class="pk" id="p2">2</span><span class="pk dead">&#183;</span></span><span
+       class="col"><span class="pk" id="p9">9</span><span class="pk" id="p6">6</span><span class="pk" id="p3">3</span><span class="pk" id="pce">CE</span></span><span
+       class="col"><span class="pk" id="px">X</span><span class="pk tall" id="pent">ENTER</span></span>
+    </div>
+  </div>
+</div>
+
+<div id="foot">
+  <span class="key" id="k-esc">ESC</span><span class="key" id="k-menu">Menu</span><span
+  class="key" id="k-tix">Billetter</span><span class="key" id="k-linje">Linje</span><span
+  class="key" id="k-serve">Betjening</span><span class="key arrow" id="k-up"
+  ><div class="b" style="width:8px;margin-left:34px"></div
+  ><div class="b" style="width:18px;margin-left:29px"></div
+  ><div class="b" style="width:28px;margin-left:24px"></div
+  ><div class="b" style="width:38px;margin-left:19px"></div
+  ><div class="b" style="width:48px;margin-left:14px"></div
+  ><div class="b" style="width:58px;margin-left:9px"></div></span><span class="key arrow" id="k-down"
+  ><div class="b" style="width:58px;margin-left:9px"></div
+  ><div class="b" style="width:48px;margin-left:14px"></div
+  ><div class="b" style="width:38px;margin-left:19px"></div
+  ><div class="b" style="width:28px;margin-left:24px"></div
+  ><div class="b" style="width:18px;margin-left:29px"></div
+  ><div class="b" style="width:8px;margin-left:34px"></div></span>
+</div>
+
+<script>
+window.omsi = window.omsi || {};
+var O = window.omsi;
+if (!O.vars) { O.vars = { num: {}, str: {} }; }
+if (!O.trigger) { O.trigger = function (n) {}; }
+
+var $ = (id) => document.getElementById(id);
+// what the game last sent under that name; "" for anything it has not decided
+var S = (k) => { var v = O.vars.str[k]; return v === undefined || v === null ? "" : String(v); };
+// a word the game sends, or the one this page was written with
+var W = (k, fallback) => { var v = S("s_labels_" + k); return v === "" ? fallback : v; };
+
+// a key sends its own name back: the console decides what it means, exactly as it does
+// for the tablet
+var tap = (id, key) => { $(id).onclick = () => { O.trigger(key); }; };
+
+tap("k-esc", "esc");
+tap("k-menu", "go:menu");
+tap("k-tix", "go:tix");
+tap("k-linje", "go:linje");
+tap("k-serve", "go:serve");
+tap("k-end", "end");
+tap("crowd", "extra:open");
+tap("f-driver", "pad:open:driver");
+tap("f-password", "pad:open:password");
+var digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+for (var i = 0; i < digits.length; i++) { tap("p" + digits[i], "pad:" + digits[i]); }
+tap("px", "pad:x");
+tap("pce", "pad:ce");
+tap("pent", "pad:enter");
+
+// (Linje is the one key of the bar that stands for two screens: the trip being driven, or
+// the list of lines when there is none)
+$("k-linje").onclick = () => { O.trigger(S("s_con_on_duty") === "" ? "go:lines" : "go:duty"); };
+
+// --- the screens -------------------------------------------------------------------
+// which pane the console's screen is drawn in; the rest are not drawn here yet, and say so
+var PANE = { duty: "duty", login: "login", start: "login" };
+var PANES = ["duty", "login", "plain", "pad"];
+// what the console calls each screen, for the pane that only names it
+var NAME = { lines: "line_choice", trips: "trip_choice", menu: "menu", sound: "set_sound",
+             serve: "operation", tix: "tickets", sale: "tickets", void: "void_sale",
+             extra: "extra_check_in", kind: "extra_check_in", rds: "rds", inf: "information" };
+
+function paint() {
+  var scr = S("s_con_screen");
+  // the pad is a screen of its own here, since nothing can be laid over anything else
+  var pane = S("s_con_pad_into") !== "" ? "pad" : (PANE[scr] || "plain");
+  for (var i = 0; i < PANES.length; i++) {
+    $(PANES[i]).className = PANES[i] === pane ? "pane on" : "pane";
+  }
+  $("date").textContent = S("s_date");
+  $("time").textContent = S("s_clock");
+  // the console's own colours on the cells that have one (the manual's page 24)
+  $("cgps").className = "cell " + (S("s_duty_gps") === "" && S("s_con_on_duty") !== "" ? "bad" : "good");
+  $("crdr").className = "cell " + (S("s_con_shut") === "" ? "good" : "bad");
+  $("cwarn").className = "cell good";
+
+  footKeys();
+  if (pane === "duty") { paintDuty(); }
+  if (pane === "login") { paintLogin(); }
+  if (pane === "pad") { paintPad(); }
+  if (pane === "plain") {
+    $("p-title").textContent = W(NAME[scr] || "", "Web-IBIS");
+    $("p-under").textContent = W("use_tablet", "Brug tavlen imens");
+  }
+}
+
+// white is a key you may press, grey one you may not, and yellow the menu you stand in -
+// all worked out in the game, so this screen marks the same keys as the tablet
+function footKeys() {
+  var k = ["menu", "tix", "linje", "serve"];
+  for (var i = 0; i < k.length; i++) {
+    var look = S("s_con_keys_" + k[i]);
+    $("k-" + k[i]).className = "key " + (look === "white" ? "" : look === "now" ? "now" : "off");
+  }
+  $("k-esc").textContent = "ESC";
+  $("k-menu").textContent = W("menu", "Menu");
+  $("k-tix").textContent = W("tickets", "Billetter");
+  $("k-linje").textContent = W("line", "Linje");
+  $("k-serve").textContent = W("operation", "Betjening");
+}
+
+function paintDuty() {
+  $("w-line").textContent = W("line", "Linje");
+  $("w-trip").textContent = W("rk_tour", "Tur");
+  $("w-zone").textContent = W("zone", "Zone");
+  $("v-line").textContent = S("s_duty_line") || "–";
+  $("v-trip").textContent = S("s_duty_tour") || "–";
+  $("v-zone").textContent = S("s_duty_zone");
+  $("v-slow").textContent = S("s_con_slow") === "" ? "" : W("delay", "Forsinkelse");
+  $("k-end").textContent = W("end_trip", "Afslut tur");
+
+  // the stops of the trip, as many as the screen holds, with the console's own mark
+  // against the one the bus is at or on its way to
+  var n = Number(S("s_duty_stops_n") || "0");
+  var at = Number(S("s_duty_next") || "0");
+  var from = Math.max(0, Math.min(at - 1, n - 12));
+  var html = "";
+  for (var i = from; i < n && i < from + 12; i++) {
+    var name = S("s_duty_stops_" + i + "_name");
+    // the console's red hand against the stop the bus is at, or on its way to
+    var mark = i === at ? "■" : "";
+    var look = i === at ? " here" : i < at ? " past" : "";
+    html += '<div class="stop' + look + '"><span class="mark">' + mark + '</span><span class="name">' + name + "</span></div>";
+  }
+  $("stops").innerHTML = html;
+}
+
+function paintLogin() {
+  var locked = S("s_con_locked") !== "";
+  $("l-head").textContent = locked ? W("console_locked", "Chaufførkonsollen er låst") : "Web-IBIS";
+  $("l-driver").textContent = W("driver", "Chaufførnummer") + ":";
+  $("l-password").textContent = W("password", "Adgangskode") + ":";
+  $("l-hint").textContent = locked ? W("lock_hint", "") : W("login_hint", "");
+
+  var into = S("s_con_pad_into");
+  var shown = S("s_con_pad_shown");
+  $("f-driver").textContent = into === "driver" ? shown : S("s_con_driver");
+  $("f-password").textContent = into === "password" ? shown : "";
+  var pick = into === "" ? "driver" : into;
+  $("f-driver").className = "fld" + (pick === "driver" ? " here" : "");
+  $("f-password").className = "fld" + (pick === "password" ? " here" : "");
+}
+
+// which field the pad is typing into, said in words at the head of the panel
+var INTO = { driver: "driver", password: "password", "sale:paid": "single", "sale:z": "zone_count",
+             "sale:n1": "adult", "sale:n2": "child", "vol:key": "set_sound",
+             "vol:dead": "set_sound", "vol:fault": "set_sound" };
+
+function paintPad() {
+  var into = S("s_con_pad_into");
+  $("into").textContent = W(INTO[into] || "", "");
+  $("shown").textContent = S("s_con_pad_shown");
+  // ENTER with nothing typed does nothing, so it is marked dead, as on the tablet
+  $("pent").className = "pk tall" + (S("s_con_pad_enter") === "" ? " dead" : "");
+}
+
+O.update = (d) => { paint(); };
+paint();
+</script>
+</body>
+</html>

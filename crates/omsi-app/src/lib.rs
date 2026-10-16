@@ -77,6 +77,7 @@ mod tablet;
 /// (the fork) The driver console's own decisions, shared by the page and by the console's
 /// own screen in the bus.
 mod console;
+mod console_screen;
 /// (the fork) The Rejsekort standers drawn in the bus.
 mod readers;
 mod telemetry;
