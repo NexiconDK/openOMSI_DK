@@ -259,6 +259,18 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
         // (the fork) KONTANTBILLET: the ticket is the console's own, the customer waiting
         // for it at the cash desk is the game's
         ("POST", "/sell") => json_of(ask(Ask::Sell)),
+        // (the fork) A key of the console's own screens. The console decides what it means
+        // (`crate::console`) - the page only says which key it was, so that the screen in
+        // the bus can say the same thing and the two cannot drift apart.
+        ("POST", "/press") => match field(body, "key") {
+            Some(key) => {
+                let did = crate::console::press(&key);
+                // a ticket sold has to reach the game, where a customer may be waiting
+                let sold = did == crate::console::Did::Sold && ask(Ask::Sell)["ok"] == Value::Bool(true);
+                json_of(json!({ "ok": did != crate::console::Did::Nothing, "sold": sold }))
+            }
+            None => ("400 Bad Request", "text/plain; charset=utf-8", b"which key?".to_vec()),
+        },
         // (the fork) Afslut tur: the trip given back to the game, not only to the page
         ("POST", "/end_trip") => json_of(ask(Ask::EndTrip)),
         ("POST", "/head_for") => match field(body, "stop").and_then(|s| s.parse().ok()) {
@@ -501,6 +513,8 @@ pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Optio
     let (day, month) = clock.day_month();
     let date = format!("{day}/{month}/{:02}", clock.year.rem_euclid(100));
     let mut v = state(duty, clock.time, &date, bus, speed_kmh, passengers, paused);
+    // (the fork) what the console has decided, for whichever screen is drawing it
+    v["con"] = crate::console::with(|c| c.value());
     // (the fork) the console's row of card readers, from who came and went in the bus
     {
         let mut guard = CARDS.lock().unwrap_or_else(|e| e.into_inner());
@@ -903,7 +917,9 @@ mod tests {
     fn selling_a_cash_ticket_reaches_the_game() {
         let sold = get("POST /sell HTTP/1.1\r\nContent-Length: 10\r\n\r\nprice=22.00");
         assert!(sold.ends_with(r#"{"asked":"Sell"}"#), "{sold}");
-        assert!(PAGE.contains("/sell"), "the page has lost the way to sell a ticket");
+        // the page itself presses keys; selling is what the console makes of the press
+        assert!(PAGE.contains("/press"), "the page has lost the way to press a key");
+        assert!(PAGE.contains(r#"press("ok")"#), "the page has lost the key that sells");
     }
 
     /// (the fork) **Afslut tur** has to reach the game too. It used to take the console

@@ -74,6 +74,9 @@ mod schedule_paper;
 mod real_time;
 mod settings;
 mod tablet;
+/// (the fork) The driver console's own decisions, shared by the page and by the console's
+/// own screen in the bus.
+mod console;
 mod telemetry;
 mod threads;
 /// (the fork) Lightning and thunder: the flash, the channel on the sky and the clap.

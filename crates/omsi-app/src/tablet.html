@@ -1092,10 +1092,9 @@ $("pad").addEventListener("click", (e) => {
   // what the customer put in the driver's hand
   if (k === "enter" && padFor.startsWith("sale:")) {
     const f = padFor.slice(5), n = parseInt(padVal || "0", 10) || 0;
-    if (f === "paid") sale.paid = Math.max(0, Math.min(9999, n));
-    else if (f === "z") sale.z = Math.max(1, Math.min(99, n));
-    else sale[f] = Math.max(0, Math.min(99, n));
-    padClose(); saleDraw(); return beep("key");
+    // (the money is typed in kroner and the console counts in øre)
+    const key = f === "paid" ? `paid:${n * 100}` : f === "z" ? `zones:${n}` : `count:${f === "n1" ? 0 : 1}:${n}`;
+    padClose(); press(key); return beep("key");
   }
   if (k === "enter") {
     const field = padFor;
@@ -1424,57 +1423,47 @@ function rdsDraw() {
 }
 document.querySelectorAll("#rds [data-r]").forEach((b) => b.addEventListener("click", () => tell("/readers", { op: b.dataset.r })));
 
-// (the fork) KONTANTBILLET, the manual's pages 13 to 18. The console sells a cash ticket
-// by how many zones the journey crosses. The sales menu sells the everyday ticket in one
-// press - one adult or one child, one to six zones - and Flere... opens the ticket itself,
-// where the numbers, the customer types and the zones are all set by hand.
-//
-// The fares are Midttrafik's own, read off the manual's examples: 22,00 kr for an adult
-// over two zones and 10,00 kr for every zone after that (page 18 sells seven zones for
-// 72,00), half of that for a child, and 13,00 kr for a bicycle however far it goes (page
-// 18 sells one beside a two-zone adult ticket for 35,00 together). A dog travels as a
-// child, which the manual's page 17 says in so many words.
-const FARE = {
-  adult: (z) => 22 + 10 * Math.max(0, z - 2),
-  child: (z) => (22 + 10 * Math.max(0, z - 2)) / 2,
-  bike: () => 13,
-};
-// `paid` is what the customer put in the driver's hand: nothing yet means he had it
-// counted out, and the field under it has nothing to give back
-let sale = { n1: 1, n2: 0, t1: "adult", t2: "child", z: 2, edit: false, paid: null };
-const kr = (v) => v.toFixed(2).replace(".", ",");
-const salePrice = () => sale.n1 * FARE[sale.t1](sale.z) + sale.n2 * FARE[sale.t2](sale.z);
+// (the fork) KONTANTBILLET, the manual's pages 13 to 20. What a ticket costs, which press
+// of OK sells it and what is left to give back are the console's own decisions, and they
+// are made in the game (`crate::console`) rather than here. This page says which key was
+// pressed and draws what it is sent back - and so, in its turn, will the console's own
+// screen in the bus. Two screens that decided these things for themselves would drift
+// apart inside a week.
+const sale = () => (state && state.con && state.con.sale) || null;
+
+// a key of the console: the game decides what it means and sends the console back
+async function press(key) {
+  try { await getJson("/press", { method: "POST", body: new URLSearchParams({ key }) }); } catch (e) { return; }
+  try { state = await getJson("/state"); } catch (e) {}
+  saleDraw(); voidKey();
+}
 
 // a zone key on the sales menu, or Flere... (no zones), which opens the ticket to be
 // written out by hand
-function saleOpen(who, zones) {
-  sale = { n1: who === "adult" ? 1 : 0, n2: who === "child" ? 1 : 0,
-           t1: "adult", t2: "child", z: zones || 1, edit: !zones, paid: null };
+document.querySelectorAll("#tix [data-buy]").forEach((b) => b.addEventListener("click", async () => {
   whoClose();
+  await press(`buy:${b.dataset.buy}:${b.dataset.z}`);
   show("sale");
-}
-document.querySelectorAll("#tix [data-buy]").forEach((b) =>
-  b.addEventListener("click", () => saleOpen(b.dataset.buy, +b.dataset.z)));
+}));
 
 function saleDraw() {
-  const L = labels, box = document.querySelector("#sale .sale");
-  box.classList.toggle("edit", sale.edit);
-  box.classList.toggle("pay", !sale.edit);
-  $("s-n1").textContent = sale.n1;
-  $("s-n2").textContent = sale.n2;
-  $("s-t1").textContent = L[sale.t1] ?? sale.t1;
-  $("s-t2").textContent = L[sale.t2] ?? sale.t2;
-  $("s-z").textContent = sale.z;
+  const L = labels, s = sale();
+  if (!s) return;
+  const box = document.querySelector("#sale .sale");
+  box.classList.toggle("edit", s.edit);
+  box.classList.toggle("pay", !s.edit);
+  $("s-n1").textContent = s.n1;
+  $("s-n2").textContent = s.n2;
+  $("s-t1").textContent = L[s.t1] ?? s.t1;
+  $("s-t2").textContent = L[s.t2] ?? s.t2;
+  $("s-z").textContent = s.z;
   // the manual's page 15: the console knows which zone the bus is in, so the driver has
   // only to read the price out
-  $("s-dz").textContent = (state && state.duty && state.duty.zone) || "–";
-  // the fare, what the customer handed over, and what he has to have back
-  const price = salePrice(), paid = sale.paid == null ? price : sale.paid;
-  const back = Math.max(0, paid - price);
-  $("s-price").textContent = kr(price);
-  $("s-paid").textContent = kr(paid);
-  $("s-back").textContent = kr(back);
-  $("s-back").classList.toggle("owed", back > 0);
+  $("s-dz").textContent = (state && state.duty && state.duty.zone) || "\u2013";
+  $("s-price").textContent = s.price;
+  $("s-paid").textContent = s.paid;
+  $("s-back").textContent = s.back;
+  $("s-back").classList.toggle("owed", s.owed);
 }
 
 // the white fields of the ticket: a number comes from the console's own pad, a customer
@@ -1482,33 +1471,31 @@ function saleDraw() {
 let whoFor = null;
 function whoOpen(which) {
   whoFor = which;
-  const list = $("s-who");
+  const s = sale(), list = $("s-who");
   list.className = "who on " + (which === "t1" ? "c1" : "c2");
-  list.querySelectorAll("[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === sale[which]));
+  list.querySelectorAll("[data-k]").forEach((b) => b.classList.toggle("on", s && b.dataset.k === s[which]));
 }
 function whoClose() { whoFor = null; $("s-who").className = "who"; }
 $("s-who").addEventListener("click", (e) => {
   const k = e.target.closest("[data-k]");
-  if (k && whoFor) { sale[whoFor] = k.dataset.k; saleDraw(); }
+  if (k && whoFor) press(`who:${whoFor === "t1" ? 0 : 1}:${k.dataset.k}`);
   whoClose();
 });
 ["n1", "n2", "z"].forEach((f) => $("s-" + f).addEventListener("click", () => {
-  if (sale.edit) { whoClose(); padOpen("sale:" + f); }
+  if (sale()?.edit) { whoClose(); padOpen("sale:" + f); }
 }));
-["t1", "t2"].forEach((f) => $("s-" + f).addEventListener("click", () => { if (sale.edit) whoOpen(f); }));
+["t1", "t2"].forEach((f) => $("s-" + f).addEventListener("click", () => { if (sale()?.edit) whoOpen(f); }));
 // the white field is what the customer came with: type 50 for a fifty, and the field
 // under it says what he has to have back
-$("s-paid").addEventListener("click", () => { if (!sale.edit) padOpen("sale:paid"); });
+$("s-paid").addEventListener("click", () => { if (sale() && !sale().edit) padOpen("sale:paid"); });
 
 // the manual's two presses: the first takes the ticket as it is written out (page 17),
 // the second is the one for when the driver HAS the money in his hand (pages 15 and 18).
 // Selling hands the ticket to whoever stands waiting for one at the cash desk.
 $("s-ok").addEventListener("click", async () => {
-  if (sale.edit) { sale.edit = false; return saleDraw(); }
-  lastSale = { n1: sale.n1, t1: sale.t1, n2: sale.n2, t2: sale.t2, z: sale.z, price: salePrice() };
-  voidKey();
-  await tell("/sell", { price: salePrice().toFixed(2) });
-  show(tixBack || whence());
+  const was = sale()?.edit;
+  await press("ok");
+  if (!was) show(tixBack || whence());
 });
 
 // (the fork) KONTANTBILLET - ANNULLER, the manual's pages 19 and 20. Only the ticket last
@@ -1516,22 +1503,22 @@ $("s-ok").addEventListener("click", async () => {
 // no other. What the cancellation really is, is a slip of paper that is stapled to the
 // ticket and goes in with the settlement; so the customer keeps the ticket already in his
 // hand, and the game's takings stand as they are.
-let lastSale = null;
+const lastSale = () => (state && state.con && state.con.last) || null;
 
 function voidDraw() {
-  const L = labels, t = lastSale;
+  const L = labels, t = lastSale();
   if (!t) return;
   $("v-n1").textContent = t.n1;
   $("v-n2").textContent = t.n2;
   $("v-t1").textContent = L[t.t1] ?? t.t1;
   $("v-t2").textContent = L[t.t2] ?? t.t2;
-  $("v-price").textContent = kr(t.price);
+  $("v-price").textContent = t.price;
 }
 // the key in the Betjening menu stands grey while there is no ticket to take back
-function voidKey() { $("b-void").className = lastSale ? "mi" : "mi off dead"; }
-$("b-void").addEventListener("click", () => { if (lastSale) show("void"); });
+function voidKey() { $("b-void").className = lastSale() ? "mi" : "mi off dead"; }
+$("b-void").addEventListener("click", () => { if (lastSale()) show("void"); });
 $("v-no").addEventListener("click", () => show("serve"));
-$("v-yes").addEventListener("click", () => { lastSale = null; voidKey(); show("serve"); });
+$("v-yes").addEventListener("click", async () => { await press("void"); show("serve"); });
 
 // (the fork) CHECK IND EKSTRA, the manual's pages 24 to 26: more travellers on one card,
 // or a card given another customer type for this journey alone. The manual's own four
