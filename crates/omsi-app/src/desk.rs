@@ -41,15 +41,22 @@ pub const SCREEN_TEX: &str = "skærmtexture";
 pub const BLANK: &str = "\
 # Rejsekort-chaufførkonsollen i bussen. Én linje, på samme form som standere.txt:\n\
 #\n\
-#   <bus>  <x> <y> <z>  <drejning>  [skala]\n\
+#   <bus>  <x> <y> <z>  <drejning>  [skala] [hældning] [kip]\n\
 #\n\
 # <bus> er bussens .bus-filnavn (uden mappe), eller * for alle busser.\n\
 # x er til højre, y er fremad og z er opad, i meter fra bussens nulpunkt.\n\
-# Drejningen er grader om lodret: 0 vender konsollen mod bussens højre side.\n\
 #\n\
-# Skalaen er valgfri og 1 som standard. Bordet er 40 x 40 cm i modellen og\n\
-# skærmen 12,8 x 12,2 cm; passer det ikke i din bus, så skru på tallet.\n\
-# Den skaleres om modellens eget nulpunkt, så ret x, y og z til bagefter.\n\
+# De tre sidste tal er valgfri. Står de der ikke, er skalaen 1 og konsollen\n\
+# står lodret.\n\
+#\n\
+# Drejning:  grader om lodret - hvilken vej den vender.\n\
+#            0 vender konsollen mod bussens højre side.\n\
+# Skala:     1 er modellen i sin egen størrelse. Bordet er 40 x 40 cm og\n\
+#            skærmen 12,8 x 12,2 cm; passer det ikke i din bus, så skru på tallet.\n\
+# Hældning:  grader om tværaksen - plus vipper toppen fremad i bussen.\n\
+# Kip:       grader om længdeaksen - plus hælder toppen mod højre.\n\
+#\n\
+# Der drejes og skaleres om modellens eget nulpunkt, så ret x, y og z til bagefter.\n\
 #\n\
 # Selve modellen ligger i undermappen Konsol/ — alle .o3d-filer der bliver hængt op\n\
 # sammen, og den flade, hvis tekstur hedder Skærmtexture.png, bliver skærmen.\n\

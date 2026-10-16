@@ -32,21 +32,28 @@ pub const BLANK: &str = "\
 # Rejsekort-standere i bussen. En linje pr. stander, i den rækkefølge de skal\n\
 # nummereres: den første er stander 1, salgskortlæseren ved chaufføren.\n\
 #\n\
-#   <bus>  <x> <y> <z>  <drejning>  [skala]\n\
+#   <bus>  <x> <y> <z>  <drejning>  [skala] [hældning] [kip]\n\
 #\n\
 # <bus> er bussens .bus-filnavn (uden mappe), eller * for alle busser.\n\
 # x er til højre, y er fremad og z er opad, i meter fra bussens nulpunkt.\n\
-# Drejningen er grader om lodret: 0 vender standeren mod bussens højre side.\n\
 #\n\
-# Skalaen er valgfri og 1 som standard, altså modellen i sin egen størrelse.\n\
-# Modellen checkind.o3d er 45 cm bred og 68 cm høj; en rigtig Rejsekort-stander\n\
-# er cirka 21 x 30 cm, så omkring 0.45 rammer den rigtige størrelse.\n\
-# Den skaleres om modellens eget nulpunkt, så ret x, y og z til bagefter.\n\
+# De tre sidste tal er valgfri. Står de der ikke, er skalaen 1 og standeren\n\
+# står lodret, præcis som før de fandtes.\n\
+#\n\
+# Drejning:  grader om lodret - hvilken vej den vender.\n\
+#            0 vender standeren mod bussens højre side.\n\
+# Skala:     1 er modellen i sin egen størrelse. checkind.o3d er 45 cm bred og\n\
+#            68 cm høj, men en rigtig Rejsekort-stander er cirka 21 x 30 cm, så\n\
+#            omkring 0.45 rammer den rigtige størrelse.\n\
+# Hældning:  grader om tværaksen - plus vipper toppen fremad i bussen.\n\
+# Kip:       grader om længdeaksen - plus hælder toppen mod højre.\n\
+#\n\
+# Der drejes og skaleres om modellens eget nulpunkt, så ret x, y og z til bagefter.\n\
 #\n\
 # Linjer, der begynder med #, er kommentarer.\n\
 \n\
 # *   -1.00   5.20   1.05    0    0.45\n\
-# *   -1.00   1.60   1.05    0    0.45\n\
+# *   -1.00   1.60   1.05    0    0.45   15\n\
 ";
 
 /// Where one stander stands, in the bus's own frame.
@@ -55,21 +62,35 @@ pub struct Spot {
     /// The bus this belongs to (its `.bus` file name), or none for every bus.
     pub bus: Option<String>,
     pub at: Vec3,
-    /// Degrees about the upright.
+    /// Degrees about the upright (z): which way it faces.
     pub turn: f32,
     /// How large the model is drawn, 1 being its own size. The player's own models are
     /// built at whatever size he built them at - the Rejsekort stander is 45 cm across
     /// where a real one is 21 - so this is how he brings one down to size without
     /// opening the model again.
     pub scale: f32,
+    /// Degrees about the cross axis (x): a positive one tips the top **forward**, towards
+    /// the front of the bus, for a reader held out to the customer rather than standing
+    /// straight up.
+    pub tip: f32,
+    /// Degrees about the length axis (y): a positive one leans the top to the **right**,
+    /// for one on a slanted panel or a wall that is not upright.
+    pub lean: f32,
 }
 
 impl Spot {
     /// Where it sits in the bus, as a matrix. The mesh arrives in the bus's own frame
     /// already (`mesh_from_o3d` swaps the file's Y and Z), so this only moves, turns and
-    /// sizes it. The sizing is about the model's own origin, as turning is.
+    /// sizes it. All three are about the model's own origin.
+    ///
+    /// The three turns are taken in the order a person sets them: first which way it
+    /// faces, then how far it is tipped forward, then how far it leans to one side.
+    /// The tip is negated so that a positive one tips the top forward rather than back,
+    /// which is the way round anybody would expect who has not thought about axes.
     pub fn matrix(&self) -> Mat4 {
-        Mat4::from_translation(self.at) * Mat4::from_rotation_z(self.turn.to_radians()) * Mat4::from_scale(Vec3::splat(self.scale))
+        Mat4::from_translation(self.at)
+            * Mat4::from_euler(glam::EulerRot::ZXY, self.turn.to_radians(), -self.tip.to_radians(), self.lean.to_radians())
+            * Mat4::from_scale(Vec3::splat(self.scale))
     }
 
     /// Whether this line belongs to the bus whose `.bus` file is `file`.
@@ -89,20 +110,24 @@ impl Spot {
             }
             let w: Vec<&str> = line.split_whitespace().collect();
             let nums: Option<Vec<f32>> = (w.len() >= 5).then(|| w[1..5].iter().map(|v| v.parse().ok()).collect::<Option<Vec<f32>>>()).flatten();
-            // the scale is the one column that may be left out: a line written before
-            // there was one still means the model in its own size
-            let scale = match w.get(5) {
-                None => Some(1.0),
-                Some(s) => s.parse::<f32>().ok().filter(|v| *v > 0.0),
+            // the last three columns may each be left out, so a line written before they
+            // existed still means what it meant: the model in its own size, standing
+            // straight up
+            let opt = |i: usize, stock: f32| match w.get(i) {
+                None => Some(stock),
+                Some(s) => s.parse::<f32>().ok(),
             };
-            match (nums, scale) {
-                (Some(v), Some(scale)) => out.push(Spot {
+            let scale = opt(5, 1.0).filter(|v| *v > 0.0);
+            match (nums, scale, opt(6, 0.0), opt(7, 0.0)) {
+                (Some(v), Some(scale), Some(tip), Some(lean)) => out.push(Spot {
                     bus: (w[0] != "*").then(|| w[0].to_string()),
                     at: Vec3::new(v[0], v[1], v[2]),
                     turn: v[3],
                     scale,
+                    tip,
+                    lean,
                 }),
-                _ => log::warn!("{SPOTS} line {}: {line:?} is not <bus> <x> <y> <z> <turn> [scale]", n + 1),
+                _ => log::warn!("{SPOTS} line {}: {line:?} is not <bus> <x> <y> <z> <turn> [scale] [tip] [lean]", n + 1),
             }
         }
         out
@@ -255,11 +280,19 @@ MB_O530.bus  -1.02  1.60  1.05  180   0.45
         assert_eq!(got.len(), 3, "the four bad lines are passed over: {got:?}");
         assert_eq!(got[0].bus, None);
         assert_eq!(got[0].at, Vec3::new(-1.00, 5.20, 1.05));
-        assert_eq!(got[0].scale, 1.0, "a line with no scale means the model's own size");
+        // a line written before the last three columns existed means what it always meant
+        assert_eq!(got[0].scale, 1.0, "the model's own size");
+        assert_eq!((got[0].tip, got[0].lean), (0.0, 0.0), "standing straight up");
         assert_eq!(got[1].bus.as_deref(), Some("MB_O530.bus"));
         assert_eq!(got[1].turn, 180.0);
         assert_eq!(got[1].scale, 0.45);
         assert_eq!(got[2].at.y, 3.00, "a comment after the numbers is still a line");
+
+        // and the two turns beyond the upright one, each on its own or together
+        let more = Spot::read("*  0 0 0  90  0.45  15\n*  0 0 0  0  1  -8  20\n");
+        assert_eq!(more.len(), 2, "{more:?}");
+        assert_eq!((more[0].tip, more[0].lean), (15.0, 0.0));
+        assert_eq!((more[1].tip, more[1].lean), (-8.0, 20.0));
 
         // a line for one bus belongs to that bus alone; a * belongs to every one
         assert!(got[0].fits("anything.bus"));
@@ -271,7 +304,7 @@ MB_O530.bus  -1.02  1.60  1.05  180   0.45
     /// about the upright, never scaled or tipped.
     #[test]
     fn a_stander_stands_where_it_is_put() {
-        let s = Spot { bus: None, at: Vec3::new(-1.0, 5.2, 1.05), turn: 90.0, scale: 1.0 };
+        let s = Spot { bus: None, at: Vec3::new(-1.0, 5.2, 1.05), turn: 90.0, scale: 1.0, tip: 0.0, lean: 0.0 };
         let m = s.matrix();
         // its own origin lands where the line says
         assert!((m.transform_point3(Vec3::ZERO) - s.at).length() < 1e-5);
@@ -287,7 +320,7 @@ MB_O530.bus  -1.02  1.60  1.05  180   0.45
     /// without opening the model, and it keeps its shape - no stretching in one direction.
     #[test]
     fn a_stander_is_brought_down_to_size() {
-        let s = Spot { bus: None, at: Vec3::new(-1.0, 5.2, 1.05), turn: 0.0, scale: 0.45 };
+        let s = Spot { bus: None, at: Vec3::new(-1.0, 5.2, 1.05), turn: 0.0, scale: 0.45, tip: 0.0, lean: 0.0 };
         let m = s.matrix();
         // where it stands is where the line says, whatever size it is drawn at
         assert!((m.transform_point3(Vec3::ZERO) - s.at).length() < 1e-5);
@@ -301,6 +334,33 @@ MB_O530.bus  -1.02  1.60  1.05  180   0.45
         let tall = m.transform_vector3(Vec3::new(0.0, 0.0, 0.682)).length();
         assert!((across - 0.203).abs() < 0.01, "about 20 cm across, not {across}");
         assert!((tall - 0.307).abs() < 0.01, "about 31 cm tall, not {tall}");
+    }
+
+    /// (the fork) A stander can be tipped and leaned as well as turned, for one held out
+    /// to the customer or sitting on a panel that is not upright. Each turn is about the
+    /// model's own origin, and none of them changes where it stands or how big it is.
+    #[test]
+    fn a_stander_can_be_tipped_and_leaned() {
+        let flat = Spot { bus: None, at: Vec3::new(-1.0, 5.2, 1.05), turn: 0.0, scale: 1.0, tip: 0.0, lean: 0.0 };
+
+        // tipped a quarter round forward, what pointed up points forward
+        let s = Spot { tip: 90.0, ..flat.clone() };
+        let up = s.matrix().transform_vector3(Vec3::Z);
+        assert!((up - Vec3::Y).length() < 1e-5, "a positive tip goes forward, not {up:?}");
+
+        // leaned a quarter round, what pointed up points to the right
+        let s = Spot { lean: 90.0, ..flat.clone() };
+        let up = s.matrix().transform_vector3(Vec3::Z);
+        assert!((up - Vec3::X).length() < 1e-5, "a positive lean goes right, not {up:?}");
+
+        // however it is turned, it stands where the line says and keeps its size
+        for s in [Spot { tip: 20.0, lean: -35.0, turn: 110.0, ..flat.clone() }, Spot { tip: -70.0, ..flat.clone() }] {
+            let m = s.matrix();
+            assert!((m.transform_point3(Vec3::ZERO) - s.at).length() < 1e-5, "{s:?}");
+            for v in [Vec3::X, Vec3::Y, Vec3::Z] {
+                assert!((m.transform_vector3(v).length() - 1.0).abs() < 1e-5, "{s:?} along {v:?}");
+            }
+        }
     }
 
     /// (the fork) The blank file says what to write in it, and says nothing the reader

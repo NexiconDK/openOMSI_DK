@@ -107,12 +107,21 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
   Hver linje i `standere.txt` er én stander, i den rækkefølge de nummereres — den første er **stander 1, salgskortlæseren**:
 
   ```
-  <bus>  <x> <y> <z>  <drejning>  [skala]
+  <bus>  <x> <y> <z>  <drejning>  [skala] [hældning] [kip]
   ```
 
-  `<bus>` er bussens `.bus`-filnavn uden mappe, eller `*` for alle busser. `x` er til højre, `y` fremad og `z` opad, i meter fra bussens nulpunkt. Drejningen er grader om lodret; 0 vender standeren mod bussens højre side. Linjer med `#` er kommentarer, og en linje, du har tastet forkert, bliver sprunget over med en besked i loggen i stedet for at tage resten af filen med sig.
+  `<bus>` er bussens `.bus`-filnavn uden mappe, eller `*` for alle busser. `x` er til højre, `y` fremad og `z` opad, i meter fra bussens nulpunkt. Linjer med `#` er kommentarer, og en linje, du har tastet forkert, bliver sprunget over med en besked i loggen i stedet for at tage resten af filen med sig.
 
-  **Skalaen er valgfri og 1 som standard**, altså modellen i sin egen størrelse. Den medfølgende `checkind.o3d` er **45 cm bred og 68 cm høj**, mens en rigtig Rejsekort-stander er cirka 21 × 30 cm — så den fylder godt det dobbelte i hver retning og rager op over sæderne. Skriv **0.45** som sjette tal, så rammer den den rigtige størrelse. Der skaleres om modellens eget nulpunkt, så ret `x`, `y` og `z` til bagefter. Den samme kolonne findes i `konsol.txt`.
+  **De tre sidste tal er valgfri** — står de der ikke, er skalaen 1 og standeren står lodret, præcis som før de fandtes, så dine gamle linjer betyder stadig det samme.
+
+  | | hvad det gør |
+  |---|---|
+  | **Drejning** | Grader om lodret — hvilken vej den vender. 0 vender standeren mod bussens højre side. |
+  | **Skala** | 1 er modellen i sin egen størrelse. |
+  | **Hældning** | Grader om tværaksen — et plustal vipper toppen fremad i bussen. |
+  | **Kip** | Grader om længdeaksen — et plustal hælder toppen mod højre. |
+
+  Den medfølgende `checkind.o3d` er **45 cm bred og 68 cm høj**, mens en rigtig Rejsekort-stander er cirka 21 × 30 cm — så den fylder godt det dobbelte i hver retning og rager op over sæderne. Skriv **0.45** som skala, så rammer den den rigtige størrelse. Der drejes og skaleres om modellens eget nulpunkt, så ret `x`, `y` og `z` til bagefter. De samme kolonner findes i `konsol.txt`.
 
   **Du skal ikke genstarte for at flytte på dem.** Gemmer du filen, mens spillet kører, bliver standerne hængt op igen med det samme — du retter et tal, gemmer, og kigger. Det samme gælder `konsol.txt`.
 
