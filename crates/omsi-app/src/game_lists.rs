@@ -3244,6 +3244,15 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
         // (the fork) the card reader setup's keys: the readers are the console's own, so
         // the answer is simply whether the key meant anything
         Ask::Readers(op) => json!({ "ok": crate::tablet::set_readers(&op) }),
+        // (the fork) KONTANTBILLET, the manual's pages 13 to 18. The ticket itself is the
+        // console's own fiction - the zones and the fare are worked out there - but the
+        // customer standing at the cash desk waiting for it is the game's, so pressing OK
+        // hands him his ticket, exactly as the ticket key does.
+        Ask::Sell => {
+            let Some(p) = app.player.as_mut() else { return json!({ "ok": false, "error": "no bus" }) };
+            p.give_ticket = true;
+            json!({ "ok": true })
+        }
     }
 }
 

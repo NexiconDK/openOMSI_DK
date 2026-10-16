@@ -64,6 +64,9 @@ pub enum Ask {
     HeadFor(usize),
     /// (the fork) The card reader setup's keys (the manual's page 33).
     Readers(String),
+    /// (the fork) KONTANTBILLET (the manual's pages 13 to 18): a cash ticket sold, which
+    /// hands one to whoever stands waiting for it at the cash desk.
+    Sell,
 }
 
 /// Switch the page on or off, on `port` (from the settings; live).
@@ -251,6 +254,9 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
             Some(op) => json_of(ask(Ask::Readers(op))),
             None => ("400 Bad Request", "text/plain; charset=utf-8", b"which key?".to_vec()),
         },
+        // (the fork) KONTANTBILLET: the ticket is the console's own, the customer waiting
+        // for it at the cash desk is the game's
+        ("POST", "/sell") => json_of(ask(Ask::Sell)),
         ("POST", "/head_for") => match field(body, "stop").and_then(|s| s.parse().ok()) {
             Some(stop) => json_of(ask(Ask::HeadFor(stop))),
             None => ("400 Bad Request", "text/plain; charset=utf-8", b"which stop?".to_vec()),
@@ -290,8 +296,9 @@ enum Reads {
 struct Cards {
     /// Who was in the bus when this was last looked at (id and age, by id).
     seen: Vec<(u32, f32)>,
-    /// What was last held to each reader: (customer type, card type, checked out).
-    slot: Vec<Option<(String, &'static str, bool)>>,
+    /// What was last held to each reader: (customer type, card type, checked out, when).
+    /// A box clears itself again a few seconds later, so that the next card shows as new.
+    slot: Vec<Option<(String, &'static str, bool, Instant)>>,
     /// What each reader is set to.
     role: Vec<Reads>,
     /// A reader turned the other way round for one card only (the pram key, Annuller ind).
@@ -363,6 +370,10 @@ static CARDS: Mutex<Option<Cards>> = Mutex::new(None);
 /// How many boxes the row holds (the manual's picture has five).
 const READERS: usize = 5;
 
+/// (the fork) How long a card stands in its box before the reader is white again. The box
+/// is the driver's glance at whether the customer remembered, not a record to keep.
+const CARD_SHOWS: Duration = Duration::from_secs(5);
+
 /// (the fork) Which card a rider is carrying, as the manual's page 28 colours them: blue
 /// for the personal card and the season tickets, green for the anonymous one, yellow for
 /// flex, and now and then a red one the system says is barred.
@@ -422,7 +433,7 @@ fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
             held.extend(cards.seen.iter().filter(|(id, _)| !has(riders, *id)).map(|(i, a)| (*i, *a, true)));
             for (id, age, out) in held {
                 if let Some(k) = cards.reader_for(out) {
-                    cards.slot[k] = Some((customer(age).to_string(), card_type(id), out));
+                    cards.slot[k] = Some((customer(age).to_string(), card_type(id), out, Instant::now()));
                     cards.read = Some((customer(age).to_string(), card_type(id), out, id));
                     cards.reads += 1;
                 }
@@ -431,11 +442,17 @@ fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
         cards.seen = riders.to_vec();
         cards.begun = true;
     }
+    // (a card that has stood its few seconds leaves the box white again)
+    for slot in cards.slot.iter_mut() {
+        if slot.as_ref().is_some_and(|(_, _, _, at)| at.elapsed() >= CARD_SHOWS) {
+            *slot = None;
+        }
+    }
     (0..READERS)
         .map(|k| {
             let role = if cards.role[k] == Reads::In { "in" } else { "out" };
             match &cards.slot[k] {
-                Some((who, card, out)) => json!({ "who": omsi_ui::tr(who).into_owned(), "card": card, "out": out, "role": role }),
+                Some((who, card, out, _)) => json!({ "who": omsi_ui::tr(who).into_owned(), "card": card, "out": out, "role": role }),
                 None => json!({ "role": role }),
             }
         })
@@ -553,6 +570,19 @@ fn labels() -> Value {
         ("checkin_extra", "Extra check in"),
         ("readers_on", "Card readers active"),
         ("readers_off", "Card readers not active"),
+        // KONTANTBILLET, the manual's pages 13 to 18. These are Midttrafik's own words for
+        // its own ticket, and are written in Danish here for the same reason the Rejsekort
+        // screen's are: the game's language tables have no word for any of them, so a
+        // translation would only have left the screen half in English.
+        ("single", "Enkeltbillet"),
+        ("zone_count", "Antal zoner"),
+        ("dep_zone", "Afgangszone"),
+        ("more", "Flere..."),
+        ("choice", "Valg"),
+        ("destination", "Destination"),
+        ("adult", "Voksen"),
+        ("child", "Barn"),
+        ("bike", "Cykel"),
         // the card reader setup, as the manual's page 33 has it
         ("reader_head", "Card reader setup"),
         ("all_in", "All in"),
@@ -692,6 +722,11 @@ fn state(duty: Option<&PlayerDuty>, time: f64, date: &str, bus: Option<glam::DVe
         "at_stop": ds.at_stop,
         // (the fork) the GPS key's own state: off, and the stops are served by hand
         "gps": !d.manual_stops,
+        // (the fork) the fare zone the bus stands in, for the cash ticket's Afgangszone
+        // (the manual's page 15). OMSI knows nothing of fare zones, so the console works
+        // one out from how far along the trip the bus has come: the manual's page 13 has
+        // every Midttrafik zone beginning with a 4, and 4301 for the heart of Aarhus.
+        "zone": 4301 + (d.next_stop as u32 / 3).min(98),
         "trip": format!("{} / {}", ds.focus() + 1, ds.trips.len()),
         "next": next,
         "rows": rows,
@@ -761,6 +796,8 @@ mod tests {
         asked.extend([
             "starting", "updating", "driver", "password", "login_hint", "lost",
             "no_duty", "line", "tour", "delay", "end_trip",
+            // the cash ticket writes the customer types into its own fields
+            "adult", "child", "bike",
         ]);
         for key in &asked {
             assert!(!sent[key].is_null(), "the page asks for {key:?} and labels() has no such word");
@@ -769,6 +806,58 @@ mod tests {
         for key in ["starting", "updating", "no_wifi", "question", "warning", "start_q"] {
             assert!(asked.contains(&key), "the page lost {key:?}");
         }
+    }
+
+    /// (the fork) A card stands in its box for a few seconds and the box is white again.
+    /// The first player found it standing there for good: it had never been written to
+    /// clear at all.
+    #[test]
+    fn a_card_stands_in_its_box_and_then_the_box_is_white_again() {
+        let mut cards = Cards::default();
+        // (the first look only takes down who is aboard)
+        cards_of(&mut cards, &[(1, 40.0)]);
+        let row = cards_of(&mut cards, &[(1, 40.0), (2, 9.0)]);
+        let shown: Vec<&str> = row.iter().filter_map(|c| c["who"].as_str()).collect();
+        assert_eq!(shown, ["Barn"], "the child who got on should stand in a box: {row:?}");
+
+        // the same row a moment later: still there
+        let row = cards_of(&mut cards, &[(1, 40.0), (2, 9.0)]);
+        assert!(row.iter().any(|c| c["who"].as_str() == Some("Barn")), "gone too soon: {row:?}");
+
+        // and once its few seconds are up
+        for slot in cards.slot.iter_mut() {
+            if let Some((_, _, _, at)) = slot {
+                *at = at.checked_sub(CARD_SHOWS + Duration::from_secs(1)).expect("a time that far back");
+            }
+        }
+        let row = cards_of(&mut cards, &[(1, 40.0), (2, 9.0)]);
+        assert!(row.iter().all(|c| c["who"].is_null()), "the boxes should be white again: {row:?}");
+        // (and a reader still says which way round it is)
+        assert!(row.iter().all(|c| c["role"].is_string()), "{row:?}");
+    }
+
+    /// (the fork) KONTANTBILLET, the manual's pages 13 to 18: the ticket's zones and its
+    /// fare are the console's own, but selling it has to reach the game, where a customer
+    /// may be standing at the cash desk waiting for his ticket.
+    #[test]
+    fn selling_a_cash_ticket_reaches_the_game() {
+        let sold = get("POST /sell HTTP/1.1\r\nContent-Length: 10\r\n\r\nprice=22.00");
+        assert!(sold.ends_with(r#"{"asked":"Sell"}"#), "{sold}");
+        assert!(PAGE.contains("/sell"), "the page has lost the way to sell a ticket");
+    }
+
+    /// (the fork) The cash ticket's Afgangszone: the manual's page 15 has the console know
+    /// which zone the bus stands in, and the zone rises as the bus drives out of town.
+    #[test]
+    fn the_cash_ticket_is_told_which_fare_zone_the_bus_is_in() {
+        let (trips, _) = crate::nav_duty::tests::duty();
+        let mut d = PlayerDuty::new("35".into(), "35H01".into(), trips, 1, 0, false);
+        let when = 12.0 * 3600.0 + 4.0 * 60.0;
+        let zone_now = |d: &PlayerDuty| state(Some(d), when, "11/10/26", None, 0.0, Some(0), false)["duty"]["zone"].as_u64();
+        d.next_stop = 0;
+        assert_eq!(zone_now(&d), Some(4301), "every Midttrafik zone begins with a 4");
+        d.next_stop = 12;
+        assert!(zone_now(&d).is_some_and(|z| z > 4301), "the zone should rise along the line");
     }
 
     #[test]

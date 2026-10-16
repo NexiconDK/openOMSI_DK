@@ -37,10 +37,9 @@
   .clock { border-left: 1px solid #a9a9a9; border-bottom: 1px solid #808080; }
   /* (the fork) the bar along the bottom is the console's own, as the Rejsekort manual has
      it: ESC, Menu, Billetter, Linje, Betjening, the pram and the two arrows. The manual's
-     page 5 gives the colours their meaning - a white key can be pressed, a grey or a blue
-     one cannot, and the yellow one is the menu you are standing in. Menu, Billetter and
-     Betjening belong to the real console and not to this page, so they stand blue and grey
-     here, which is the console's own way of saying they lead nowhere. */
+     page 5 gives the colours their meaning - the yellow key is the menu you are standing
+     in, and a grey or a blue one is another of the console's menus. A key that does
+     nothing at all is marked dead here, and sounds like it. */
   .foot { position: absolute; left: 0; right: 0; bottom: 0; height: calc(84 * var(--u));
     display: flex; gap: calc(4 * var(--u)); padding: calc(5 * var(--u)); background: #cfd6dc; }
   .foot button { flex: 1; border: 1px solid #9aa3ab; border-radius: calc(4 * var(--u));
@@ -53,7 +52,7 @@
   .foot .now { background: #ecebc2; }
   .foot .arrow { flex: 0 0 calc(100 * var(--u)); }
   .foot .arrow svg, .foot .pram svg { width: calc(40 * var(--u)); height: calc(40 * var(--u)); display: block; }
-  .foot button:not(.dead):not(.blue):active { background: var(--pick); }
+  .foot button:not(.dead):active { background: var(--pick); }
   h2 { margin: 0; font-weight: 400; font-size: calc(30 * var(--u)); }
 
   /* (the fork) the console's list: six rows between the strip and the bar, a white row for
@@ -211,6 +210,84 @@
   .snd .vol span { font-size: calc(21 * var(--u)); color: #b9c2ea; }
   .snd .vol .box { width: calc(330 * var(--u)); }
   .snd .save .tst { grid-column: 3; align-self: center; }
+
+  /* (the fork) KONTANTBILLET, the Rejsekort manual's pages 13 to 18: the two screens the
+     cash ticket is sold from. Both stand on the console's own blue, which is lit from
+     above and to the right the way the manual's photographs of it are. */
+  .tix, .sale { position: absolute; left: 0; right: 0; top: var(--bar);
+    bottom: calc(84 * var(--u) + var(--row)); color: #e8f1ff;
+    background: radial-gradient(120% 95% at 62% 16%, #6f9fe4 0%, #4b81d2 46%, #33639f 100%); }
+
+  /* KONTANTBILLET - SALGSMENU (pages 14 and 16): a row of zone keys for one adult and one
+     for one child, with Flere... for everything that does not fit in six zones */
+  .tix .g { position: absolute; left: calc(26 * var(--u)); right: calc(26 * var(--u)); }
+  .tix .g.a { top: calc(30 * var(--u)); }
+  .tix .g.b { top: calc(240 * var(--u)); }
+  .tix .hd { margin-left: calc(230 * var(--u)); text-align: center;
+    font-size: calc(28 * var(--u)); color: #cfe0f5; }
+  .tix .who { position: absolute; left: 0; top: calc(78 * var(--u)); width: calc(216 * var(--u));
+    font-size: calc(30 * var(--u)); text-align: right; }
+  .tix .r { margin: calc(10 * var(--u)) 0 0 calc(230 * var(--u));
+    display: flex; gap: calc(14 * var(--u)); }
+  .tix .r button { flex: 1; height: calc(100 * var(--u)); background: #ebebe6; color: #1a1a1a;
+    border-radius: calc(6 * var(--u)); font-size: calc(42 * var(--u)); font-weight: 700; }
+  .tix .r button.more { flex: 1.3; font-size: calc(28 * var(--u)); }
+  .tix .r button:active { background: var(--pick); }
+
+  /* KONTANTBILLET - ZONEBILLET (pages 15, 17 and 18): the ticket itself. The console shows
+     it twice over - first to be filled in (Flere..., where the white fields can be tapped)
+     and then to be paid for, where every field stands read-only in pale blue. */
+  .sale .cap { position: absolute; left: calc(22 * var(--u)); top: calc(4 * var(--u));
+    font-size: calc(23 * var(--u)); color: #b9cfe9; }
+  .sale .f { position: absolute; border-radius: calc(5 * var(--u)); background: #8fcbe2;
+    color: #eaf6fd; font-size: calc(40 * var(--u)); font-weight: 700; cursor: default;
+    display: flex; align-items: center; justify-content: center; }
+  .sale.edit .f.live { background: #ebebe6; color: #1a1a1a; cursor: pointer; }
+  .sale.edit .f.live:active { background: var(--pick); }
+  .sale .f.w { background: #ececec; color: #1a1a1a; }
+  .sale .n1, .sale .t1 { left: calc(36 * var(--u)); width: calc(394 * var(--u)); height: calc(72 * var(--u)); }
+  .sale .n2, .sale .t2 { left: calc(456 * var(--u)); width: calc(394 * var(--u)); height: calc(72 * var(--u)); }
+  .sale .n1, .sale .n2 { top: calc(32 * var(--u)); }
+  .sale .t1, .sale .t2 { top: calc(112 * var(--u)); font-size: calc(36 * var(--u)); }
+  .sale .lb { position: absolute; top: calc(196 * var(--u)); font-size: calc(24 * var(--u)); color: #cfe0f5; }
+  .sale .lz { left: calc(96 * var(--u)); }
+  .sale .ld { left: calc(392 * var(--u)); }
+  .sale .z { left: calc(36 * var(--u)); top: calc(224 * var(--u)); width: calc(274 * var(--u)); height: calc(72 * var(--u)); }
+  .sale .dz { left: calc(340 * var(--u)); top: calc(224 * var(--u)); width: calc(274 * var(--u)); height: calc(72 * var(--u)); }
+  .sale .mprice { left: calc(36 * var(--u)); top: calc(312 * var(--u)); width: calc(274 * var(--u)); height: calc(68 * var(--u)); }
+  .sale .mpaid { left: calc(420 * var(--u)); top: calc(312 * var(--u)); width: calc(274 * var(--u)); height: calc(68 * var(--u)); }
+  .sale .mback { left: calc(420 * var(--u)); top: calc(388 * var(--u)); width: calc(274 * var(--u)); height: calc(68 * var(--u)); }
+  .sale .dkk { position: absolute; font-size: calc(28 * var(--u)); font-weight: 700; color: #dceaff; }
+  .sale .d1 { left: calc(322 * var(--u)); top: calc(332 * var(--u)); }
+  .sale .d2 { left: calc(706 * var(--u)); top: calc(332 * var(--u)); }
+  .sale .d3 { left: calc(706 * var(--u)); top: calc(408 * var(--u)); }
+  .sale.edit .m { display: none; }
+  .sale.pay .valg { display: none; }
+  .sale .valg { position: absolute; left: calc(36 * var(--u)); top: calc(300 * var(--u));
+    width: calc(590 * var(--u)); height: calc(134 * var(--u)); margin: 0; padding: 0;
+    border: 1px solid #9fc0e6; border-radius: calc(4 * var(--u)); }
+  .sale .valg legend { margin-left: calc(14 * var(--u)); padding: 0 calc(7 * var(--u));
+    font-size: calc(24 * var(--u)); color: #cfe0f5; }
+  .sale .valg .in { display: flex; gap: calc(18 * var(--u)); padding: calc(10 * var(--u)) calc(18 * var(--u)); }
+  .sale .valg button { flex: 1; height: calc(74 * var(--u)); background: #ebebe6; color: #1a1a1a;
+    border-radius: calc(5 * var(--u)); font-size: calc(30 * var(--u)); font-weight: 700; }
+  .sale .valg button.on { background: #ecebc2; }
+  .sale .valg button.off { background: #ccd3d8; color: #6a7278; cursor: default; }
+  .sale .valg button:not(.dead):active { background: var(--pick); }
+  .sale .ok { position: absolute; right: calc(36 * var(--u)); top: calc(300 * var(--u));
+    width: calc(264 * var(--u)); height: calc(150 * var(--u)); background: #e9ecee; color: #1b1b1b;
+    border-radius: calc(5 * var(--u)); font-size: calc(44 * var(--u)); font-weight: 700; }
+  .sale .ok:active { background: var(--pick); }
+  /* the little list of customer types the manual's page 17 opens over the type key */
+  .sale .who { position: absolute; top: calc(184 * var(--u)); width: calc(394 * var(--u)); z-index: 3;
+    background: #ebebe6; border: 1px solid #7a8a99; display: none; flex-direction: column; }
+  .sale .who.on { display: flex; }
+  .sale .who.c2 { left: calc(456 * var(--u)); }
+  .sale .who.c1 { left: calc(36 * var(--u)); }
+  .sale .who button { height: calc(56 * var(--u)); color: #1a1a1a;
+    font-size: calc(28 * var(--u)); font-weight: 700; }
+  .sale .who button.on { background: #2f6fc4; color: #fff; }
+  .sale .who button:active { background: var(--pick); }
 
   /* (the fork) the console's row of card readers, as the manual's pages 23, 27 and 28 have
      it: the bottom row of every screen, one box for each of the last cards held to a
@@ -624,11 +701,81 @@
     <div class="foot" data-foot></div>
   </section>
 
+  <!-- (the fork) KONTANTBILLET - SALGSMENU, the manual's pages 13, 14 and 16 -->
+  <section id="tix" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="tix">
+      <div class="g a">
+        <span class="who">1&#8201;<span data-l="adult">Voksen</span></span>
+        <div class="hd" data-l="zone_count">Antal zoner</div>
+        <div class="r">
+          <button type="button" data-buy="adult" data-z="1">1</button>
+          <button type="button" data-buy="adult" data-z="2">2</button>
+          <button type="button" data-buy="adult" data-z="3">3</button>
+          <button type="button" data-buy="adult" data-z="4">4</button>
+          <button type="button" data-buy="adult" data-z="5">5</button>
+          <button type="button" data-buy="adult" data-z="6">6</button>
+          <button type="button" class="more" data-buy="adult" data-z="0" data-l="more">Flere...</button>
+        </div>
+      </div>
+      <div class="g b">
+        <span class="who">1&#8201;<span data-l="child">Barn</span></span>
+        <div class="hd" data-l="zone_count">Antal zoner</div>
+        <div class="r">
+          <button type="button" data-buy="child" data-z="1">1</button>
+          <button type="button" data-buy="child" data-z="2">2</button>
+          <button type="button" data-buy="child" data-z="3">3</button>
+          <button type="button" data-buy="child" data-z="4">4</button>
+          <button type="button" data-buy="child" data-z="5">5</button>
+          <button type="button" data-buy="child" data-z="6">6</button>
+          <button type="button" class="more" data-buy="child" data-z="0" data-l="more">Flere...</button>
+        </div>
+      </div>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
+  <!-- (the fork) KONTANTBILLET - SALGSMENU - ZONEBILLET, the manual's pages 15, 17 and 18 -->
+  <section id="sale" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="sale pay">
+      <div class="cap" data-l="single">Enkeltbillet</div>
+      <button class="f live n1" id="s-n1" type="button">1</button>
+      <button class="f live n2" id="s-n2" type="button">0</button>
+      <button class="f live t1" id="s-t1" type="button">Voksen</button>
+      <button class="f live t2" id="s-t2" type="button">Barn</button>
+      <span class="lb lz" data-l="zone_count">Antal zoner</span>
+      <span class="lb ld" data-l="dep_zone">Afgangszone</span>
+      <button class="f live z" id="s-z" type="button">2</button>
+      <div class="f dz" id="s-dz">4301</div>
+      <div class="f m mprice" id="s-price">22,00</div><span class="dkk m d1">DKK</span>
+      <div class="f w m mpaid" id="s-paid">22,00</div><span class="dkk m d2">DKK</span>
+      <div class="f m mback" id="s-back">0,00</div><span class="dkk m d3">DKK</span>
+      <fieldset class="valg"><legend data-l="choice">Valg</legend>
+        <div class="in">
+          <button class="off dead" type="button" data-l="destination">Destination</button>
+          <button class="on dead" type="button" data-l="zone_count">Antal zoner</button>
+        </div>
+      </fieldset>
+      <button class="ok" id="s-ok" type="button">OK</button>
+      <div class="who" id="s-who">
+        <button type="button" data-k="adult" data-l="adult">Voksen</button>
+        <button type="button" data-k="child" data-l="child">Barn</button>
+        <button type="button" data-k="bike" data-l="bike">Cykel</button>
+      </div>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
   <!-- (the fork) the console's bar along the foot of every screen but the login -->
   <template id="foot-keys">
     <button class="esc" data-key="esc">ESC</button>
     <button class="off" data-key="menu">Menu</button>
-    <button class="blue dead" type="button">Billetter</button>
+    <button class="blue" data-key="tix" type="button">Billetter</button>
     <button class="now" data-key="linje">Linje</button>
     <button class="blue" data-key="serve" type="button">Betjening</button>
     <button class="pram" data-key="pram" type="button" title="Barnevogn"><svg viewBox="0 0 24 24">
@@ -683,6 +830,9 @@ let state = null, labels = {}, screen = null, line = null, lines = [], trips = [
 // the bar leaf through it, and `suggest` is the trip the console puts forward on yellow
 const PER = { lines: 10, trips: 5, duty: 5 };
 let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = "", lastDuty = "", lastTrips = "";
+// where ESC puts the console down again, and the screen Billetter was pressed from
+const whence = () => (state && state.duty ? "duty" : "lines");
+let tixBack = null;
 
 // the screen as large as the tablet allows, at 16:9
 function fit() {
@@ -705,6 +855,7 @@ function show(name) {
   if (name === "duty") drawDuty();
   if (name === "rds") rdsDraw();
   if (name === "inf") infDraw();
+  if (name === "sale") saleDraw();
   // (the login keeps what stands in it while the console is locked: the driver's number)
   if (name === "login") { padClose(); if (!locked) { $("driver").value = ""; $("password").value = ""; } }
 }
@@ -717,10 +868,13 @@ function footTabs(name) {
     if (!menu || !linje) return;
     const inMenu = name === "menu" || name === "sound";
     const inServe = name === "serve" || name === "rds" || name === "inf";
+    const inTix = name === "tix" || name === "sale";
     menu.className = inMenu ? "now" : "off";
-    linje.className = inMenu || inServe ? "blue" : "now";
+    linje.className = inMenu || inServe || inTix ? "blue" : "now";
     const serve = f.querySelector("[data-key='serve']");
     if (serve) serve.className = inServe ? "now" : "blue";
+    const tix = f.querySelector("[data-key='tix']");
+    if (tix) tix.className = inTix ? "now" : "blue";
   });
 }
 
@@ -747,8 +901,9 @@ function loginWords() {
 // (the fork) The console's number pad, as the Rejsekort manual has it: tapping a field
 // brings it up, the number is typed into it and ENTER takes it. The driver's number is
 // eight digits there and the pass code four; any number does here, as it always did.
+// (a field of another screen asks for the pad by its own name, "vol:key", "sale:z")
 const PAD_LEN = { driver: 8, password: 4 };
-const padLen = (which) => (which && which.startsWith("vol:") ? 3 : PAD_LEN[which]);
+const padLen = (which) => (!which ? 0 : which.startsWith("vol:") ? 3 : which.includes(":") ? 2 : PAD_LEN[which]);
 let padFor = null, padVal = "";
 
 function padOpen(which) {
@@ -758,7 +913,7 @@ function padOpen(which) {
 }
 // (the field being typed into is the pale cyan one; the other stands white)
 function padHere(which) {
-  if (!which || which.startsWith("vol:")) return;
+  if (!which || which.includes(":")) return;
   $("b-driver").classList.toggle("here", which !== "password");
   $("b-password").classList.toggle("here", which === "password");
 }
@@ -779,6 +934,12 @@ $("pad").addEventListener("click", (e) => {
     const which = padFor.slice(4);
     SND[which].vol = Math.max(0, Math.min(100, parseInt(padVal || "0", 10) || 0));
     padClose(); sndDraw(); return beep(which);
+  }
+  // the ticket's own fields: how many of each customer there are, and how many zones
+  if (k === "enter" && padFor.startsWith("sale:")) {
+    const f = padFor.slice(5), n = Math.max(0, Math.min(99, parseInt(padVal || "0", 10) || 0));
+    sale[f] = f === "z" ? Math.max(1, n) : n;
+    padClose(); saleDraw(); return beep("key");
   }
   if (k === "enter") {
     const field = padFor;
@@ -901,13 +1062,20 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
   if (k === "esc") {
     if (screen === "sound") return show("menu");
     if (screen === "rds" || screen === "inf") return show("serve");
-    if (screen === "serve") return show(state && state.duty ? "duty" : "lines");
-    if (screen === "menu") return show(state && state.duty ? "duty" : "lines");
+    if (screen === "sale") return show("tix");
+    if (screen === "tix") return show(tixBack || whence());
+    if (screen === "serve") return show(whence());
+    if (screen === "menu") return show(whence());
     if (screen === "lines") { store.set("driver", null); return show("login"); }
     return show("lines");
   }
   if (k === "menu") return show("menu");
   if (k === "serve") return show("serve");
+  // Billetter: the cash ticket's sales menu, the manual's page 13
+  if (k === "tix") {
+    if (screen !== "tix" && screen !== "sale") tixBack = screen;
+    return show("tix");
+  }
   // the pram key in the bar turns a check-out reader into a check-in for one card
   if (k === "pram") return tell("/readers", { op: "pram" });
   if (k === "linje") return show(screen !== "duty" && state && state.duty ? "duty" : "lines");
@@ -944,6 +1112,7 @@ document.querySelectorAll("#menu [data-m]").forEach((b) => b.addEventListener("c
 }));
 
 function leaf(d) {
+  if (screen === "tix" || screen === "sale") return;   // (the ticket is one screenful)
   if (screen === "lines") { page.lines = Math.max(0, Math.min(page.lines + d, leaves(lines.length, PER.lines) - 1)); return drawLines(); }
   if (screen === "trips") { page.trips = Math.max(0, Math.min(page.trips + d, leaves(trips.length, PER.trips) - 1)); return drawTrips(true); }
   page.duty = Math.max(0, page.duty + d);
@@ -1093,6 +1262,83 @@ function rdsDraw() {
 }
 document.querySelectorAll("#rds [data-r]").forEach((b) => b.addEventListener("click", () => tell("/readers", { op: b.dataset.r })));
 
+// (the fork) KONTANTBILLET, the manual's pages 13 to 18. The console sells a cash ticket
+// by how many zones the journey crosses. The sales menu sells the everyday ticket in one
+// press - one adult or one child, one to six zones - and Flere... opens the ticket itself,
+// where the numbers, the customer types and the zones are all set by hand.
+//
+// The fares are Midttrafik's own, read off the manual's examples: 22,00 kr for an adult
+// over two zones and 10,00 kr for every zone after that (page 18 sells seven zones for
+// 72,00), half of that for a child, and 13,00 kr for a bicycle however far it goes (page
+// 18 sells one beside a two-zone adult ticket for 35,00 together). A dog travels as a
+// child, which the manual's page 17 says in so many words.
+const FARE = {
+  adult: (z) => 22 + 10 * Math.max(0, z - 2),
+  child: (z) => (22 + 10 * Math.max(0, z - 2)) / 2,
+  bike: () => 13,
+};
+let sale = { n1: 1, n2: 0, t1: "adult", t2: "child", z: 2, edit: false };
+const kr = (v) => v.toFixed(2).replace(".", ",");
+const salePrice = () => sale.n1 * FARE[sale.t1](sale.z) + sale.n2 * FARE[sale.t2](sale.z);
+
+// a zone key on the sales menu, or Flere... (no zones), which opens the ticket to be
+// written out by hand
+function saleOpen(who, zones) {
+  sale = { n1: who === "adult" ? 1 : 0, n2: who === "child" ? 1 : 0,
+           t1: "adult", t2: "child", z: zones || 1, edit: !zones };
+  whoClose();
+  show("sale");
+}
+document.querySelectorAll("#tix [data-buy]").forEach((b) =>
+  b.addEventListener("click", () => saleOpen(b.dataset.buy, +b.dataset.z)));
+
+function saleDraw() {
+  const L = labels, box = document.querySelector("#sale .sale");
+  box.classList.toggle("edit", sale.edit);
+  box.classList.toggle("pay", !sale.edit);
+  $("s-n1").textContent = sale.n1;
+  $("s-n2").textContent = sale.n2;
+  $("s-t1").textContent = L[sale.t1] ?? sale.t1;
+  $("s-t2").textContent = L[sale.t2] ?? sale.t2;
+  $("s-z").textContent = sale.z;
+  // the manual's page 15: the console knows which zone the bus is in, so the driver has
+  // only to read the price out
+  $("s-dz").textContent = (state && state.duty && state.duty.zone) || "–";
+  const price = salePrice();
+  $("s-price").textContent = kr(price);
+  $("s-paid").textContent = kr(price);
+  $("s-back").textContent = kr(0);
+}
+
+// the white fields of the ticket: a number comes from the console's own pad, a customer
+// type from the little list the manual's page 17 opens over the key
+let whoFor = null;
+function whoOpen(which) {
+  whoFor = which;
+  const list = $("s-who");
+  list.className = "who on " + (which === "t1" ? "c1" : "c2");
+  list.querySelectorAll("[data-k]").forEach((b) => b.classList.toggle("on", b.dataset.k === sale[which]));
+}
+function whoClose() { whoFor = null; $("s-who").className = "who"; }
+$("s-who").addEventListener("click", (e) => {
+  const k = e.target.closest("[data-k]");
+  if (k && whoFor) { sale[whoFor] = k.dataset.k; saleDraw(); }
+  whoClose();
+});
+["n1", "n2", "z"].forEach((f) => $("s-" + f).addEventListener("click", () => {
+  if (sale.edit) { whoClose(); padOpen("sale:" + f); }
+}));
+["t1", "t2"].forEach((f) => $("s-" + f).addEventListener("click", () => { if (sale.edit) whoOpen(f); }));
+
+// the manual's two presses: the first takes the ticket as it is written out (page 17),
+// the second is the one for when the driver HAS the money in his hand (pages 15 and 18).
+// Selling hands the ticket to whoever stands waiting for one at the cash desk.
+$("s-ok").addEventListener("click", async () => {
+  if (sale.edit) { sale.edit = false; return saleDraw(); }
+  await tell("/sell", { price: salePrice().toFixed(2) });
+  show(tixBack || whence());
+});
+
 // (the fork) LÅS/ÅBEN KORTLÆSERE, the manual's page 34: pressing the card reader key in
 // the strip shuts the readers and hangs a padlock on it, and the console says which way
 // it went. Shut, nobody can hold a card to one, so the row of boxes takes no new cards.
@@ -1172,11 +1418,13 @@ function beep(kind) {
   } catch (e) {}
 }
 
-// every key on every screen answers: the console's own two sounds
+// every key on every screen answers: the console's own two sounds. A blue key is one of
+// the console's other menus and leads somewhere, so it sounds like any other key; only a
+// key marked dead gives the dull sound of a key that does nothing.
 $("stage").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b || b.closest("#sound")) return;          // (the sound screen has its own Test keys)
-  beep(b.classList.contains("dead") || b.classList.contains("blue") ? "dead" : "key");
+  beep(b.classList.contains("dead") ? "dead" : "key");
 }, true);
 
 function sndDraw() {
@@ -1195,8 +1443,8 @@ sndDraw();
 // (the fork) the row of card readers along the foot of the screen: the last cards held
 // to one, newest first, the crossed ones checked out
 function drawCards() {
-  if (shut) return;   // (a shut reader takes no cards, so the row stands as it was)
-  const c = (state && state.cards) || [];
+  // (a shut reader can have no card held to it, so every box stands white)
+  const c = shut ? [] : (state && state.cards) || [];
   const html = Array.from({ length: 5 }, (_, i) => {
     const k = c[i];
     // (a reader nobody has held a card to stands white, as the manual's page 28 has it)
@@ -1284,6 +1532,7 @@ async function tick() {
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
       if (first) { if (!booting) route(); }
       else if (screen === "duty") drawDuty();
+      else if (screen === "sale") saleDraw();
     }
   } catch (e) {
     if (++failures >= 3) { $("lost").classList.add("on"); document.body.classList.add("away"); }
