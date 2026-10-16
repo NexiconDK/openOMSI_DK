@@ -79,6 +79,7 @@ mod tablet;
 mod console;
 mod console_screen;
 mod desk;
+mod placer;
 /// (the fork) The Rejsekort standers drawn in the bus.
 mod readers;
 mod telemetry;
@@ -716,6 +717,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
         clock: omsi_sim::SimClock::default(),
         started,
         view,
+        rk_placer: Default::default(),
         input: InputState {
             cursor: (0.0, 0.0),
             window_focused: false,

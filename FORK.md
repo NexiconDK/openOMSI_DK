@@ -125,6 +125,19 @@ Vores egen udgave af openOMSI, bygget på den officielle openOMSI med disse ænd
 
   **Du skal ikke genstarte for at flytte på dem.** Gemmer du filen, mens spillet kører, bliver standerne hængt op igen med det samme — du retter et tal, gemmer, og kigger. Det samme gælder `konsol.txt`.
 
+  **Eller du kan lade være med at taste tal.** Ny indstilling **Placér Rejsekort-tingene i hånden** (slået fra fra start; i launcheren og i spillets menu). Med den slået til:
+
+  | Tast | Hvad den gør |
+  |---|---|
+  | **E** | Kig på en stander eller konsollens skærm og tryk E — så har du fat i den. E igen slipper. |
+  | **Piletaster** | Flytter den frem, tilbage og til siden. **PgUp/PgDn** op og ned. |
+  | **Tab** | Skifter mellem **Flyt**, **Drej** og **Størrelse** — piletasterne gør så dét i stedet. |
+  | **− / +** | Hurtigere eller langsommere, fra en tiendedel til fire gange. |
+  | **S** | Skriver linjerne tilbage i `standere.txt` eller `konsol.txt`. |
+  | **Esc** | Slipper uden at gemme. |
+
+  Øverst på skærmen står hele tiden, hvad du har fat i, og hvad tallene er — `x 0,93  y 5,41  z 1,07  drejning 180°  …` — så du kan se dem løbe, mens du flytter. **Dine filer bliver dine:** kommentarer, tomme linjer, `mappe`-linjen og din egen note efter et `#` på selve linjen står præcis, hvor de stod. Der bliver kun skrevet de tal om, du har flyttet på.
+
   Standerne følger bussen, og **de skifter skind med konsollen**: sætter du dem om under **Kortlæser opsætn.** — *Alle ind*, *Alle ud*, *Nulstil* eller barnevognstasten — bliver standeren i bussen grøn eller rød med det samme. Modellen har ét materiale uden eget teksturnavn, og det er netop dét, der gør skiftet muligt: den samme model hænges op to gange, én i hvert skind, og konsollen bestemmer, hvilken der vises.
 - **Konsollen i bussen — plug and play.** Hele Web-IBIS'en kan nu køres fra bussen selv, på en skærm du hænger op i førerrummet. **Bussens egne filer bliver ikke rørt**: konsollen hænges op på nøjagtig samme måde som standerne, så det virker i enhver bus — også en, du ikke selv har lavet, og også en hvis IBIS kun er en tekstlinje, der slet ikke kunne skiftes ud.
 

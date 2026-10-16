@@ -25,7 +25,8 @@ use std::path::{Path, PathBuf};
 pub const FOLDER: &str = "Rejsekort";
 const MESH: &str = "checkind.o3d";
 const SKINS: [&str; 2] = ["Checkud.tga", "Checkind.tga"];
-const SPOTS: &str = "standere.txt";
+/// The file the standers' places are written in.
+pub const SPOTS: &str = "standere.txt";
 
 /// The file the player writes the standers' places in, when there is none yet.
 pub const BLANK: &str = "\
@@ -150,13 +151,18 @@ pub struct Readers {
     pub made_for: (PathBuf, PathBuf),
     /// Both skins of the mesh: index 0 takes cards out (red), 1 takes them in (green).
     skins: [Option<usize>; 2],
-    /// (the two instances of one stander, where it stands)
-    standers: Vec<([usize; 2], Mat4)>,
+    /// (the two instances of one stander, and the line that puts it there). The line is
+    /// kept rather than the matrix it makes, so the placer can move a stander about while
+    /// the game runs and the same line can be written back to the file.
+    standers: Vec<([usize; 2], Spot)>,
     /// When `standere.txt` was last written, and when that was last looked at: the player
     /// puts the standers in their places by trying a line and looking, so the file is read
     /// again when he saves it rather than making him start the game over.
     wrote: Option<std::time::SystemTime>,
     looked: std::time::Instant,
+    /// The stander's own shape, for working out which one a player is looking at. One
+    /// copy serves every stander, since they are all the same model.
+    mesh: Option<omsi_geometry::MeshData>,
 }
 
 /// How often `standere.txt` is looked at for a change.
@@ -211,7 +217,8 @@ impl Readers {
         let dir = Self::folder(&world.root);
         let made_for = (bus.ty.def.path.clone(), dir.clone());
         let spots = dir.join(SPOTS);
-        let blank = || Readers { made_for: made_for.clone(), skins: [None; 2], standers: Vec::new(), wrote: written(&spots), looked: std::time::Instant::now() };
+        let blank =
+            || Readers { made_for: made_for.clone(), skins: [None; 2], standers: Vec::new(), wrote: written(&spots), looked: std::time::Instant::now(), mesh: None };
         if !spots.is_file() {
             let _ = std::fs::create_dir_all(&dir);
             let _ = std::fs::write(&spots, BLANK);
@@ -247,18 +254,18 @@ impl Readers {
         if mats.iter().any(Option::is_none) {
             log::warn!("{}: {} or {} is missing", dirs[0].display(), SKINS[0], SKINS[1]);
         }
-        let standers: Vec<([usize; 2], Mat4)> = mine
+        let standers: Vec<([usize; 2], Spot)> = mine
             .iter()
             .map(|s| {
                 let pair = [0, 1].map(|k| {
                     let m = mats[k].into_iter().collect();
                     renderer.add_instance(scene, id, DVec3::ZERO, Mat4::IDENTITY, m)
                 });
-                (pair, s.matrix())
+                (pair, s.clone())
             })
             .collect();
         log::info!("rejsekort: {} standers in {}", standers.len(), name);
-        Readers { made_for, skins: [Some(0), Some(1)], standers, wrote: written(&spots), looked: std::time::Instant::now() }
+        Readers { made_for, skins: [Some(0), Some(1)], standers, wrote: written(&spots), looked: std::time::Instant::now(), mesh: Some(data) }
     }
 
     /// Whether `standere.txt` has been saved again since the standers were put up, so
@@ -275,6 +282,31 @@ impl Readers {
         self.wrote = now;
         log::info!("{SPOTS}: saved again, putting the standers up afresh");
         true
+    }
+
+    /// Which stander a ray lands on, nearest first: the one the player is looking at.
+    pub fn hit(&self, bus: &VehicleInstance, origin: DVec3, dir: Vec3) -> Option<usize> {
+        let data = self.mesh.as_ref()?;
+        let o = (origin - bus.position).as_vec3();
+        let rot = bus.body_rotation();
+        self.standers
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (_, spot))| omsi_geometry::ray_mesh(o, dir, data, &(rot * spot.matrix())).map(|t| (t, i)))
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, i)| i)
+    }
+
+    /// Where stander `i` stands.
+    pub fn spot(&self, i: usize) -> Option<&Spot> {
+        self.standers.get(i).map(|(_, s)| s)
+    }
+
+    /// Put stander `i` somewhere else, while the game runs.
+    pub fn set(&mut self, i: usize, spot: Spot) {
+        if let Some((_, s)) = self.standers.get_mut(i) {
+            *s = spot;
+        }
     }
 
     /// Take the standers down again, before others are put up in their place.
@@ -294,12 +326,13 @@ impl Readers {
     /// that reader is set to: green **Check ind** or red **Check ud**.
     pub fn sync(&self, renderer: &Renderer, scene: &mut Scene, bus: &VehicleInstance, takes_in: &[bool]) {
         let rot = bus.body_rotation();
-        for (k, (pair, local)) in self.standers.iter().enumerate() {
+        for (k, (pair, spot)) in self.standers.iter().enumerate() {
+            let local = spot.matrix();
             // a stander the console knows nothing about takes cards in, as the yard leaves
             // the front reader
             let want = usize::from(takes_in.get(k).copied().unwrap_or(k == 0));
             for (which, inst) in pair.iter().enumerate() {
-                renderer.set_transform(scene, *inst, bus.position, rot * *local);
+                renderer.set_transform(scene, *inst, bus.position, rot * local);
                 renderer.set_params(scene, *inst, &[], which == want, &[]);
             }
         }

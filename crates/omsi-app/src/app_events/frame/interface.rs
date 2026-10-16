@@ -127,6 +127,8 @@ impl App {
         // (the fork) and what came of the console in the bus, while there is something to
         // say: one that did not turn up looks exactly like one standing out of sight
         lines.extend(crate::desk::hud_line());
+        // (the fork) and the placer's own, while it is on: what is held and what the keys do
+        lines.extend(self.rk_placer_lines());
         if let Some(h) = self.session.humans.as_ref() {
             if let Some(hint) = h.hint() {
                 lines.push(hint);

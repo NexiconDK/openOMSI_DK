@@ -128,6 +128,8 @@ impl App {
             self.cam.ego = false;
         }
         self.frame_free_camera(dt);
+        // (the fork) and the Rejsekort placer's arrows, which move whatever it holds
+        self.rk_placer_step(dt);
     }
 
     /// The mirror editor's keys and Ctrl+Alt+arrows: the mirrors aimed, shifted and zoomed

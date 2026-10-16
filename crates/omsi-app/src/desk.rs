@@ -132,8 +132,11 @@ pub fn hud_line() -> Option<String> {
 pub struct Desk {
     /// The bus and the folder it was made for.
     pub made_for: (PathBuf, PathBuf),
-    /// Every part of the desk, each with where it hangs in the bus.
-    parts: Vec<(usize, Mat4)>,
+    /// Every part of the desk. They all hang on the one line, which is kept rather than
+    /// the matrix it makes, so the placer can move the console about while the game runs.
+    parts: Vec<usize>,
+    /// The line that puts the console in the bus.
+    spot: Spot,
     /// The screen: the face the page is drawn on, its texture, and the mesh the ray is
     /// cast against to find where a finger landed on it.
     screen: Option<Screen>,
@@ -172,7 +175,6 @@ pub fn model_dirs(root: &Path, text: &str) -> Vec<PathBuf> {
 struct Screen {
     tex: TextureId,
     mesh: MeshData,
-    local: Mat4,
 }
 
 impl Desk {
@@ -212,6 +214,8 @@ impl Desk {
             made_for,
             parts: Vec::new(),
             screen: None,
+            // (nowhere yet; the line out of the file takes its place below)
+            spot: Spot { bus: None, at: Vec3::ZERO, turn: 0.0, scale: 1.0, tip: 0.0, lean: 0.0 },
             page: ConsoleScreen::new(),
             held: false,
             wrote: written(&spots),
@@ -239,7 +243,7 @@ impl Desk {
             say(format!("{SPOT} har ingen linje til {name}"), false);
             return desk;
         };
-        let local = spot.matrix();
+        desk.spot = spot.clone();
 
         // where the model lies: the folder the file names, or the stock one beside it
         let dirs = model_dirs(&world.root, &text);
@@ -278,7 +282,7 @@ impl Desk {
                             let blank =
                                 omsi_texture::Image { width: WIDTH, height: HEIGHT, rgba: vec![0; (WIDTH * HEIGHT * 4) as usize], has_alpha: false };
                             let t = renderer.add_texture(scene, &blank, false);
-                            desk.screen = Some(Screen { tex: t, mesh: data.clone(), local });
+                            desk.screen = Some(Screen { tex: t, mesh: data.clone() });
                             is_screen = true;
                             t
                         }
@@ -292,7 +296,7 @@ impl Desk {
                 mats.push(renderer.add_material(scene, tex, AlphaMode::Opaque, m.diffuse, false));
             }
             let inst = renderer.add_instance(scene, id, DVec3::ZERO, Mat4::IDENTITY, mats);
-            desk.parts.push((inst, local));
+            desk.parts.push(inst);
             if is_screen {
                 log::info!("rejsekort: the console's screen is {}", file.file_name().unwrap_or_default().to_string_lossy());
             }
@@ -313,7 +317,7 @@ impl Desk {
 
     /// Take the desk down again, before another is hung in its place.
     pub fn take_down(&self, renderer: &Renderer, scene: &mut Scene) {
-        for (inst, _) in &self.parts {
+        for inst in &self.parts {
             renderer.remove_instance(scene, *inst);
         }
     }
@@ -321,8 +325,9 @@ impl Desk {
     /// Show the desk where it stands in the bus now.
     pub fn sync(&self, renderer: &Renderer, scene: &mut Scene, bus: &VehicleInstance) {
         let rot = bus.body_rotation();
-        for (inst, local) in &self.parts {
-            renderer.set_transform(scene, *inst, bus.position, rot * *local);
+        let local = self.spot.matrix();
+        for inst in &self.parts {
+            renderer.set_transform(scene, *inst, bus.position, rot * local);
         }
     }
 
@@ -362,10 +367,26 @@ impl Desk {
         // (the mesh stands in the bus's own frame, so the ray is brought into it rather
         // than the desk pushed out into the world)
         let o = (origin - bus.position).as_vec3();
-        let hit = omsi_geometry::ray_mesh_hit(o, dir, &screen.mesh, &(bus.body_rotation() * screen.local))?;
+        let hit = omsi_geometry::ray_mesh_hit(o, dir, &screen.mesh, &(bus.body_rotation() * self.spot.matrix()))?;
         // (a face of the desk that is not the screen has its own mapping; only the
         // screen's own quad covers the whole picture, and that is the one we aim at)
         (hit.uv.x >= 0.0 && hit.uv.x <= 1.0 && hit.uv.y >= 0.0 && hit.uv.y <= 1.0).then_some(hit.uv)
+    }
+
+    /// Whether the player is looking at the console: its screen is the face he would
+    /// look at, and the one already aimed at for pressing its keys.
+    pub fn under(&self, bus: &VehicleInstance, origin: DVec3, dir: Vec3) -> bool {
+        self.aim(bus, origin, dir).is_some()
+    }
+
+    /// Where the console stands.
+    pub fn spot(&self) -> &Spot {
+        &self.spot
+    }
+
+    /// Put the console somewhere else, while the game runs.
+    pub fn set(&mut self, spot: Spot) {
+        self.spot = spot;
     }
 
     /// A finger on the screen, where [`Self::aim`] says it landed.

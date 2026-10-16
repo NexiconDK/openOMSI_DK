@@ -1604,6 +1604,7 @@ fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "nav_cars" => s.nav_cars,
         "lan_player_list" => s.lan_player_list,
         "tablet" => s.tablet,
+        "rk_placer" => s.rk_placer,
         "nav_classic" => s.nav_classic,
         "shadows" => s.shadows,
         "head" => s.head_movement,
@@ -1723,6 +1724,15 @@ fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String
             app.settings.tablet = on;
             crate::tablet::set(on, app.settings.tablet_port);
             Some(("tablet", bit))
+        }
+        "rk_placer" => {
+            app.settings.rk_placer = on;
+            // (switched off with something still held, it is let go rather than left
+            // hanging on a key nobody is reading any more)
+            if !on {
+                app.rk_placer.let_go();
+            }
+            Some(("rk_placer", bit))
         }
         "shadows" => {
             app.settings.shadows = on;
@@ -2437,6 +2447,7 @@ fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
         switch_row(app, "nav_cars", "Cars on the map", "With the AI vehicles shown: the cars as well. Off: only the buses, trolleybuses and trams"),
+        switch_row(app, "rk_placer", "Place the Rejsekort things by hand", "Look at a stander or the driver console and press E to take hold of it, then move it with the arrow keys. Tab switches between moving, turning and sizing, and S writes it back to standere.txt or konsol.txt"),
         switch_row(app, "tablet", "Web-IBIS on a tablet or phone", "An IBIS on a web page: log in, pick a line and a trip, and the bus takes it on. Open the address at the top left of the game on a tablet or phone on the same network"),
         switch_row(app, "nav_classic", "Classic navigator", "The navigator and the city map as before: without the duty board, the duty sheet and the stop signs"),
         switch_row(app, "nav_arrows", "Route arrows (as in OMSI 2)", "Shows OMSI 2's route arrows over the road"),

@@ -36,6 +36,9 @@ pub(crate) struct App {
     pub(crate) view: String,
     /// The keyboard, the mouse, controllers, head tracking and touch (see `InputState`).
     pub(crate) input: InputState,
+    /// (the fork) Putting the Rejsekort standers and the console in the bus by hand, while
+    /// the `rk_placer` setting is on (see `crate::placer`).
+    pub(crate) rk_placer: crate::placer::Placer,
     pub(crate) last: Instant,
     /// The simulation stands still (OMSI's `sim_pause`, P, or the menu): nothing moves,
     /// the clock stops, the picture and the camera go on.

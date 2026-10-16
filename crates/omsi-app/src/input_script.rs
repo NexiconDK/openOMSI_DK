@@ -171,6 +171,16 @@ impl App {
             if matches!(code, KeyCode::ArrowLeft | KeyCode::ArrowRight | KeyCode::ArrowUp | KeyCode::ArrowDown | KeyCode::PageUp | KeyCode::PageDown | KeyCode::Minus | KeyCode::Equal | KeyCode::NumpadAdd | KeyCode::NumpadSubtract) && self.gfx.mirror_hud.arrow(code, pressed) {
                 return true;
             }
+            // (the fork) and the Rejsekort placer takes the same keys while it holds
+            // something, so a stander is moved with the arrows
+            if self.settings.rk_placer {
+                if self.rk_placer.arrow(code, pressed) {
+                    return true;
+                }
+                if pressed && !repeat && self.rk_placer_key(code, shift) {
+                    return true;
+                }
+            }
             // R puts the mirror under the cursor back as the bus has it, Shift+R every mirror
             if self.gfx.mirror_hud.editing() && code == KeyCode::KeyR {
                 if pressed && !repeat {
