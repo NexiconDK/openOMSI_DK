@@ -283,6 +283,33 @@
     width: calc(264 * var(--u)); height: calc(150 * var(--u)); background: #e9ecee; color: #1b1b1b;
     border-radius: calc(5 * var(--u)); font-size: calc(44 * var(--u)); font-weight: 700; }
   .sale .ok:active { background: var(--pick); }
+  /* KONTANTBILLET - ANNULLER (pages 19 and 20): the ticket just sold, standing read-only
+     over the console's own question. Only the last one can be taken back, which is the
+     manual's own warning in red. */
+  .void { position: absolute; left: 0; right: 0; top: var(--bar);
+    bottom: calc(84 * var(--u) + var(--row) + 132 * var(--u)); color: #e8f1ff;
+    background: radial-gradient(120% 95% at 62% 16%, #6f9fe4 0%, #4b81d2 46%, #33639f 100%); }
+  .void .f { position: absolute; border-radius: calc(5 * var(--u)); background: #8fcbe2;
+    color: #eaf6fd; font-size: calc(40 * var(--u)); font-weight: 700;
+    display: flex; align-items: center; justify-content: center; }
+  .void .n1, .void .t1 { left: calc(36 * var(--u)); width: calc(394 * var(--u)); height: calc(72 * var(--u)); }
+  .void .n2, .void .t2 { left: calc(456 * var(--u)); width: calc(394 * var(--u)); height: calc(72 * var(--u)); }
+  .void .n1, .void .n2 { top: calc(32 * var(--u)); }
+  .void .t1, .void .t2 { top: calc(112 * var(--u)); font-size: calc(36 * var(--u)); }
+  .void .mprice { left: calc(36 * var(--u)); top: calc(228 * var(--u)); width: calc(274 * var(--u)); height: calc(68 * var(--u)); }
+  .void .mkr { left: calc(340 * var(--u)); top: calc(228 * var(--u)); width: calc(150 * var(--u)); height: calc(68 * var(--u));
+    font-size: calc(30 * var(--u)); }
+  .vask { position: absolute; left: 0; right: 0; bottom: calc(84 * var(--u) + var(--row) + 86 * var(--u));
+    height: calc(46 * var(--u)); background: #dfe3e6; border-top: 1px solid #9aa3ab;
+    display: flex; align-items: center; justify-content: center;
+    font-size: calc(28 * var(--u)); color: #1b1b1b; }
+  .vkeys { position: absolute; left: 0; right: 0; bottom: calc(84 * var(--u) + var(--row));
+    height: calc(86 * var(--u)); display: flex; gap: calc(4 * var(--u));
+    padding: calc(4 * var(--u)); background: #cfd6dc; }
+  .vkeys button { flex: 1; border: 1px solid #9aa3ab; border-radius: calc(4 * var(--u));
+    background: #e9ecee; color: #1b1b1b; font-size: calc(34 * var(--u)); font-weight: 700; }
+  .vkeys button:active { background: var(--pick); }
+
   /* the little list of customer types the manual's page 17 opens over the type key */
   .sale .who { position: absolute; top: calc(184 * var(--u)); width: calc(394 * var(--u)); z-index: 3;
     background: #ebebe6; border: 1px solid #7a8a99; display: none; flex-direction: column; }
@@ -636,7 +663,7 @@
       <div class="sky"></div>
       <button class="mi" id="b-delay" type="button" data-l="delay_key">Forsinkelse</button>
       <button class="mi" data-b="info" type="button" data-l="information">Information</button>
-      <button class="mi off dead" type="button" data-l="cancel_sale">Annuller salg</button>
+      <button class="mi off dead" id="b-void" type="button" data-l="cancel_sale">Annuller salg</button>
       <button class="mi off dead" type="button" data-l="checkin_extra">Check ind ekstra</button>
     </div>
     <div class="cards" data-cards></div>
@@ -776,6 +803,27 @@
     <div class="foot" data-foot></div>
   </section>
 
+  <!-- (the fork) KONTANTBILLET - ANNULLER, the manual's pages 19 and 20 -->
+  <section id="void" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="void">
+      <div class="f n1" id="v-n1">1</div>
+      <div class="f n2" id="v-n2">0</div>
+      <div class="f t1" id="v-t1">Voksen</div>
+      <div class="f t2" id="v-t2">Barn</div>
+      <div class="f mprice" id="v-price">72,00</div>
+      <div class="f mkr">DKK</div>
+    </div>
+    <div class="vask" id="v-ask" data-l="void_q">Bekr&aelig;ft annullering?</div>
+    <div class="vkeys">
+      <button type="button" id="v-yes" data-l="yes">Ja</button>
+      <button type="button" id="v-no" data-l="no">Nej</button>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
   <!-- (the fork) the console's bar along the foot of every screen but the login -->
   <template id="foot-keys">
     <button class="esc" data-key="esc">ESC</button>
@@ -861,6 +909,8 @@ function show(name) {
   if (name === "rds") rdsDraw();
   if (name === "inf") infDraw();
   if (name === "sale") saleDraw();
+  if (name === "void") voidDraw();
+  if (name === "serve") voidKey();
   // (the login keeps what stands in it while the console is locked: the driver's number)
   if (name === "login") { padClose(); if (!locked) { $("driver").value = ""; $("password").value = ""; } }
 }
@@ -872,7 +922,7 @@ function footTabs(name) {
     const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
     if (!menu || !linje) return;
     const inMenu = name === "menu" || name === "sound";
-    const inServe = name === "serve" || name === "rds" || name === "inf";
+    const inServe = name === "serve" || name === "rds" || name === "inf" || name === "void";
     const inTix = name === "tix" || name === "sale";
     menu.className = inMenu ? "now" : "off";
     linje.className = inMenu || inServe || inTix ? "blue" : "now";
@@ -1070,7 +1120,7 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
   const k = b.dataset.key;
   if (k === "esc") {
     if (screen === "sound") return show("menu");
-    if (screen === "rds" || screen === "inf") return show("serve");
+    if (screen === "rds" || screen === "inf" || screen === "void") return show("serve");
     if (screen === "sale") return show("tix");
     if (screen === "tix") return show(tixBack || whence());
     if (screen === "serve") return show(whence());
@@ -1121,7 +1171,7 @@ document.querySelectorAll("#menu [data-m]").forEach((b) => b.addEventListener("c
 }));
 
 function leaf(d) {
-  if (screen === "tix" || screen === "sale") return;   // (the ticket is one screenful)
+  if (screen === "tix" || screen === "sale" || screen === "void") return;   // (one screenful)
   if (screen === "lines") { page.lines = Math.max(0, Math.min(page.lines + d, leaves(lines.length, PER.lines) - 1)); return drawLines(); }
   if (screen === "trips") { page.trips = Math.max(0, Math.min(page.trips + d, leaves(trips.length, PER.trips) - 1)); return drawTrips(true); }
   page.duty = Math.max(0, page.duty + d);
@@ -1352,9 +1402,33 @@ $("s-paid").addEventListener("click", () => { if (!sale.edit) padOpen("sale:paid
 // Selling hands the ticket to whoever stands waiting for one at the cash desk.
 $("s-ok").addEventListener("click", async () => {
   if (sale.edit) { sale.edit = false; return saleDraw(); }
+  lastSale = { n1: sale.n1, t1: sale.t1, n2: sale.n2, t2: sale.t2, z: sale.z, price: salePrice() };
+  voidKey();
   await tell("/sell", { price: salePrice().toFixed(2) });
   show(tixBack || whence());
 });
+
+// (the fork) KONTANTBILLET - ANNULLER, the manual's pages 19 and 20. Only the ticket last
+// sold can be taken back - the manual says so in red - so the console keeps that one and
+// no other. What the cancellation really is, is a slip of paper that is stapled to the
+// ticket and goes in with the settlement; so the customer keeps the ticket already in his
+// hand, and the game's takings stand as they are.
+let lastSale = null;
+
+function voidDraw() {
+  const L = labels, t = lastSale;
+  if (!t) return;
+  $("v-n1").textContent = t.n1;
+  $("v-n2").textContent = t.n2;
+  $("v-t1").textContent = L[t.t1] ?? t.t1;
+  $("v-t2").textContent = L[t.t2] ?? t.t2;
+  $("v-price").textContent = kr(t.price);
+}
+// the key in the Betjening menu stands grey while there is no ticket to take back
+function voidKey() { $("b-void").className = lastSale ? "mi" : "mi off dead"; }
+$("b-void").addEventListener("click", () => { if (lastSale) show("void"); });
+$("v-no").addEventListener("click", () => show("serve"));
+$("v-yes").addEventListener("click", () => { lastSale = null; voidKey(); show("serve"); });
 
 // (the fork) LÅS/ÅBEN KORTLÆSERE, the manual's page 34: pressing the card reader key in
 // the strip shuts the readers and hangs a padlock on it, and the console says which way

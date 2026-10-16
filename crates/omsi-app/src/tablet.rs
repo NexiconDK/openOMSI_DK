@@ -583,6 +583,7 @@ fn labels() -> Value {
         ("adult", "Voksen"),
         ("child", "Barn"),
         ("bike", "Cykel"),
+        ("void_q", "Bekræft annullering?"),
         // the card reader setup, as the manual's page 33 has it
         ("reader_head", "Card reader setup"),
         ("all_in", "All in"),
