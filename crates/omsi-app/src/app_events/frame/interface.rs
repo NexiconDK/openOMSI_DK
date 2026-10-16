@@ -124,6 +124,9 @@ impl App {
         }
         // (the fork) where the tablet page is to be opened
         lines.extend(crate::tablet::hud_line());
+        // (the fork) and what came of the console in the bus, while there is something to
+        // say: one that did not turn up looks exactly like one standing out of sight
+        lines.extend(crate::desk::hud_line());
         if let Some(h) = self.session.humans.as_ref() {
             if let Some(hint) = h.hint() {
                 lines.push(hint);

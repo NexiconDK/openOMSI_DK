@@ -35,8 +35,6 @@ use std::path::{Path, PathBuf};
 pub const FOLDER: &str = "Konsol";
 /// The file that says where the desk stands.
 pub const SPOT: &str = "konsol.txt";
-/// The word that names the folder the model is in, when it is not the stock one.
-pub const FOLDER_WORD: &str = "mappe";
 /// The texture name that makes a face the console's screen. It is the name the player's
 /// own model already uses, so nothing has to be renamed to make the screen live.
 pub const SCREEN_TEX: &str = "skærmtexture";
@@ -89,6 +87,45 @@ static WANTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::ne
 /// Whether the console's screen is being drawn in a bus just now.
 pub fn wanted() -> bool {
     WANTED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// What came of the last try at hanging the console, and when that was. A console that
+/// does not turn up in the bus looks exactly like one standing somewhere out of sight, so
+/// the game says which of the two it is rather than leaving the player to guess.
+static NOTE: std::sync::Mutex<Option<Note>> = std::sync::Mutex::new(None);
+
+struct Note {
+    what: String,
+    at: std::time::Instant,
+    /// Whether it goes away by itself. A note that it worked does; a note that it did
+    /// not stays, since it will not mend itself.
+    fades: bool,
+}
+
+/// How long a note that it worked stays on the screen: long enough to read on the way
+/// into the bus, short enough not to sit there for the rest of the drive.
+const SAY_FOR: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Say nothing at all: the player has not asked for a console, so a missing one is not
+/// worth a word.
+fn say_nothing() {
+    *NOTE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+fn say(what: String, fades: bool) {
+    if fades {
+        log::info!("rejsekort: {what}");
+    } else {
+        log::warn!("rejsekort: {what}");
+    }
+    *NOTE.lock().unwrap_or_else(|e| e.into_inner()) = Some(Note { what, at: std::time::Instant::now(), fades });
+}
+
+/// The HUD's line about the console, while there is something to say.
+pub fn hud_line() -> Option<String> {
+    let guard = NOTE.lock().unwrap_or_else(|e| e.into_inner());
+    let n = guard.as_ref()?;
+    (!n.fades || n.at.elapsed() < SAY_FOR).then(|| format!("Rejsekort: {}", n.what))
 }
 
 /// The console desk of one bus, hung in it.
@@ -191,7 +228,15 @@ impl Desk {
         }
         let text = std::fs::read_to_string(&spots).unwrap_or_default();
         let name = bus.ty.def.path.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-        let Some(spot) = Spot::read(&text).into_iter().find(|s| s.fits(&name)) else {
+        let places = Spot::read(&text);
+        // nothing written in the file yet: the player has not asked for a console, so a
+        // missing one is not worth a word on his screen
+        if places.is_empty() && named_folder(&text).is_none() {
+            say_nothing();
+            return desk;
+        }
+        let Some(spot) = places.iter().find(|s| s.fits(&name)) else {
+            say(format!("{SPOT} har ingen linje til {name}"), false);
             return desk;
         };
         let local = spot.matrix();
@@ -208,7 +253,7 @@ impl Desk {
         // keeps the log and any report of it steady)
         files.sort();
         if files.is_empty() {
-            log::info!("{}: no console model there yet", dirs[0].display());
+            say(format!("ingen .o3d-filer i {}", dirs[0].display()), false);
             return desk;
         }
         let looks_in: Vec<&Path> = dirs.iter().map(PathBuf::as_path).collect();
@@ -252,7 +297,12 @@ impl Desk {
                 log::info!("rejsekort: the console's screen is {}", file.file_name().unwrap_or_default().to_string_lossy());
             }
         }
-        log::info!("rejsekort: a console of {} parts in {name}, out of {}", desk.parts.len(), dirs[0].display());
+        match desk.screen.is_some() {
+            true => say(format!("konsol med {} dele og skærm", desk.parts.len()), true),
+            // every part hung but no face wearing the screen texture: the desk is there
+            // and the driver is looking at a blank panel, which is worth saying out loud
+            false => say(format!("konsol med {} dele, men ingen skærm - ingen flade med {SCREEN_TEX}", desk.parts.len()), false),
+        }
         WANTED.store(desk.screen.is_some(), std::sync::atomic::Ordering::Relaxed);
         desk
     }
@@ -369,6 +419,31 @@ mod tests {
         for text in ["mappe\n", "mappe   \n", "# mappe Sceneryobjects\n"] {
             assert_eq!(named_folder(text), None, "{text:?}");
         }
+    }
+
+    /// (the fork) A console that does not turn up in the bus looks exactly like one
+    /// standing somewhere out of sight, so the game says which of the two it is - but
+    /// only once the player has asked for one at all.
+    #[test]
+    fn the_game_says_what_came_of_the_console() {
+        say_nothing();
+        assert_eq!(hud_line(), None, "nothing is said until the player asks for a console");
+
+        say("konsol.txt har ingen linje til MB_O530.bus".into(), false);
+        let said = hud_line().expect("a console that is not there is worth a word");
+        assert!(said.starts_with("Rejsekort: "), "{said}");
+        assert!(said.contains("ingen linje"), "{said}");
+
+        // one that worked says so and then goes; one that did not stays put
+        say("konsol med 16 dele og skærm".into(), true);
+        assert!(hud_line().is_some_and(|s| s.contains("16 dele")));
+        NOTE.lock().unwrap().as_mut().unwrap().at -= SAY_FOR * 2;
+        assert_eq!(hud_line(), None, "a note that it worked does not sit there all drive");
+
+        say("ingen .o3d-filer i C:\\OMSI\\Rejsekort\\Konsol".into(), false);
+        NOTE.lock().unwrap().as_mut().unwrap().at -= SAY_FOR * 4;
+        assert!(hud_line().is_some(), "a note that it did not work stays until it is put right");
+        say_nothing();
     }
 
     /// (the fork) The screen is found by the texture the player's own model already names,
