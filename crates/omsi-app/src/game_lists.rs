@@ -3253,6 +3253,16 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
             p.give_ticket = true;
             json!({ "ok": true })
         }
+        // (the fork) **Afslut tur** on the driving screen. It used to take the console back
+        // to Turvalg and no more, and the bus went on driving the trip behind it - line and
+        // terminus still in the windows, the stops still being served. Now the trip is
+        // really given back: the game drops the duty, as its own "End the duty" does, and
+        // the console stands on Turvalg for the next one.
+        Ask::EndTrip => {
+            let had = app.session.duty.is_some();
+            end_duty(app);
+            json!({ "ok": had })
+        }
     }
 }
 

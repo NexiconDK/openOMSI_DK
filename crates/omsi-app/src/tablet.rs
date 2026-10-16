@@ -67,6 +67,8 @@ pub enum Ask {
     /// (the fork) KONTANTBILLET (the manual's pages 13 to 18): a cash ticket sold, which
     /// hands one to whoever stands waiting for it at the cash desk.
     Sell,
+    /// (the fork) **Afslut tur**: the trip given back, so another can be taken on.
+    EndTrip,
 }
 
 /// Switch the page on or off, on `port` (from the settings; live).
@@ -257,6 +259,8 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
         // (the fork) KONTANTBILLET: the ticket is the console's own, the customer waiting
         // for it at the cash desk is the game's
         ("POST", "/sell") => json_of(ask(Ask::Sell)),
+        // (the fork) Afslut tur: the trip given back to the game, not only to the page
+        ("POST", "/end_trip") => json_of(ask(Ask::EndTrip)),
         ("POST", "/head_for") => match field(body, "stop").and_then(|s| s.parse().ok()) {
             Some(stop) => json_of(ask(Ask::HeadFor(stop))),
             None => ("400 Bad Request", "text/plain; charset=utf-8", b"which stop?".to_vec()),
@@ -855,6 +859,15 @@ mod tests {
         let sold = get("POST /sell HTTP/1.1\r\nContent-Length: 10\r\n\r\nprice=22.00");
         assert!(sold.ends_with(r#"{"asked":"Sell"}"#), "{sold}");
         assert!(PAGE.contains("/sell"), "the page has lost the way to sell a ticket");
+    }
+
+    /// (the fork) **Afslut tur** has to reach the game too. It used to take the console
+    /// back to Turvalg and leave the bus driving the trip behind it.
+    #[test]
+    fn ending_the_trip_reaches_the_game() {
+        let ended = get("POST /end_trip HTTP/1.1\r\n\r\n");
+        assert!(ended.ends_with(r#"{"asked":"EndTrip"}"#), "{ended}");
+        assert!(PAGE.contains("/end_trip"), "the page has lost the way to end the trip");
     }
 
     /// (the fork) The cash ticket's Afgangszone: the manual's page 15 has the console know

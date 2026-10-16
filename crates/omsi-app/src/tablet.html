@@ -1732,9 +1732,13 @@ document.querySelectorAll(".strip .gps").forEach((e) => e.addEventListener("clic
   if (!on) warn(labels.manual_pos);      // "((41)) : Manuel position"
 }));
 
-// the manual: Afslut tur takes back the chosen trip, and the console stands on Turvalg
+// the manual: Afslut tur takes back the chosen trip, and the console stands on Turvalg.
+// (the fork) It gives the trip back to the game as well, so the bus is not left driving a
+// trip the console has done with - the line and the terminus go out of the windows and the
+// stops stop being served, exactly as the game's own "End the duty" leaves it.
 async function endTrip() {
   const sign = state && state.duty ? state.duty.line : null;
+  await tell("/end_trip", {});
   if (!lines.length) { try { lines = (await getJson("/lines")).lines || []; } catch (e) {} }
   const l = lines.find((x) => x.sign === sign);
   if (!l) return show("lines");
