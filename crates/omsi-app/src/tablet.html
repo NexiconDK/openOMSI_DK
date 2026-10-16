@@ -105,12 +105,14 @@
     margin-left: calc(12 * var(--u)); }
   .drive .stop svg { width: calc(54 * var(--u)); height: calc(54 * var(--u)); flex: none; margin-left: calc(8 * var(--u)); }
   .drive .stop.done { color: #8a8a8a; }
-  /* the crowd in the strip stands there while a trip is under way */
-  .strip i.crowd svg { display: none; }
-  #duty .strip i.crowd svg { display: block; }
+  /* (the fork) the crowd in the strip is the group check-in reader - the third kind of
+     reader an Aarhus city bus carries (the manual's page 3) - and pressing it is the short
+     way to Check ind ekstra, which is what that reader is for */
+  #login .strip i.crowd svg, #start .strip i.crowd svg { display: none; }
   /* (the fork) the GPS key, as the manual's page 12 has it: press it and the cell goes
      grey, and from then on the stops are served by hand */
-  .strip i.gps, .strip i.reader { cursor: pointer; }
+  .strip i.gps, .strip i.reader, .strip i.crowd { cursor: pointer; }
+  #login .strip i.crowd, #start .strip i.crowd { cursor: default; }
   /* (the fork) the manual's page 34: pressing the card reader key shuts the readers, and
      the padlock hangs on the icon for as long as they are shut */
   .strip i.reader .lock { display: none; }
@@ -469,6 +471,9 @@
     align-items: center; justify-content: center; line-height: 1.12; font-size: calc(36 * var(--u)); }
   /* (the point key is the grey one on the console, and it types nothing) */
   .pad .grid button.dot { background: #cfd0d1; border-color: #b4b5b6; font-size: calc(34 * var(--u)); }
+  /* (the fork) ENTER with nothing typed does nothing, and is marked and sounds like it */
+  .pad .grid button.dead { background: #cfd0d1; border-color: #b4b5b6; color: #6a7278; cursor: default; }
+  .pad .grid button.dead:active { background: #cfd0d1; }
 
   /* (the fork) the plain login, where the player has no picture of the console: the screen
      the manual shows, without its owner's marks - the strip of buttons along the top with
@@ -1062,14 +1067,18 @@ function padHere(which) {
 function padShow() {
   // the pass code is not shown as it is typed, any more than it is on the console
   $("pad-shown").textContent = padFor === "password" ? "*".repeat(padVal.length) : padVal;
+  // (the fork) ENTER with nothing typed does nothing, so it is marked dead while the field
+  // is empty. It used to put the empty field away and open the other one, and with both of
+  // them empty the login sent the pad straight back - so the box could not be got rid of.
+  document.querySelector('#pad [data-k="enter"]').classList.toggle("dead", !padVal);
 }
 function padClose() { $("pad").classList.remove("on"); padFor = null; padHere("driver"); }
 
 $("pad").addEventListener("click", (e) => {
   // (a tap beside the panel closes it, as ESC does)
   if (e.target === $("pad")) padClose();
-  const k = e.target.closest("[data-k]")?.dataset.k;
-  if (!k || !padFor) return;
+  const key = e.target.closest("[data-k]"), k = key?.dataset.k;
+  if (!k || !padFor || key.classList.contains("dead")) return;
   if (k === "x") return padClose();
   if (k === "ce") { padVal = ""; return padShow(); }
   if (k === "enter" && padFor.startsWith("vol:")) {
@@ -1089,10 +1098,11 @@ $("pad").addEventListener("click", (e) => {
   if (k === "enter") {
     const field = padFor;
     $(field).value = padVal;
+    // (the fork) ENTER puts the pad away. The manual's page 8 counts four steps, and the
+    // third of them is "tryk på adgangskode-feltet" - so the console does not carry the
+    // driver on to the pass code by itself; the pad goes, and he taps the next field.
     padClose();
-    // the number first, then the code, then away - the manual's four steps
-    if (field === "driver") padOpen("password");
-    else $("login").requestSubmit();
+    if (field === "password") $("login").requestSubmit();
     return;
   }
   if (padVal.length < padLen(padFor)) { padVal += k; padShow(); }
@@ -1565,6 +1575,10 @@ function xtrDone() {
   say(labels.extra_done ?? "");
 }
 $("b-extra").addEventListener("click", xtrOpen);
+// the crowd in the strip is the group check-in reader itself, so it is the short way in
+document.querySelectorAll(".strip .crowd").forEach((e) => e.addEventListener("click", () => {
+  if (screen !== "login" && screen !== "start") xtrOpen();
+}));
 document.querySelectorAll("#extra .cnt button").forEach((b) => b.addEventListener("click", () => {
   if (b.classList.contains("dead")) return;
   xtr.rows[+b.dataset.s].n += +b.dataset.step;
