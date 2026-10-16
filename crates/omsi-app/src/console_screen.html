@@ -19,66 +19,86 @@
   The texture is 1024 by 976, the shape of the console's screen in the model.
 -->
 <style>
-  body { margin: 0px; width: 1024px; height: 976px; background: #ffffff; color: #111111;
-         font-size: 26px; line-height: 32px; }
+  /* (the fork) The console's own look, taken from the tablet (crates/omsi-app/src/tablet.html)
+     so the two screens are one console to look at as well as to press.
 
-  /* the strip of status cells along the top (the manual's page 24). The console's own
-     icons are pictures the player has; until this screen is given them, each cell says
-     what it is in a word and carries the console's colour. */
-  #strip { height: 86px; background: #c8ccd0; }
-  .cell { display: inline-block; width: 84px; height: 84px; margin: 0px 1px 0px 0px;
-          background: #ffffff; text-align: center; font-size: 17px;
-          line-height: 84px; color: #6a7278; }
+     The tablet is 1280 x 720 and this texture is 1024 x 976 - the shape of the screen in
+     the player's model - so the tablet's sizes are scaled by 0.8 across and the room that
+     leaves goes into the rows: more stops and more trips at a time, not bigger text.
+
+     The engine draws no gradients, so the blue panel is laid in bands (see .band). */
+  body { margin: 0px; width: 1024px; height: 976px; background: #d8e0e3; color: #111111;
+         font-size: 34px; line-height: 44px; }
+
+  /* the strip of status cells along the top (--bar 81 -> 65) */
+  #strip { height: 65px; background: #6b7580; }
+  .cell { display: inline-block; width: 84px; height: 63px; margin: 0px 1px 0px 0px;
+          background: #ffffff; text-align: center; font-size: 15px;
+          line-height: 63px; color: #6a7278; }
   .cell.good { background: #35a44b; color: #ffffff; font-weight: 700; }
   .cell.bad { background: #d6342c; color: #ffffff; font-weight: 700; }
-  #clock { display: inline-block; width: 168px; height: 84px; text-align: right;
-           background: #ffffff; font-size: 22px; line-height: 26px;
-           padding: 16px 10px 0px 0px; }
-  #clock .t { font-size: 32px; font-weight: 700; line-height: 38px; }
+  /* (ten cells of 85 and the clock of 170 fill the 1024 across) */
+  #clock { display: inline-block; width: 160px; height: 53px; text-align: right;
+           background: #ffffff; font-size: 19px; line-height: 22px;
+           padding: 10px 10px 0px 0px; }
+  #clock .t { font-size: 29px; font-weight: 700; line-height: 34px; }
 
-  /* the body of whichever screen is up */
-  #body { height: 802px; background: #f2f2f2; }
+  /* the body of whichever screen is up: 976 - 65 strip - 67 foot - 74 cards */
+  #body { height: 770px; background: #d8e0e3; }
   .pane { display: none; }
   .pane.on { display: block; }
 
-  /* the driving screen (the manual's page 11) */
-  #duty .blue { display: inline-block; width: 330px; height: 790px; background: #2f3192;
-                color: #ffffff; padding: 12px 14px 0px 14px; }
-  #duty .what { font-size: 22px; line-height: 30px; color: #b9bade; }
-  #duty .big { font-size: 40px; line-height: 50px; font-weight: 700; }
-  #duty .end { background: #ffffff; color: #111111; text-align: center; height: 64px;
-               line-height: 64px; font-weight: 700; margin: 22px 0px 0px 0px;
-               border-radius: 6px; font-size: 26px; }
-  #duty .slow { color: #ffd34d; font-weight: 700; font-size: 24px; line-height: 34px; }
-  #duty .stops { display: inline-block; width: 648px; height: 790px; }
-  .stop { height: 60px; margin: 0px 0px 2px 0px; padding: 0px 10px 0px 10px;
-          font-size: 28px; line-height: 60px; background: #ffffff; }
-  .stop .mark { display: inline-block; width: 54px; color: #d6342c; font-weight: 700; }
-  .stop .name { display: inline-block; }
-  .stop.here { background: #e7eaf7; }
-  .stop.past { color: #9aa0a6; }
+  /* the driving screen (the manual's page 11): the blue panel down the left with the
+     trip on it, Afslut tur under it, and the stops to the right */
+  .half { display: inline-block; width: 511px; }
+  #duty .blue { height: 640px; background: #5b93da; color: #dceaff; text-align: center; }
+  .band { height: 80px; text-align: center; }
+  .band.what { font-size: 32px; line-height: 80px; }
+  .band.big { font-size: 40px; line-height: 80px; font-weight: 700; }
+  .band.slow { font-size: 30px; line-height: 80px; font-weight: 700; color: #ffe600; }
+  #duty .end { height: 128px; background: #ffffff; color: #111111; font-size: 35px;
+               line-height: 128px; font-weight: 700; padding: 0px 19px 0px 19px; }
+  .stop { height: 127px; margin: 0px 0px 1px 0px; background: #ffffff;
+          padding: 0px 10px 0px 19px; font-size: 34px; line-height: 127px; }
+  .stop.past { color: #8a8a8a; }
+  .stop .mark { display: inline-block; width: 44px; color: #d6342c; font-weight: 700; }
+  .stop .n { display: inline-block; }
 
-  /* Linjevalg and Turvalg: two lines to a row, six rows at a time (the manual's page 9) */
-  #list-head { height: 54px; background: #2f3192; color: #ffffff; font-size: 26px;
-               line-height: 54px; padding: 0px 14px 0px 14px; }
-  .pick { display: inline-block; width: 470px; height: 112px; margin: 0px 4px 4px 0px;
-          background: #ffffff; padding: 8px 12px 0px 12px; }
-  .pick.now { background: #ecebc2; }
-  .pick.gone { background: #d8dadc; color: #7d8287; }
-  .pick .top { font-size: 24px; line-height: 32px; color: #55595d; }
-  .pick .big { font-size: 34px; line-height: 44px; font-weight: 700; }
-  .pick .ends { font-size: 22px; line-height: 28px; }
-  /* a line of Linjevalg is one big number, so it is given the whole row's height */
-  .pick.line .big { font-size: 46px; line-height: 92px; }
+  /* Linjevalg: two to a row, six rows (the tablet's .cell, 52 -> 42) */
+  .pick { display: inline-block; width: 466px; height: 127px; margin: 0px 1px 1px 0px;
+          background: #ffffff; padding: 0px 19px 0px 19px;
+          font-size: 42px; line-height: 127px; font-weight: 700; }
+  .pick.mine { background: #ffe77f; }
 
-  /* the list of lines, and anything else that is only a title yet */
+  /* Turvalg: one to a row, the hour over the two ends (the tablet's .trip, 26/42 -> 21/34) */
+  .trip { height: 89px; margin: 0px 0px 1px 0px; background: #ffffff;
+          padding: 6px 19px 0px 19px; }
+  .trip .w { font-size: 21px; line-height: 28px; color: #55595d; }
+  .trip .r { font-size: 34px; line-height: 44px; font-weight: 700; }
+  .trip.past { color: #8a8a8a; }
+  .trip.past .w { color: #8a8a8a; }
+  .trip.driving { background: #cfe8cf; }
+
+  /* the row of card readers above the foot bar (--row 92.5 -> 74) */
+  #cards { height: 68px; background: #d8e0e3; padding: 6px 0px 0px 6px; }
+  /* the colours are the tablet's own: the card's kind, and grey once it is checked out */
+  #cards i { display: inline-block; width: 192px; height: 60px; margin: 0px 10px 0px 0px;
+             background: #ffffff; border-radius: 8px; text-align: center;
+             font-size: 24px; line-height: 60px; font-weight: 700; color: #111111; }
+  #cards i.personal { background: #3573c2; color: #ffffff; }
+  #cards i.anon { background: #42b23b; color: #ffffff; }
+  #cards i.flex { background: #f5f014; }
+  #cards i.blocked { background: #d6342c; color: #ffffff; }
+  #cards i.out { color: #d8e0e3; }
+
+  /* anything not drawn here yet */
   .title { text-align: center; font-size: 56px; line-height: 70px; font-weight: 700;
            color: #55595d; padding: 230px 0px 0px 0px; }
   .under { text-align: center; font-size: 26px; line-height: 34px; color: #7d8287; }
 
   /* the login (the manual's page 8) */
-  #login .head { text-align: center; font-size: 78px; line-height: 96px; font-weight: 700;
-                 color: #55595d; padding: 120px 0px 60px 0px; }
+  #login .head { text-align: center; font-size: 74px; line-height: 92px; font-weight: 700;
+                 color: #55595d; padding: 110px 0px 50px 0px; }
   .row { padding: 0px 0px 14px 0px; }
   .lbl { display: inline-block; width: 390px; text-align: right; font-size: 28px;
          line-height: 48px; padding: 0px 14px 0px 0px; }
@@ -88,24 +108,23 @@
   .hint { text-align: center; font-size: 24px; line-height: 32px; color: #55595d;
           padding: 24px 0px 0px 0px; }
 
-  /* the bar along the foot (the manual's page 5) */
-  #foot { height: 88px; background: #ccd3d8; padding: 4px 0px 0px 4px; }
-  .key { display: inline-block; width: 160px; height: 78px; margin: 0px 4px 0px 0px;
-         background: #ffffff; text-align: center; font-size: 24px; line-height: 78px;
+  /* the bar along the foot (the manual's page 5; 84 -> 67) */
+  #foot { height: 64px; background: #ccd3d8; padding: 3px 0px 0px 4px; }
+  .key { display: inline-block; width: 144px; height: 60px; margin: 0px 4px 0px 0px;
+         background: #ffffff; text-align: center; font-size: 23px; line-height: 60px;
          font-weight: 700; border-radius: 4px; }
   .key.off { background: #ccd3d8; color: #6a7278; }
   .key.now { background: #ecebc2; }
-  .key.arrow { width: 76px; padding: 22px 0px 0px 0px; height: 56px; }
+  .key.arrow { width: 76px; padding: 18px 0px 0px 0px; height: 42px; }
+  /* the pram in the bar is the group check-in reader, the short way to Check ind ekstra */
+  .key.pram { width: 104px; font-size: 19px; }
 
-  /* (the engine draws no borders, so the console's triangles are built of bars: four
-     rows of a filled box, each a little wider or narrower than the one above it) */
+  /* (the engine draws no borders, so the console's triangles are built of bars) */
   .b { height: 5px; background: #111111; }
   .key.off .b { background: #6a7278; }
 
-  /* the number pad (the manual's page 8). The engine lays boxes out in the flow and has
-     no way to stand one over another, so the pad is a screen of its own rather than a
-     panel over the one that asked for it - which is how the console's own pad looks when
-     it is up anyway: it covers nearly everything. */
+  /* the number pad (the manual's page 8), a screen of its own here since the engine
+     cannot lay one box over another */
   #panel { width: 584px; background: #f2eea8; margin: 0px 0px 0px 220px;
            padding: 16px 16px 16px 16px; }
   #into { font-size: 26px; line-height: 40px; color: #55595d; }
@@ -133,16 +152,8 @@
 <div id="body">
   <!-- the driving screen -->
   <div class="pane" id="duty">
-    <span class="blue">
-      <div class="what" id="w-line">Linje</div>
-      <div class="big" id="v-line">&ndash;</div>
-      <div class="what" id="w-trip">Tur</div>
-      <div class="big" id="v-trip">&ndash;</div>
-      <div class="what" id="w-zone">Zone</div>
-      <div class="big" id="v-zone">&nbsp;</div>
-      <div class="slow" id="v-slow"></div>
-      <div class="end" id="k-end">Afslut tur</div>
-    </span><span class="stops" id="stops"></span>
+    <span class="half"><div class="blue" id="blue"></div><div class="end" id="k-end">Afslut tur</div></span><span
+     class="half" id="stops"></span>
   </div>
 
   <!-- the login -->
@@ -154,10 +165,7 @@
   </div>
 
   <!-- Linjevalg and Turvalg (the manual's pages 9 and 10) -->
-  <div class="pane" id="list">
-    <div id="list-head"></div>
-    <div id="rows"></div>
-  </div>
+  <div class="pane" id="list"><div id="rows"></div></div>
 
   <!-- every other screen of the console, until each is drawn here too -->
   <div class="pane" id="plain">
@@ -180,10 +188,12 @@
   </div>
 </div>
 
+<div id="cards"></div>
+
 <div id="foot">
   <span class="key" id="k-esc">ESC</span><span class="key" id="k-menu">Menu</span><span
   class="key" id="k-tix">Billetter</span><span class="key" id="k-linje">Linje</span><span
-  class="key" id="k-serve">Betjening</span><span class="key arrow" id="k-up"
+  class="key" id="k-serve">Betjening</span><span class="key pram" id="k-pram">Gruppe</span><span class="key arrow" id="k-up"
   ><div class="b" style="width:8px;margin-left:34px"></div
   ><div class="b" style="width:18px;margin-left:29px"></div
   ><div class="b" style="width:28px;margin-left:24px"></div
@@ -232,6 +242,7 @@ tap("k-linje", "go:linje");
 tap("k-serve", "go:serve");
 tap("k-end", "end");
 tap("crowd", "extra:open");
+tap("k-pram", "extra:open");
 tap("f-driver", "pad:open:driver");
 tap("f-password", "pad:open:password");
 var digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -263,10 +274,7 @@ $("k-down").onclick = () => { O.trigger("leaf:1"); };
 var PANE = { duty: "duty", login: "login", start: "login", lines: "list", trips: "list" };
 var PANES = ["duty", "login", "plain", "pad", "list"];
 
-// how many of the console's own rows fit on a leaf (the manual's page 9: two to a row,
-// six rows), and how many leaves that makes of a list of n
-var PER = 12;
-var leaves = (n) => Math.max(1, Math.ceil(n / PER));
+
 // what the console calls each screen, for the pane that only names it. They are the
 // console's own Danish words, as the tablet has them written out too.
 var NAME = { lines: "Linjevalg", trips: "Turvalg", menu: "Menu", sound: "Indstil lyd",
@@ -289,6 +297,7 @@ function paint() {
   cls("cwarn", "cell good");
 
   footKeys();
+  paintCards();
   if (pane === "list") { paintList(scr); }
   if (pane === "duty") { paintDuty(); }
   if (pane === "login") { paintLogin(); }
@@ -314,59 +323,88 @@ function footKeys() {
   set("k-serve", W("operation", "Betjening"));
 }
 
-function paintDuty() {
-  set("w-line", W("line", "Linje"));
-  set("w-trip", W("rk_tour", "Tur"));
-  set("w-zone", W("zone", "Zone"));
-  set("v-line", S("s_duty_line") || "–");
-  set("v-trip", S("s_duty_tour") || "–");
-  set("v-zone", S("s_duty_zone"));
-  set("v-slow", S("s_con_slow") === "" ? "" : W("delay", "Forsinkelse"));
-  set("k-end", W("end_trip", "Afslut tur"));
-
-  // the stops of the trip, as many as the screen holds, with the console's own mark
-  // against the one the bus is at or on its way to
-  var n = Number(S("s_duty_stops_n") || "0");
-  var at = Number(S("s_duty_next") || "0");
-  var from = Math.max(0, Math.min(at - 1, n - 12));
+// the row of card readers along the foot: the last cards held to one, newest first, the
+// ones checked out written in the paper's own colour so they read as crossed through.
+// A shut reader can have no card held to it, so every box stands white.
+function paintCards() {
+  var shut = S("s_con_shut") !== "";
   var html = "";
-  for (var i = from; i < n && i < from + 12; i++) {
-    var name = S("s_duty_stops_" + i + "_name");
-    // the console's red hand against the stop the bus is at, or on its way to
-    var mark = i === at ? "■" : "";
-    var look = i === at ? " here" : i < at ? " past" : "";
-    html += '<div class="stop' + look + '"><span class="mark">' + mark + '</span><span class="name">' + name + "</span></div>";
+  for (var i = 0; i < 5; i++) {
+    var k = "s_cards_" + i + "_";
+    var card = shut ? "" : S(k + "card");
+    var cl = card === "" ? "" : card + (S(k + "out") !== "" ? " out" : "");
+    html += "<i class=\"" + cl + "\">" + (card === "" ? "" : S(k + "who")) + "</i>";
   }
-  put("stops", html);
+  put("cards", html);
 }
 
-// Linjevalg and Turvalg. The console says which leaf is up; this draws that leaf of
-// whichever list the game sent down with the state.
+function paintDuty() {
+  // the tablet's panel runs from #4f85d2 at the top to #6ba2e2 at the foot. The engine
+  // draws no gradient, so the panel is its own eight rows of text, each a step along that
+  // ramp - about three values a step, which at this size is no band anybody can see.
+  var zone = S("s_duty_zone");
+  var slow = S("s_con_slow") === "" ? "" : W("delay", "Forsinkelse");
+  var says = [
+    ["", ""],
+    ["what", W("line", "Linje")],
+    ["big", S("s_duty_line") || "–"],
+    ["what", W("rk_tour", "Tur")],
+    ["big", S("s_duty_tour") || "–"],
+    ["what", zone === "" ? "" : W("zone", "Zone")],
+    ["big", zone],
+    ["slow", slow],
+  ];
+  var html = "";
+  for (var b = 0; b < says.length; b++) {
+    var c = 79 + Math.round(b * 28 / 7);      // 0x4f -> 0x6b
+    var g = 133 + Math.round(b * 29 / 7);     // 0x85 -> 0xa2
+    var u = 210 + Math.round(b * 16 / 7);     // 0xd2 -> 0xe2
+    html += '<div class="band ' + says[b][0] + '" style="background:rgb(' + c + "," + g + "," + u + ')">'
+          + says[b][1] + "</div>";
+  }
+  put("blue", html);
+  set("k-end", W("end_trip", "Afslut tur"));
+
+  // the stops of the trip, with the console's own mark against the one the bus is at or
+  // on its way to, and the ones behind it in grey as the tablet greys them
+  var n = Number(S("s_duty_stops_n") || "0");
+  var at = Number(S("s_duty_next") || "0");
+  var from = Math.max(0, Math.min(at - 1, n - 6));
+  var rows = "";
+  for (var i = from; i < n && i < from + 6; i++) {
+    var name = S("s_duty_stops_" + i + "_name");
+    rows += '<div class="stop' + (i < at ? " past" : "") + '"><span class="mark">'
+          + (i === at ? "■" : "") + '</span><span class="n">' + name + "</span></div>";
+  }
+  put("stops", rows);
+}
+
+// Linjevalg and Turvalg, as the tablet lays them out: the lines two to a row with the
+// one being driven on yellow, the trips one to a row with the hour over the two ends and
+// the one being driven on green.
 function paintList(scr) {
   var trips = scr === "trips";
   var n = Number(S(trips ? "s_trips_n" : "s_lines_n") || "0");
-  var leaf = Math.min(Number(S("s_con_leaf") || "0"), leaves(n) - 1);
-  var from = leaf * PER;
+  var per = trips ? 8 : 12;
+  var leaf = Math.min(Number(S("s_con_leaf") || "0"), Math.max(0, Math.ceil(n / per) - 1));
+  var from = leaf * per;
+  var mine = S("s_duty_line");
   var html = "";
-  for (var i = from; i < n && i < from + PER; i++) {
+  for (var i = from; i < n && i < from + per; i++) {
     var k = (trips ? "s_trips_" : "s_lines_") + i + "_";
     if (trips) {
-      // the trip being driven stands on yellow, one already driven on grey
-      var look = S(k + "driving") !== "" ? " now" : "";
-      html += '<span class="pick' + look + '" data-go="trip:' + S(k + "tour") + ":" + i + '">'
-            +   '<span class="top">' + S(k + "dep") + " - " + S(k + "arr") + "  " + S(k + "sign") + "</span>"
-            +   '<div class="ends">' + S(k + "from") + "</div>"
-            +   '<div class="ends">' + S(k + "to") + "</div>"
-            + "</span>";
+      var look = S(k + "driving") !== "" ? " driving" : (S(k + "past") !== "" ? " past" : "");
+      html += '<div class="trip' + look + '" data-go="trip:' + S(k + "tour") + ":" + i + '">'
+            +   '<div class="w">' + S(k + "dep") + " - " + S(k + "tour") + "</div>"
+            +   '<div class="r">' + S(k + "from") + " - " + S(k + "to") + "</div>"
+            + "</div>";
     } else {
-      html += '<span class="pick line" data-go="line:' + S(k + "name") + '">'
-            +   '<span class="big">' + S(k + "sign") + "</span>"
-            + "</span>";
+      var sign = S(k + "sign");
+      html += '<span class="pick' + (sign !== "" && sign === mine ? " mine" : "")
+            + '" data-go="line:' + S(k + "name") + '">' + sign + "</span>";
     }
   }
-  put("rows", html || "<div class=\"under\">" + (trips ? "Ingen ture" : "Ingen linjer") + "</div>");
-  var head = trips ? W("line", "Linje") + " " + (S("s_sign") || S("s_con_line")) : W("pick_line", "Vælg en linje");
-  set("list-head", head + (leaves(n) > 1 ? "        " + (leaf + 1) + " / " + leaves(n) : ""));
+  put("rows", html);
 }
 
 function paintLogin() {

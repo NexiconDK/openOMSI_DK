@@ -229,6 +229,13 @@ mod tests {
                 "con": c.value(), "clock": "09:20:14", "date": "14/3/07", "sign": "1A",
                 "duty": { "line": "1A", "tour": "135S01", "zone": "4301", "next": 3, "stops": stops },
                 "lines": lines, "trips": trips,
+                "cards": [
+                    { "who": "Voksen", "card": "personal", "out": false },
+                    { "who": "Barn", "card": "flex", "out": true },
+                    { "who": "Voksen", "card": "anon", "out": true },
+                    {},
+                    { "who": "Voksen", "card": "blocked", "out": false },
+                ],
             });
             let mut s = ConsoleScreen::new();
             s.update(&v);
