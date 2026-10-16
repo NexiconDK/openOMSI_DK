@@ -21,14 +21,16 @@ pub const HEIGHT: u32 = 976;
 
 const PAGE: &str = include_str!("console_screen.html");
 
-/// The icons of the status strip along the top.
+/// The pictures of the page: the icons of the strip along the top and of the bar along
+/// the foot, the three marks the driving screen puts against a stop, and the gradient of
+/// its blue panel.
 ///
-/// They are the tablet's own icons, rasterised: the tablet draws them as SVG with
-/// gradients, and this engine draws neither SVG nor a picture written into the page
-/// itself, so on the bus they have to be real pictures. The game carries them rather
-/// than asking the player for files, so there is nothing to put anywhere and nothing
-/// that can go missing. `assets/icons/console/README.md` says how they are made again.
-const ICONS: [(&str, &[u8]); 11] = [
+/// They are the tablet's own, rasterised: the tablet draws them as SVG and CSS gradients,
+/// and this engine draws neither of those, nor a picture written into the page itself, so
+/// on the bus they have to be real pictures. The game carries them rather than asking the
+/// player for files, so there is nothing to put anywhere and nothing that can go missing.
+/// `assets/icons/console/README.md` says how they are made again.
+const ICONS: [(&str, &[u8]); 15] = [
     ("crowd.png", include_bytes!("../../../assets/icons/console/crowd.png")),
     ("signal.png", include_bytes!("../../../assets/icons/console/signal.png")),
     ("printer.png", include_bytes!("../../../assets/icons/console/printer.png")),
@@ -40,6 +42,10 @@ const ICONS: [(&str, &[u8]); 11] = [
     ("pram.png", include_bytes!("../../../assets/icons/console/pram.png")),
     ("arrow_up.png", include_bytes!("../../../assets/icons/console/arrow_up.png")),
     ("arrow_down.png", include_bytes!("../../../assets/icons/console/arrow_down.png")),
+    ("hand.png", include_bytes!("../../../assets/icons/console/hand.png")),
+    ("gone.png", include_bytes!("../../../assets/icons/console/gone.png")),
+    ("coming.png", include_bytes!("../../../assets/icons/console/coming.png")),
+    ("blue_panel.png", include_bytes!("../../../assets/icons/console/blue_panel.png")),
 ];
 
 /// Flatten `v` into the plain strings the page reads, under `name` and the names of
@@ -233,7 +239,9 @@ mod tests {
             ("lines", Box::new(|c: &mut Console| c.screen = crate::console::Screen::Lines)),
             ("trips", Box::new(|c: &mut Console| { c.press("line:Linje 1A"); })),
         ];
-        let stops: Vec<Value> = ["AARHUS RUTEBILSTATION", "BANEGÅRDSPLADSEN", "PARK ALLÉ", "RÅDHUSET", "MØLLEPARKEN", "VESTERBRO TORV", "THORVALDSENSGADE", "CEREALIA", "VIBORGVEJ", "HASLE TORV", "JÆRNBROA", "SKEJBY"]
+        // (the stops are written as a map writes them, since that is how they reach the
+        // page: the console puts them up in the letters they come in)
+        let stops: Vec<Value> = ["Aarhus Rutebilstation", "Banegårdspladsen", "Park Allé", "Rådhuset", "Mølleparken", "Vesterbro Torv", "Thorvaldsensgade", "Cerealia", "Viborgvej", "Hasle Torv", "Jærnbroa", "Skejby"]
             .iter()
             .map(|n| serde_json::json!({ "name": n }))
             .collect();

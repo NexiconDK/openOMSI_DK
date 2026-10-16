@@ -62,6 +62,27 @@ for attrs, body in cells:
         rules += " #%s, #%s svg { width: %dpx; height: %dpx }" % (id_, id_, sizes[id_], sizes[id_])
         boxes.append('<div class="box" id="%s"><style>%s</style>%s</div>' % (id_, rules, body))
 
+# The three marks the driving screen puts against a stop are built in the tablet's script
+# and not in a template: the red hand while the bus stands at the stop, and the two blue
+# arrows while it rolls - one out of the stop it has left, one into the one it heads for.
+hand = re.search(r"const HAND = `(.*?)`;", src, re.S).group(1)
+arrow = re.search(r"const ARROW = \(id, d\) => `(.*?)`;", src, re.S).group(1)
+marks = [("hand", hand)]
+for name, const in (("gone", "GONE"), ("coming", "COMING")):
+    m = re.search(r'const %s = ARROW\("([^"]+)", "([^"]+)"\);' % const, src)
+    marks.append((name, arrow.replace("${id}", m.group(1)).replace("${d}", m.group(2))))
+for name, svg in marks:
+    sizes[name] = 43 * 2  # 54 on the tablet, so 43 here
+    rules = "#%s, #%s svg { width: %dpx; height: %dpx }" % (name, name, sizes[name], sizes[name])
+    boxes.append('<div class="box" id="%s"><style>%s</style>%s</div>' % (name, rules, svg))
+
+# The blue panel of the driving screen is a gradient, which the engine cannot draw, so it
+# is a picture stretched over the panel. It is narrow because it only runs downwards.
+blue = re.search(r"\.drive \.panel \{.*?background: (linear-gradient\([^;]*\));", src, re.S).group(1)
+boxes.append(
+    '<div class="box" id="blue_panel" style="width:16px;height:640px;background:%s"></div>' % blue
+)
+
 page = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
   body { margin: 0; background: transparent; }
   .box svg { display: block; }

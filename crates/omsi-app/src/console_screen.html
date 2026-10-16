@@ -59,18 +59,28 @@
   /* the driving screen (the manual's page 11): the blue panel down the left with the
      trip on it, Afslut tur under it, and the stops to the right */
   .half { display: inline-block; width: 511px; }
-  #duty .blue { height: 640px; background: #5b93da; color: #dceaff; text-align: center; }
-  .band { height: 80px; text-align: center; }
-  .band.what { font-size: 32px; line-height: 80px; }
-  .band.big { font-size: 40px; line-height: 80px; font-weight: 700; }
-  .band.slow { font-size: 30px; line-height: 80px; font-weight: 700; color: #ffe600; }
+  /* The panel is the tablet's own gradient (#4f85d2 down to #6ba2e2). The engine draws no
+     gradient, so it is a picture of one, stretched over the panel - see console_screen.rs.
+     The three lines it holds stand evenly down it, as the tablet's space-evenly puts them:
+     five rows of 128, with the line in the second and the trip in the fourth. */
+  #duty .blue { height: 640px; color: #dceaff; text-align: center;
+                background-image: url(blue_panel.png); background-size: 100% 100%;
+                background-repeat: no-repeat; }
+  /* (each band is given its height and its line as it is written, since where they stand
+     depends on how many of them there are) */
+  .band { text-align: center; font-size: 32px; }
+  .band.slow { font-weight: 700; color: #ffe600; }
   #duty .end { height: 128px; background: #ffffff; color: #111111; font-size: 35px;
                line-height: 128px; font-weight: 700; padding: 0px 19px 0px 19px; }
+  /* A stop row, as the tablet has it: the name in its own letters at the left, and the
+     mark - the red hand, or one of the two blue arrows - at the right. The engine lays
+     out no flex, so the name is a box of its own and the mark the box beside it; the
+     mark's picture is 43 and the 42 of padding over and under it set it in the middle. */
   .stop { height: 127px; margin: 0px 0px 1px 0px; background: #ffffff;
           padding: 0px 10px 0px 19px; font-size: 34px; line-height: 127px; }
   .stop.past { color: #8a8a8a; }
-  .stop .mark { display: inline-block; width: 44px; color: #d6342c; font-weight: 700; }
-  .stop .n { display: inline-block; }
+  .stop .n { display: inline-block; width: 436px; }
+  .stop img { display: inline-block; width: 43px; height: 43px; padding: 42px 0px 42px 0px; }
 
   /* Linjevalg: two to a row, six rows (the tablet's .cell, 52 -> 42) */
   .pick { display: inline-block; width: 466px; height: 127px; margin: 0px 1px 1px 0px;
@@ -89,15 +99,20 @@
 
   /* the row of card readers above the foot bar (--row 92.5 -> 74) */
   #cards { height: 68px; background: #d8e0e3; padding: 6px 0px 0px 6px; }
-  /* the colours are the tablet's own: the card's kind, and grey once it is checked out */
-  #cards i { display: inline-block; width: 192px; height: 60px; margin: 0px 10px 0px 0px;
-             background: #ffffff; border-radius: 8px; text-align: center;
-             font-size: 24px; line-height: 60px; font-weight: 700; color: #111111; }
-  #cards i.personal { background: #3573c2; color: #ffffff; }
-  #cards i.anon { background: #42b23b; color: #ffffff; }
-  #cards i.flex { background: #f5f014; }
-  #cards i.blocked { background: #d6342c; color: #ffffff; }
-  #cards i.out { color: #d8e0e3; }
+  /* The colours are the tablet's own: the card's kind, and the paper colour once it is
+     checked out. The engine draws no border, so the dark rim the tablet's boxes have is
+     a box behind a box: the outer one is the rim's colour and the 2px of padding is all
+     that shows of it. (22 on the tablet, so 18 here, and 16 inside the rim.) */
+  #cards i { display: inline-block; width: 188px; height: 60px; margin: 0px 10px 0px 0px;
+             background: #1b1b1b; border-radius: 18px; padding: 2px 2px 2px 2px; }
+  #cards i .f { width: 188px; height: 60px; background: #ffffff; border-radius: 16px;
+                text-align: center; font-size: 24px; line-height: 60px; font-weight: 700;
+                color: #111111; }
+  #cards i.personal .f { background: #3573c2; color: #ffffff; }
+  #cards i.anon .f { background: #42b23b; color: #ffffff; }
+  #cards i.flex .f { background: #f5f014; }
+  #cards i.blocked .f { background: #d6342c; color: #ffffff; }
+  #cards i.out .f { color: #d8e0e3; }
 
   /* anything not drawn here yet */
   .title { text-align: center; font-size: 56px; line-height: 70px; font-weight: 700;
@@ -337,48 +352,44 @@ function paintCards() {
     var k = "s_cards_" + i + "_";
     var card = shut ? "" : S(k + "card");
     var cl = card === "" ? "" : card + (S(k + "out") !== "" ? " out" : "");
-    html += "<i class=\"" + cl + "\">" + (card === "" ? "" : S(k + "who")) + "</i>";
+    html += '<i class="' + cl + '"><div class="f">' + (card === "" ? "" : S(k + "who")) + "</div></i>";
   }
   put("cards", html);
 }
 
 function paintDuty() {
-  // the tablet's panel runs from #4f85d2 at the top to #6ba2e2 at the foot. The engine
-  // draws no gradient, so the panel is its own eight rows of text, each a step along that
-  // ramp - about three values a step, which at this size is no band anybody can see.
-  var zone = S("s_duty_zone");
-  var slow = S("s_con_slow") === "" ? "" : W("delay", "Forsinkelse");
+  // The blue panel holds the line and the trip, each on one line, and Forsinkelse under
+  // them while the switch is on - the same three the tablet writes there. The tablet
+  // spreads them evenly down the panel, which puts the k'th of n at k/(n+1) of the way
+  // down: so half a gap first and then a gap each. (The panel's own gradient is a
+  // picture stretched over it, since the engine draws no gradient.)
   var says = [
-    ["", ""],
-    ["what", W("line", "Linje")],
-    ["big", S("s_duty_line") || "–"],
-    ["what", W("rk_tour", "Tur")],
-    ["big", S("s_duty_tour") || "–"],
-    ["what", zone === "" ? "" : W("zone", "Zone")],
-    ["big", zone],
-    ["slow", slow],
+    ["", W("line", "Linje") + ": " + (S("s_duty_line") || "")],
+    ["", W("rk_tour", "Tur") + ": " + (S("s_duty_tour") || "")],
   ];
-  var html = "";
+  if (S("s_con_slow") !== "") { says.push(["slow", W("delay_key", "Forsinkelse")]); }
+  var gap = Math.round(640 / (says.length + 1));
+  var html = '<div class="band" style="height:' + Math.round(gap / 2) + 'px"></div>';
   for (var b = 0; b < says.length; b++) {
-    var c = 79 + Math.round(b * 28 / 7);      // 0x4f -> 0x6b
-    var g = 133 + Math.round(b * 29 / 7);     // 0x85 -> 0xa2
-    var u = 210 + Math.round(b * 16 / 7);     // 0xd2 -> 0xe2
-    html += '<div class="band ' + says[b][0] + '" style="background:rgb(' + c + "," + g + "," + u + ')">'
+    html += '<div class="band ' + says[b][0] + '" style="height:' + gap + "px;line-height:" + gap + 'px">'
           + says[b][1] + "</div>";
   }
   put("blue", html);
   set("k-end", W("end_trip", "Afslut tur"));
 
-  // the stops of the trip, with the console's own mark against the one the bus is at or
-  // on its way to, and the ones behind it in grey as the tablet greys them
+  // The stops of the trip, marked as the tablet marks them: the red hand on the stop the
+  // bus stands at, and while it rolls the two blue arrows - one out of the stop it has
+  // left, one into the one it heads for. The stops behind it are grey.
   var n = Number(S("s_duty_stops_n") || "0");
   var at = Number(S("s_duty_next") || "0");
+  var here = S("s_duty_at_stop") !== "";
   var from = Math.max(0, Math.min(at - 1, n - 6));
   var rows = "";
   for (var i = from; i < n && i < from + 6; i++) {
-    var name = S("s_duty_stops_" + i + "_name");
-    rows += '<div class="stop' + (i < at ? " past" : "") + '"><span class="mark">'
-          + (i === at ? "■" : "") + '</span><span class="n">' + name + "</span></div>";
+    var mark = here ? (i === at ? "hand" : "") : (i === at - 1 ? "gone" : (i === at ? "coming" : ""));
+    rows += '<div class="stop' + (i < at ? " past" : "") + '"><span class="n">'
+          + S("s_duty_stops_" + i + "_name") + "</span>"
+          + (mark === "" ? "" : '<img src="' + mark + '.png">') + "</div>";
   }
   put("stops", rows);
 }
