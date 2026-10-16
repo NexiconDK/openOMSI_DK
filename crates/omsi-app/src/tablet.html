@@ -962,8 +962,6 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const store = { get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
-                set(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} } };
 let state = null, labels = {}, screen = null, line = null, lines = [], trips = [], pick = null, failures = 0;
 // (the fork) the console's list is six rows deep, the lines two to a row; the arrows in
 // the bar leaf through it, and `suggest` is the trip the console puts forward on yellow
@@ -1001,8 +999,7 @@ function show(name) {
   if (name === "void") voidDraw();
   if (name === "serve") voidKey();
   if (name === "extra") xtrDraw();
-  // (the login keeps what stands in it while the console is locked: the driver's number)
-  if (name === "login") { padClose(); if (!locked) { $("driver").value = ""; $("password").value = ""; } }
+  if (name === "login") loginDraw();
 }
 
 // (the fork) which of the console's menus the bar shows us standing in: yellow is the one
@@ -1037,71 +1034,52 @@ function words() {
 // (the fork) the login screen says two different things: the one the console shows when
 // it starts up, and the one it shows while it is locked behind its own driver's pass code
 function loginWords() {
-  $("l-title").textContent = locked ? (labels.console_locked ?? "") : "Web-IBIS";
-  $("l-hint").textContent = (locked ? labels.lock_hint : labels.login_hint) ?? "";
+  $("l-title").textContent = locked() ? (labels.console_locked ?? "") : "Web-IBIS";
+  $("l-hint").textContent = (locked() ? labels.lock_hint : labels.login_hint) ?? "";
+}
+
+// (the fork) The login as the console has it: whether it is locked, whose number stands
+// in it and what is being typed are all the console's, so the page only writes them out.
+// While the pad is typing into a field, the field shows what the pad has so far.
+function loginDraw() {
+  const p = state && state.con && state.con.pad;
+  const num = (state && state.con && state.con.driver) || "";
+  $("login").classList.toggle("locked", locked());
+  $("driver").value = p && p.into === "driver" ? p.shown : num;
+  $("password").value = p && p.into === "password" ? p.shown : "";
+  loginWords();
 }
 
 // (the fork) The console's number pad, as the Rejsekort manual has it: tapping a field
 // brings it up, the number is typed into it and ENTER takes it. The driver's number is
 // eight digits there and the pass code four; any number does here, as it always did.
 // (a field of another screen asks for the pad by its own name, "vol:key", "sale:z")
-const PAD_LEN = { driver: 8, password: 4 };
-const padLen = (which) => (!which ? 0 : which.startsWith("vol:") ? 3
-  : which === "sale:paid" ? 4 : which.includes(":") ? 2 : PAD_LEN[which]);
-let padFor = null, padVal = "";
+// (the fork) The console decides all of this now, so that the tablet and the screen in
+// the bus type into the same pad: the page asks it to open, sends the keys, and draws
+// `con.pad` back. How long a field is, what ENTER does with the number and which field
+// the pass code follows are the console's business, not the page's.
+const padOpen = (which) => press("pad:open:" + which);
 
-function padOpen(which) {
-  padFor = which; padVal = "";
-  padShow(); padHere(which);
-  $("pad").classList.add("on");
+function padDraw() {
+  const p = state && state.con && state.con.pad;
+  $("pad").classList.toggle("on", !!p);
+  $("pad-shown").textContent = p ? p.shown : "";
+  // ENTER with nothing typed does nothing, so it is marked dead and sounds like it
+  document.querySelector('#pad [data-k="enter"]').classList.toggle("dead", !(p && p.enter));
+  // (the field being typed into is the pale cyan one; the other stands white)
+  const into = p ? p.into : "driver";
+  if (!into.includes(":")) {
+    $("b-driver").classList.toggle("here", into !== "password");
+    $("b-password").classList.toggle("here", into === "password");
+  }
 }
-// (the field being typed into is the pale cyan one; the other stands white)
-function padHere(which) {
-  if (!which || which.includes(":")) return;
-  $("b-driver").classList.toggle("here", which !== "password");
-  $("b-password").classList.toggle("here", which === "password");
-}
-function padShow() {
-  // the pass code is not shown as it is typed, any more than it is on the console
-  $("pad-shown").textContent = padFor === "password" ? "*".repeat(padVal.length) : padVal;
-  // (the fork) ENTER with nothing typed does nothing, so it is marked dead while the field
-  // is empty. It used to put the empty field away and open the other one, and with both of
-  // them empty the login sent the pad straight back - so the box could not be got rid of.
-  document.querySelector('#pad [data-k="enter"]').classList.toggle("dead", !padVal);
-}
-function padClose() { $("pad").classList.remove("on"); padFor = null; padHere("driver"); }
 
 $("pad").addEventListener("click", (e) => {
   // (a tap beside the panel closes it, as ESC does)
-  if (e.target === $("pad")) padClose();
+  if (e.target === $("pad")) return press("pad:x");
   const key = e.target.closest("[data-k]"), k = key?.dataset.k;
-  if (!k || !padFor || key.classList.contains("dead")) return;
-  if (k === "x") return padClose();
-  if (k === "ce") { padVal = ""; return padShow(); }
-  if (k === "enter" && padFor.startsWith("vol:")) {
-    const which = padFor.slice(4);
-    SND[which].vol = Math.max(0, Math.min(100, parseInt(padVal || "0", 10) || 0));
-    padClose(); sndDraw(); return beep(which);
-  }
-  // the ticket's own fields: how many of each customer there are, how many zones, and
-  // what the customer put in the driver's hand
-  if (k === "enter" && padFor.startsWith("sale:")) {
-    const f = padFor.slice(5), n = parseInt(padVal || "0", 10) || 0;
-    // (the money is typed in kroner and the console counts in øre)
-    const key = f === "paid" ? `paid:${n * 100}` : f === "z" ? `zones:${n}` : `count:${f === "n1" ? 0 : 1}:${n}`;
-    padClose(); press(key); return beep("key");
-  }
-  if (k === "enter") {
-    const field = padFor;
-    $(field).value = padVal;
-    // (the fork) ENTER puts the pad away. The manual's page 8 counts four steps, and the
-    // third of them is "tryk på adgangskode-feltet" - so the console does not carry the
-    // driver on to the pass code by itself; the pad goes, and he taps the next field.
-    padClose();
-    if (field === "password") $("login").requestSubmit();
-    return;
-  }
-  if (padVal.length < padLen(padFor)) { padVal += k; padShow(); }
+  if (!k || key.classList.contains("dead")) return;
+  press("pad:" + k);
 });
 
 // a tap on either field brings the pad up instead of the device's own keyboard
@@ -1111,25 +1089,9 @@ $("pad").addEventListener("click", (e) => {
   f.addEventListener("focus", () => padOpen(id));
   f.addEventListener("click", () => padOpen(id));
 });
-
-// login: any number does
-$("login").addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!$("driver").value.trim()) return padOpen("driver");
-  if (!$("password").value.trim()) return padOpen("password");
-  store.set("driver", $("driver").value.trim());
-  $("password").value = "";
-  unlock();
-  // (back to the trip, when one is under way: a driver change leaves it standing)
-  show(state && state.duty ? "duty" : "lines");
-});
-// locked, ESC is the manual's "tast ESC for chaufførskift"; otherwise it empties the fields
-document.querySelector("#login .esc").addEventListener("click", () => {
-  padClose();
-  unlock();
-  $("driver").value = ""; $("password").value = "";
-  padOpen("driver");
-});
+$("login").addEventListener("submit", (e) => e.preventDefault());
+// ESC on the login is the manual's "tast ESC for chaufførskift": the console is handed on
+document.querySelector("#login .esc").addEventListener("click", () => press("esc"));
 
 async function getJson(url, opts) {
   const r = await fetch(url, Object.assign({ cache: "no-store" }, opts));
@@ -1211,10 +1173,7 @@ function ask(t) {
 document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click", () => {
   const k = b.dataset.key;
   // where ESC steps back to, and which screen a menu key opens, are the console's to say
-  if (k === "esc") {
-    if (screen === "lines") store.set("driver", null);
-    return press("esc");
-  }
+  if (k === "esc") return press("esc");
   if (k === "menu" || k === "serve" || k === "tix") return press("go:" + k);
   // the pram key in the bar turns a check-out reader into a check-in for one card
   if (k === "pram") return tell("/readers", { op: "pram" });
@@ -1226,29 +1185,14 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
 // the console over a short break - the same driver types the pass code to open it again.
 // Chaufførskift hands the bus on: the line and the trip stay, only the driver changes.
 // Log ud is for coming back to the garage.
-let locked = false;
-function lockConsole() {
-  locked = true;
-  $("login").classList.add("locked");
-  $("driver").value = store.get("driver") || "";
-  $("password").value = "";
-  loginWords();
-  show("login");
-  padOpen("password");
-}
-function unlock() {
-  locked = false;
-  $("login").classList.remove("locked");
-  loginWords();
-}
+// All three are the console's own keys: it knows whose number to keep, which field the
+// pad opens on and where the driver lands afterwards.
+const locked = () => !!(state && state.con && state.con.locked);
+// (somebody is on the console: his number is in it and it is not held over a break)
+const loggedIn = () => !!(state && state.con && state.con.driver && !state.con.locked);
 document.querySelectorAll("#menu [data-m]").forEach((b) => b.addEventListener("click", () => {
   const m = b.dataset.m;
-  if (m === "sound") return press("go:sound");
-  if (m === "lock") return lockConsole();
-  unlock();
-  if (m === "logout") store.set("driver", null);   // (a change keeps the duty and the number)
-  show("login");
-  padOpen("driver");
+  press(m === "sound" ? "go:sound" : m);
 }));
 
 function leaf(d) {
@@ -1426,7 +1370,7 @@ function conDraw() {
   const to = state && state.con && state.con.screen;
   if (to && to !== screen && !booting) show(to);
   footTabs();
-  saleDraw(); voidKey(); xtrDraw(); shutDraw(); slowDraw();
+  saleDraw(); voidKey(); xtrDraw(); shutDraw(); slowDraw(); padDraw(); loginDraw(); sndDraw();
 }
 
 // a zone key on the sales menu, or Flere... (no zones), which opens the ticket to be
@@ -1607,23 +1551,40 @@ $("info-ok").addEventListener("click", () => $("info").classList.remove("on"));
 
 // (the fork) INDSTILLING AF LYD, the manual's page 30. The console beeps when a key is
 // pressed, differently when the key does nothing, and again when something is wrong; this
-// page runs in a browser, so it can do all three itself. What the driver sets is kept in
-// the browser, not in the game - it is this tablet's sound, not the bus's.
+// page runs in a browser, so it can make all three itself. What the driver sets is the
+// console's, so the screen in the bus is set at the same time; the browser only keeps a
+// copy, to hand back the next time the game is started.
 const SND = { key: { on: true, vol: 50 }, dead: { on: true, vol: 50 }, fault: { on: true, vol: 60 } };
+const KINDS = ["key", "dead", "fault"];
 let audio = null;
 
+// what the console says the sounds stand at, until it has said anything
+const snd = (k) => ((state && state.con && state.con.sound && state.con.sound[k]) || SND[k]);
+
+// the console is started afresh with every game, so the browser hands back what the driver
+// set the last time he was in this bus
 function sndLoad() {
   try {
     const v = JSON.parse(localStorage.getItem("snd") || "null");
-    if (v) for (const k of ["key", "dead", "fault"]) if (v[k]) Object.assign(SND[k], v[k]);
+    if (!v) return;
+    for (const k of KINDS) {
+      if (!v[k]) continue;
+      Object.assign(SND[k], v[k]);
+      press(`snd:set:${k}:${SND[k].on ? 1 : 0}:${SND[k].vol | 0}`);
+    }
   } catch (e) {}
 }
-function sndSave() { try { localStorage.setItem("snd", JSON.stringify(SND)); } catch (e) {} }
+function sndSave() {
+  try {
+    for (const k of KINDS) Object.assign(SND[k], snd(k));
+    localStorage.setItem("snd", JSON.stringify(SND));
+  } catch (e) {}
+}
 
 // a short blip, the way the console's keys sound: bright for a key that does something,
 // dull for one that does not, and two tones for a fault
 function beep(kind) {
-  const s = SND[kind];
+  const s = snd(kind);
   if (!s || !s.on || !s.vol) return;
   try {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
@@ -1653,16 +1614,15 @@ $("stage").addEventListener("click", (e) => {
 }, true);
 
 function sndDraw() {
-  document.querySelectorAll("#sound [data-s]").forEach((b) => { b.textContent = SND[b.dataset.s].on ? "ON" : "OFF"; });
-  document.querySelectorAll("#sound [data-v]").forEach((b) => { b.textContent = String(SND[b.dataset.v].vol); });
+  document.querySelectorAll("#sound [data-s]").forEach((b) => { b.textContent = snd(b.dataset.s).on ? "ON" : "OFF"; });
+  document.querySelectorAll("#sound [data-v]").forEach((b) => { b.textContent = String(snd(b.dataset.v).vol); });
 }
-document.querySelectorAll("#sound [data-s]").forEach((b) => b.addEventListener("click", () => {
-  SND[b.dataset.s].on = !SND[b.dataset.s].on; sndDraw(); beep(b.dataset.s);
+document.querySelectorAll("#sound [data-s]").forEach((b) => b.addEventListener("click", async () => {
+  await press("snd:" + b.dataset.s); beep(b.dataset.s);
 }));
 document.querySelectorAll("#sound [data-t]").forEach((b) => b.addEventListener("click", () => beep(b.dataset.t)));
 document.querySelectorAll("#sound [data-v]").forEach((b) => b.addEventListener("click", () => padOpen("vol:" + b.dataset.v)));
 $("snd-save").addEventListener("click", () => { sndSave(); beep("key"); press("go:menu"); });
-sndLoad();
 sndDraw();
 
 // (the fork) the row of card readers along the foot of the screen: the last cards held
@@ -1738,7 +1698,7 @@ function bootDone() {
 }
 // where the console belongs once it is up: back on the duty it was left on, or the login
 function route() {
-  if (!store.get("driver")) return false;
+  if (!loggedIn()) return false;
   show(state && state.duty ? "duty" : "lines");
   return true;
 }
@@ -1771,14 +1731,16 @@ async function tick() {
       }
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
-      if (first) { if (!booting) route(); }
+      // (the console is started afresh with the game: the sounds it was left set to are
+      // handed back to it as soon as it answers for the first time)
+      if (first) { sndLoad(); if (!booting) route(); }
       else if (screen === "duty") drawDuty();
       else if (screen === "sale") saleDraw();
       // (the fork) the bus has reached the last stop of the trip: the console gives the
       // trip back by itself and stands on Turvalg, without waiting for Afslut tur. It does
       // it a moment after the game has ended the trip, so the trip's own summary is made
       // first - and only once somebody is logged in to see it.
-      if (!booting && store.get("driver") && s.duty && s.duty.done && !ending) endTrip();
+      if (!booting && loggedIn() && s.duty && s.duty.done && !ending) endTrip();
     }
   } catch (e) {
     if (++failures >= 3) { $("lost").classList.add("on"); document.body.classList.add("away"); }

@@ -188,6 +188,61 @@ impl Extra {
     }
 }
 
+/// (the fork) The console's number pad, as the manual's page 8 has it: tapping a field
+/// brings it up, the number is typed into it and ENTER takes it away again.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Pad {
+    /// Which field it is typing into, by the name the screens use for it.
+    pub into: String,
+    pub typed: String,
+}
+
+impl Pad {
+    /// How many digits the field takes. The driver's number is eight and his pass code
+    /// four, which the manual's page 8 says; the ticket's own fields are short, and the
+    /// money takes a large note.
+    fn room(&self) -> usize {
+        match self.into.as_str() {
+            "driver" => 8,
+            "password" => 4,
+            "sale:paid" => 4,
+            _ if self.into.starts_with("vol:") => 3,
+            _ => 2,
+        }
+    }
+
+    /// The pass code is not shown as it is typed, any more than it is on the console.
+    fn shown(&self) -> String {
+        if self.into == "password" {
+            "*".repeat(self.typed.len())
+        } else {
+            self.typed.clone()
+        }
+    }
+
+    fn value(&self) -> Value {
+        // ENTER with nothing typed does nothing, so it is marked dead and sounds like it
+        json!({ "into": self.into, "shown": self.shown(), "enter": !self.typed.is_empty() })
+    }
+}
+
+/// (the fork) One of the console's three sounds, as its sound menu sets them: on or off,
+/// and how loud out of a hundred.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Sound {
+    pub on: bool,
+    pub vol: u32,
+}
+
+/// The three sounds, in the order the sound menu lists them: the key that does something,
+/// the key that does not, and the fault.
+pub const SOUNDS: [&str; 3] = ["key", "dead", "fault"];
+
+/// Which of [`SOUNDS`] that is, if it is one of them at all.
+fn sound_at(name: &str) -> Option<usize> {
+    SOUNDS.iter().position(|s| *s == name)
+}
+
 /// Which of the console's screens is up. There is one console, however many screens are
 /// drawing it, so the tablet and the screen in the bus always stand on the same one.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -290,6 +345,16 @@ pub struct Console {
     pub shut: bool,
     /// (the fork) **Forsinkelse** (page 32): a switch that stands on until it is put off.
     pub slow: bool,
+    /// The number pad, while it is up over whichever screen asked for it.
+    pub pad: Option<Pad>,
+    /// The driver's number, once he has typed it. He is logged in while it is there and
+    /// the console is not locked.
+    pub driver: Option<String>,
+    /// **Lås konsol** (the manual's pages 17 to 21): the console held over a short break,
+    /// which the same driver opens again with his pass code.
+    pub locked: bool,
+    /// (the fork) The three sounds of the sound menu, in the order of [`SOUNDS`].
+    pub sound: [Sound; 3],
 }
 
 impl Default for Console {
@@ -303,6 +368,11 @@ impl Default for Console {
             extra: None,
             shut: false,
             slow: false,
+            pad: None,
+            driver: None,
+            locked: false,
+            // the fault is the one the driver must hear over the bus, so it stands louder
+            sound: [Sound { on: true, vol: 50 }, Sound { on: true, vol: 50 }, Sound { on: true, vol: 60 }],
         }
     }
 }
@@ -385,12 +455,68 @@ impl Console {
             // CHECK IND EKSTRA, the manual's pages 24 to 26
             "extra" => self.extra_press(rest),
             // the screen asked for by name, and ESC, which steps back out of it
+            // the number pad, and the login it types into
+            "pad" => self.pad_press(rest),
+            "lock" => {
+                self.locked = true;
+                self.screen = Screen::Login;
+                self.pad = Some(Pad { into: "password".into(), typed: String::new() });
+                Did::Moved
+            }
+            // Log ud comes back to the garage and takes the number with it; Chaufførskift
+            // hands the bus on and leaves the trip standing
+            "logout" | "change" => {
+                self.locked = false;
+                if verb == "logout" {
+                    self.driver = None;
+                }
+                self.screen = Screen::Login;
+                self.pad = Some(Pad { into: "driver".into(), typed: String::new() });
+                Did::Moved
+            }
             "go" => match Screen::of(rest) {
                 Some(s) => self.go(s),
                 None => Did::Nothing,
             },
+            // (the fork) a sound of the sound menu switched on or off, and `set` for the
+            // screen handing back what it kept from the session before this one
+            "snd" => {
+                if let Some(set) = rest.strip_prefix("set:") {
+                    let mut p = set.split(':');
+                    let (Some(i), Some(on), Some(vol)) = (p.next().and_then(sound_at), p.next(), p.next()) else {
+                        return Did::Nothing;
+                    };
+                    self.sound[i] = Sound { on: on == "1", vol: vol.parse().unwrap_or(50).min(100) };
+                    return Did::Moved;
+                }
+                match sound_at(rest) {
+                    Some(i) => {
+                        self.sound[i].on = !self.sound[i].on;
+                        Did::Moved
+                    }
+                    None => Did::Nothing,
+                }
+            }
             "esc" => {
+                // the manual's page 8: "tast ESC for chaufførskift". The console is handed
+                // on, so the number goes with the driver and the pad comes back up empty.
+                if self.screen == Screen::Login {
+                    self.driver = None;
+                    self.locked = false;
+                    self.pad = Some(Pad { into: "driver".into(), typed: String::new() });
+                    return Did::Moved;
+                }
+                // the pad stands over the screen, so ESC takes the pad before the screen
+                if self.pad.take().is_some() {
+                    return Did::Moved;
+                }
                 self.screen = self.back();
+                // out of the list of lines there is nowhere back but out of the console
+                // altogether, and that takes the driver's number with it
+                if self.screen == Screen::Login {
+                    self.driver = None;
+                    self.pad = Some(Pad { into: "driver".into(), typed: String::new() });
+                }
                 Did::Moved
             }
             // (the fork) the card reader key in the strip (page 34) and Forsinkelse (32):
@@ -405,6 +531,88 @@ impl Console {
             }
             _ => Did::Nothing,
         }
+    }
+
+    /// The number pad, the manual's page 8. A field tapped brings it up over whatever
+    /// screen asked for it, the number is typed in, and ENTER takes the pad away again
+    /// and hands the number to the field it was typed for.
+    ///
+    /// * `open:<field>` - `driver`, `password`, `sale:n1`, `sale:n2`, `sale:z`,
+    ///   `sale:paid`, `vol:<sound>`
+    /// * `<digit>`, `ce` (the field emptied), `x` (the pad put away), `enter`
+    fn pad_press(&mut self, key: &str) -> Did {
+        let (verb, rest) = key.split_once(':').unwrap_or((key, ""));
+        match verb {
+            "open" => {
+                if rest.is_empty() {
+                    return Did::Nothing;
+                }
+                self.pad = Some(Pad { into: rest.to_string(), typed: String::new() });
+                Did::Moved
+            }
+            "x" => match self.pad.take() {
+                Some(_) => Did::Moved,
+                None => Did::Nothing,
+            },
+            "ce" => {
+                let Some(p) = self.pad.as_mut().filter(|p| !p.typed.is_empty()) else { return Did::Nothing };
+                p.typed.clear();
+                Did::Moved
+            }
+            "enter" => self.pad_enter(),
+            // a digit, while the field has room for one more
+            d => {
+                let digit = d.len() == 1 && d.as_bytes()[0].is_ascii_digit();
+                let Some(p) = self.pad.as_mut().filter(|p| digit && p.typed.len() < p.room()) else {
+                    return Did::Nothing;
+                };
+                p.typed.push_str(d);
+                Did::Moved
+            }
+        }
+    }
+
+    /// ENTER on the pad: the pad goes, and the number lands in the field it was typed for.
+    /// ENTER with nothing typed does nothing at all - it used to put the empty field away
+    /// and open the other one, and with both of them empty the pad could not be got rid of.
+    fn pad_enter(&mut self) -> Did {
+        let Some(p) = self.pad.clone().filter(|p| !p.typed.is_empty()) else { return Did::Nothing };
+        self.pad = None;
+        let n: u32 = p.typed.parse().unwrap_or(0);
+        let did = match p.into.as_str() {
+            // the manual's page 8 counts four steps, and the third of them is "tryk på
+            // adgangskode-feltet": the console does not carry the driver on by itself
+            "driver" => {
+                self.driver = Some(p.typed.clone());
+                Did::Moved
+            }
+            // the pass code is what opens the console, whether it was locked over a break
+            // or is being taken on for the first time. Any number does, as it always did.
+            "password" => {
+                if self.driver.is_none() {
+                    self.pad = Some(Pad { into: "driver".into(), typed: String::new() });
+                    return Did::Moved;
+                }
+                self.locked = false;
+                self.screen = self.home();
+                Did::Moved
+            }
+            // the ticket's own fields. The money is typed in kroner and the console counts
+            // in øre, so that is where the two meet.
+            "sale:paid" => self.press(&format!("paid:{}", n.saturating_mul(100))),
+            "sale:z" => self.press(&format!("zones:{n}")),
+            "sale:n1" => self.press(&format!("count:0:{n}")),
+            "sale:n2" => self.press(&format!("count:1:{n}")),
+            other => match other.strip_prefix("vol:").and_then(sound_at) {
+                Some(i) => {
+                    self.sound[i].vol = n.min(100);
+                    Did::Moved
+                }
+                None => Did::Nothing,
+            },
+        };
+        // whatever the number meant, the pad went away, and that is a move in itself
+        if did == Did::Nothing { Did::Moved } else { did }
     }
 
     /// The game tells the console whether a trip is being driven: Billetter has nothing to
@@ -557,6 +765,16 @@ impl Console {
         if let Some(x) = self.extra.as_ref() {
             v["extra"] = x.value();
         }
+        if let Some(p) = self.pad.as_ref() {
+            v["pad"] = p.value();
+        }
+        v["driver"] = self.driver.clone().map_or(Value::Null, Value::String);
+        v["locked"] = Value::Bool(self.locked);
+        let mut snd = serde_json::Map::new();
+        for (name, s) in SOUNDS.iter().zip(self.sound.iter()) {
+            snd.insert(name.to_string(), json!({ "on": s.on, "vol": s.vol }));
+        }
+        v["sound"] = Value::Object(snd);
         v
     }
 }
@@ -781,11 +999,15 @@ mod tests {
             (Screen::Menu, Screen::Duty),
             (Screen::Lines, Screen::Login),
         ] {
+            // (backing out to the login leaves the pad up for the next driver, and ESC
+            // would take that before it took the screen)
+            c.pad = None;
             c.screen = from;
             c.press("esc");
             assert_eq!(c.screen, to, "ESC from {:?}", from);
         }
         // without a trip the console puts itself down on the list of lines instead
+        c.pad = None;
         c.set_duty(false);
         c.screen = Screen::Menu;
         c.press("esc");
@@ -862,5 +1084,164 @@ mod tests {
         // the most that may travel on one Rejsekort is the manual's own 29
         c.press("count:0:99");
         assert_eq!(c.sale.as_ref().unwrap().rows[0].0, MOST);
+    }
+
+    /// (the fork) The manual's page 8, step by step: the driver taps his number field, types
+    /// it, ENTER takes the pad away - and it is he who taps the pass code field next, not
+    /// the console that carries him there.
+    #[test]
+    fn the_login_follows_the_manuals_four_steps() {
+        let mut c = Console::default();
+        c.screen = Screen::Login;
+
+        c.press("pad:open:driver");
+        for d in ["1", "3", "5", "0", "0", "1"] {
+            assert_eq!(c.press(&format!("pad:{d}")), Did::Moved);
+        }
+        assert_eq!(c.pad.as_ref().unwrap().shown(), "135001");
+        assert_eq!(c.press("pad:enter"), Did::Moved);
+        assert!(c.pad.is_none(), "ENTER puts the pad away");
+        assert_eq!(c.driver.as_deref(), Some("135001"));
+        assert_eq!(c.screen, Screen::Login, "and leaves him on the login to tap the next field");
+
+        c.press("pad:open:password");
+        c.press("pad:4");
+        c.press("pad:2");
+        assert_eq!(c.pad.as_ref().unwrap().shown(), "**", "the pass code is not shown as it is typed");
+        c.press("pad:enter");
+        assert!(c.pad.is_none());
+        assert!(!c.locked);
+        assert_eq!(c.screen, Screen::Lines, "and with no trip under way, in at the list of lines");
+    }
+
+    /// (the fork) The bug the player found: the pad would not go away. ENTER on an empty
+    /// field used to open the other one, and with both empty it came straight back.
+    #[test]
+    fn the_pad_can_always_be_got_rid_of() {
+        let mut c = Console::default();
+        c.screen = Screen::Login;
+        c.press("pad:open:driver");
+        assert_eq!(c.press("pad:enter"), Did::Nothing, "ENTER with nothing typed is dead");
+        assert!(c.pad.is_some(), "and so leaves the pad standing rather than ping-ponging");
+        assert_eq!(c.value()["pad"]["enter"], false, "which the screen draws as a dead key");
+
+        // the three ways out of it
+        assert_eq!(c.press("pad:x"), Did::Moved);
+        assert!(c.pad.is_none());
+        c.press("pad:open:driver");
+        c.press("pad:7");
+        assert_eq!(c.press("pad:ce"), Did::Moved, "CE empties the field");
+        assert_eq!(c.pad.as_ref().unwrap().typed, "");
+        assert_eq!(c.press("pad:ce"), Did::Nothing, "and on an empty field is dead");
+        c.press("pad:7");
+        c.press("pad:enter");
+        assert!(c.pad.is_none());
+
+        // a pass code typed before there is any driver asks for the number first
+        let mut c = Console::default();
+        c.screen = Screen::Login;
+        c.press("pad:open:password");
+        c.press("pad:1");
+        c.press("pad:enter");
+        assert_eq!(c.pad.as_ref().unwrap().into, "driver");
+        assert_eq!(c.screen, Screen::Login, "the console is not opened on a pass code alone");
+        assert_eq!(c.driver, None);
+    }
+
+    /// (the fork) Each field takes as many digits as it holds, and no more: the driver's
+    /// number eight and the pass code four, which the manual's page 8 says.
+    #[test]
+    fn a_field_takes_what_it_holds() {
+        let mut c = Console::default();
+        for (field, room) in [("driver", 8), ("password", 4), ("sale:paid", 4), ("vol:key", 3), ("sale:z", 2)] {
+            c.press(&format!("pad:open:{field}"));
+            for _ in 0..12 {
+                c.press("pad:9");
+            }
+            assert_eq!(c.pad.as_ref().unwrap().typed.len(), room, "{field}");
+            assert_eq!(c.press("pad:9"), Did::Nothing, "{field} is full");
+            c.press("pad:x");
+        }
+        // and only a digit is typed at all
+        c.press("pad:open:driver");
+        for key in ["pad:a", "pad:12", "pad:-", "pad:"] {
+            assert_eq!(c.press(key), Did::Nothing, "{key}");
+        }
+        assert_eq!(c.pad.as_ref().unwrap().typed, "");
+    }
+
+    /// (the fork) The pad over the ticket hands its number to the ticket: the money is typed
+    /// in kroner and the console counts in øre, so the two meet at ENTER.
+    #[test]
+    fn the_pad_over_the_ticket_fills_it_in() {
+        let mut c = Console::default();
+        c.set_duty(true);
+        // the manual's page 18: seven zones, and the customer comes with a hundred
+        c.press("buy:adult:0");
+        c.press("pad:open:sale:z");
+        c.press("pad:7");
+        c.press("pad:enter");
+        assert_eq!(c.sale.as_ref().unwrap().zones, 7);
+        c.press("pad:open:sale:n1");
+        c.press("pad:2");
+        c.press("pad:enter");
+        assert_eq!(c.sale.as_ref().unwrap().rows[0].0, 2);
+
+        c.press("ok");
+        c.press("pad:open:sale:paid");
+        c.press("pad:1");
+        c.press("pad:0");
+        c.press("pad:0");
+        c.press("pad:enter");
+        assert_eq!(c.sale.as_ref().unwrap().paid, Some(10_000), "a hundred kroner is ten thousand øre");
+        assert!(c.pad.is_none());
+    }
+
+    /// (the fork) The sound menu, which the pad also types into: a volume out of a hundred,
+    /// and a sound switched on or off.
+    #[test]
+    fn the_sound_menu_is_the_consoles_own() {
+        let mut c = Console::default();
+        assert_eq!(c.value()["sound"]["fault"]["vol"], 60, "the fault is heard over the bus");
+        c.press("pad:open:vol:key");
+        c.press("pad:9");
+        c.press("pad:9");
+        c.press("pad:9");
+        c.press("pad:enter");
+        assert_eq!(c.sound[0].vol, 100, "a hundred is as loud as it goes");
+        assert_eq!(c.press("snd:key"), Did::Moved);
+        assert_eq!(c.value()["sound"]["key"]["on"], false);
+        assert_eq!(c.press("snd:nonsense"), Did::Nothing);
+
+        // the screen handing back what the driver set the session before this one
+        assert_eq!(c.press("snd:set:fault:0:80"), Did::Moved);
+        assert_eq!(c.sound[2], Sound { on: false, vol: 80 });
+        assert_eq!(c.press("snd:set:fault:1:999"), Did::Moved);
+        assert_eq!(c.sound[2].vol, 100, "and no louder than it goes");
+        for key in ["snd:set:nonsense:1:50", "snd:set:key:1", "snd:set:"] {
+            assert_eq!(c.press(key), Did::Nothing, "{key}");
+        }
+    }
+
+    /// (the fork) ESC takes the pad before it takes the screen, and on the login it hands
+    /// the console to the next driver ("tast ESC for chaufførskift").
+    #[test]
+    fn esc_takes_the_pad_first() {
+        let mut c = Console::default();
+        c.set_duty(true);
+        c.press("go:menu");
+        c.press("go:sound");
+        c.press("pad:open:vol:dead");
+        c.press("esc");
+        assert!(c.pad.is_none());
+        assert_eq!(c.screen, Screen::Sound, "the screen stands while the pad goes");
+        c.press("esc");
+        assert_eq!(c.screen, Screen::Menu);
+
+        c.driver = Some("135001".into());
+        c.screen = Screen::Login;
+        c.press("esc");
+        assert_eq!(c.driver, None, "the number goes with the driver");
+        assert_eq!(c.pad.as_ref().unwrap().into, "driver");
     }
 }
