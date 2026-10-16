@@ -62,6 +62,8 @@ pub enum Ask {
     AtStop(bool),
     /// (the fork) With the GPS off: the bus is driving to this stop of the current trip.
     HeadFor(usize),
+    /// (the fork) The card reader setup's keys (the manual's page 33).
+    Readers(String),
 }
 
 /// Switch the page on or off, on `port` (from the settings; live).
@@ -245,6 +247,10 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
         // (the fork) the console's GPS key and, with it off, its manual stop selection
         ("POST", "/gps") => json_of(ask(Ask::Gps(field(body, "on").as_deref() == Some("1")))),
         ("POST", "/at_stop") => json_of(ask(Ask::AtStop(field(body, "at").as_deref() == Some("1")))),
+        ("POST", "/readers") => match field(body, "op") {
+            Some(op) => json_of(ask(Ask::Readers(op))),
+            None => ("400 Bad Request", "text/plain; charset=utf-8", b"which key?".to_vec()),
+        },
         ("POST", "/head_for") => match field(body, "stop").and_then(|s| s.parse().ok()) {
             Some(stop) => json_of(ask(Ask::HeadFor(stop))),
             None => ("400 Bad Request", "text/plain; charset=utf-8", b"which stop?".to_vec()),
@@ -273,15 +279,78 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
 /// is the blue personal one, which is what most of them are. Who got on and off is real,
 /// though - the riders are told apart by their ids, whatever door they took - and the
 /// customer type is the passenger's own age.
-#[derive(Default)]
+/// (the fork) What a reader in the bus is set to do, as the manual's page 33 has it: take
+/// a card in (Ci) or take one out (Cu).
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Reads {
+    In,
+    Out,
+}
+
 struct Cards {
     /// Who was in the bus when this was last looked at (id and age, by id).
     seen: Vec<(u32, f32)>,
-    /// The last few cards: (customer type, card type, checked out).
-    last: Vec<(String, &'static str, bool)>,
+    /// What was last held to each reader: (customer type, card type, checked out).
+    slot: Vec<Option<(String, &'static str, bool)>>,
+    /// What each reader is set to.
+    role: Vec<Reads>,
+    /// A reader turned the other way round for one card only (the pram key, Annuller ind).
+    once: Option<(usize, Reads)>,
+    /// Which of the check-out readers the next card goes to, so they take turns.
+    turn: usize,
     /// The first look only takes down who is aboard: a bus already full when the page is
     /// switched on has nobody checking in.
     begun: bool,
+}
+
+impl Default for Cards {
+    fn default() -> Cards {
+        Cards { seen: Vec::new(), slot: vec![None; READERS], role: Cards::stock(), once: None, turn: 0, begun: false }
+    }
+}
+
+impl Cards {
+    /// How the bus is fitted from the yard: the front reader takes cards in, the rest take
+    /// them out. Nulstil puts it back to this.
+    fn stock() -> Vec<Reads> {
+        (0..READERS).map(|i| if i == 0 { Reads::In } else { Reads::Out }).collect()
+    }
+
+    /// The reader a card of this kind is held to, and what it leaves behind there. A reader
+    /// turned round for one card only is used first and then turns back.
+    fn reader_for(&mut self, going_out: bool) -> Option<usize> {
+        let want = if going_out { Reads::Out } else { Reads::In };
+        if let Some((k, way)) = self.once {
+            if way == want {
+                self.once = None;
+                return Some(k);
+            }
+        }
+        let fit: Vec<usize> = (0..READERS).filter(|&k| self.role[k] == want).collect();
+        if fit.is_empty() {
+            return None;
+        }
+        self.turn = self.turn.wrapping_add(1);
+        Some(fit[self.turn % fit.len()])
+    }
+
+    /// The manual's four keys on the card reader setup.
+    fn set(&mut self, op: &str) -> bool {
+        match op {
+            "all_in" => self.role = vec![Reads::In; READERS],
+            "all_out" => self.role = vec![Reads::Out; READERS],
+            "reset" => {
+                self.role = Cards::stock();
+                self.once = None;
+            }
+            // the pram: a check-out reader takes one card in, and then is a check-out again
+            "pram" => self.once = (0..READERS).find(|&k| self.role[k] == Reads::Out).map(|k| (k, Reads::In)),
+            // Annuller ind: the front reader takes one card out instead
+            "cancel_in" => self.once = (0..READERS).find(|&k| self.role[k] == Reads::In).map(|k| (k, Reads::Out)),
+            _ => return false,
+        }
+        true
+    }
 }
 
 static CARDS: Mutex<Option<Cards>> = Mutex::new(None);
@@ -316,29 +385,41 @@ fn customer(age: f32) -> &'static str {
     }
 }
 
-/// The row of boxes after `riders` got on and off since it was last looked at.
+/// The row of boxes after `riders` got on and off since it was last looked at: a card
+/// checked in goes to a reader set to take them in, one checked out to a reader set to
+/// take them out, and the box shows what each reader last had held to it.
 fn cards_of(cards: &mut Cards, riders: &[(u32, f32)]) -> Vec<Value> {
     let same = cards.seen.len() == riders.len() && cards.seen.iter().zip(riders).all(|(a, b)| a.0 == b.0);
     if !same {
         if cards.begun {
             let has = |v: &[(u32, f32)], id: u32| v.binary_search_by_key(&id, |(i, _)| *i).is_ok();
-            // (newest first: those who checked in, then those who checked out)
-            for (id, age) in riders.iter() {
-                if !has(&cards.seen, *id) {
-                    cards.last.insert(0, (customer(*age).to_string(), card_type(*id), false));
+            let mut held: Vec<(u32, f32, bool)> = riders.iter().filter(|(id, _)| !has(&cards.seen, *id)).map(|(i, a)| (*i, *a, false)).collect();
+            held.extend(cards.seen.iter().filter(|(id, _)| !has(riders, *id)).map(|(i, a)| (*i, *a, true)));
+            for (id, age, out) in held {
+                if let Some(k) = cards.reader_for(out) {
+                    cards.slot[k] = Some((customer(age).to_string(), card_type(id), out));
                 }
             }
-            for (id, age) in cards.seen.iter() {
-                if !has(riders, *id) {
-                    cards.last.insert(0, (customer(*age).to_string(), card_type(*id), true));
-                }
-            }
-            cards.last.truncate(READERS);
         }
         cards.seen = riders.to_vec();
         cards.begun = true;
     }
-    cards.last.iter().map(|(who, card, out)| json!({ "who": omsi_ui::tr(who).into_owned(), "card": card, "out": out })).collect()
+    (0..READERS)
+        .map(|k| {
+            let role = if cards.role[k] == Reads::In { "in" } else { "out" };
+            match &cards.slot[k] {
+                Some((who, card, out)) => json!({ "who": omsi_ui::tr(who).into_owned(), "card": card, "out": out, "role": role }),
+                None => json!({ "role": role }),
+            }
+        })
+        .collect()
+}
+
+/// (the fork) The card reader setup's keys (the manual's page 33). True when the key meant
+/// something.
+pub fn set_readers(op: &str) -> bool {
+    let mut c = CARDS.lock().unwrap_or_else(|e| e.into_inner());
+    c.get_or_insert_with(Cards::default).set(op)
 }
 
 pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Option<glam::DVec3>, speed_kmh: f32, passengers: Option<usize>, riders: &[(u32, f32)], paused: bool) {
@@ -435,6 +516,12 @@ fn labels() -> Value {
         ("checkin_extra", "Extra check in"),
         ("readers_on", "Card readers active"),
         ("readers_off", "Card readers not active"),
+        // the card reader setup, as the manual's page 33 has it
+        ("reader_head", "Card reader setup"),
+        ("all_in", "All in"),
+        ("all_out", "All out"),
+        ("cancel_in", "Cancel in"),
+        ("reset", "Reset"),
         ("test", "Test"),
         ("save", "Save"),
         ("console_locked", "The driver console is locked"),

@@ -3241,6 +3241,9 @@ pub(crate) fn tablet_answer(app: &mut App, ask: crate::tablet::Ask) -> serde_jso
             after_duty_moved(app);
             json!({ "ok": moved })
         }
+        // (the fork) the card reader setup's keys: the readers are the console's own, so
+        // the answer is simply whether the key meant anything
+        Ask::Readers(op) => json!({ "ok": crate::tablet::set_readers(&op) }),
     }
 }
 
