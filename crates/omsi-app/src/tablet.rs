@@ -279,6 +279,12 @@ fn response(request: &str, ask: &dyn Fn(Ask) -> Value, picture: &dyn Fn(&str) ->
                 if did == crate::console::Did::Ended {
                     ask(Ask::EndTrip);
                 }
+                // a trip chosen on either screen is taken on by the game
+                if did == crate::console::Did::Chose {
+                    if let Some((line, tour, pos)) = crate::console::with(|c| c.take_chosen()) {
+                        ask(Ask::Start { line, tour, pos });
+                    }
+                }
                 // the console comes back with the answer: a key press is not worth a
                 // second journey for the whole state, which carries every word with it
                 let con = crate::console::with(|c| c.value());
@@ -563,10 +569,24 @@ pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Optio
             v["read"] = facts;
         }
     }
+    // (the fork) and the lists for whichever screen the console stands on, which the
+    // tablet fetches for itself but the screen in the bus cannot
+    if let (Some(Value::Object(lists)), Some(o)) = (LISTS.lock().unwrap_or_else(|e| e.into_inner()).clone(), v.as_object_mut()) {
+        o.extend(lists);
+    }
     if on {
         *STATE.lock().unwrap_or_else(|e| e.into_inner()) = serde_json::to_vec(&v).unwrap_or_default();
     }
     *LIVE.lock().unwrap_or_else(|e| e.into_inner()) = Some(v);
+}
+
+/// (the fork) The lists the console's screen in the bus needs just now, laid out by the
+/// frame (`game_lists::console_lists`) and sent down with the state.
+static LISTS: Mutex<Option<Value>> = Mutex::new(None);
+
+/// The frame hands over the lists for whichever screen the console stands on.
+pub fn offer_lists(v: Value) {
+    *LISTS.lock().unwrap_or_else(|e| e.into_inner()) = v.as_object().is_some().then_some(v);
 }
 
 /// (the fork) The last state built, as the console's screen in the bus reads it. The

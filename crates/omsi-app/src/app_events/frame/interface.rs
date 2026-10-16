@@ -11,6 +11,10 @@ impl App {
         for (ask, reply) in crate::tablet::take_asks() {
             let _ = reply.send(crate::game_lists::tablet_answer(self, ask));
         }
+        // (the fork) and the lists the console's own screen in the bus needs, while it
+        // stands on one of them: laid out here, where the game is free to be asked, and
+        // sent down with the state below
+        crate::tablet::offer_lists(crate::game_lists::console_lists(self));
         // (the game menu's lines, for the interface below)
         let menu_lines = if self.menus.game_menu.is_some() { self.game_menu_items() } else { Vec::new() };
         // (the mirror editor's keys and the panel under the cursor, while it is on)

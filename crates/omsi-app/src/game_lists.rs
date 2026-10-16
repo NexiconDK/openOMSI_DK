@@ -3171,6 +3171,28 @@ fn in_service(own_line: Option<&str>) -> bool {
     own_line.is_none_or(|l| !l.trim().is_empty())
 }
 
+/// (the fork) The lists the console's own screen in the bus needs, while it stands on
+/// one of them. The tablet asks for these over the network when it opens the screen; the
+/// screen in the bus is in the same process and cannot wait for an answer, so the game
+/// lays them out beside the state it writes anyway.
+///
+/// Nothing is built while the console stands elsewhere, which is nearly always.
+pub(crate) fn console_lists(app: &mut App) -> serde_json::Value {
+    use crate::console::Screen;
+    let (screen, line) = crate::console::with(|c| (c.screen, c.line.clone()));
+    match screen {
+        Screen::Lines => serde_json::json!({ "lines": tablet_answer(app, crate::tablet::Ask::Lines)["lines"] }),
+        Screen::Trips => match line {
+            Some(l) => {
+                let v = tablet_answer(app, crate::tablet::Ask::Trips(l));
+                serde_json::json!({ "trips": v["trips"], "sign": v["sign"] })
+            }
+            None => serde_json::Value::Null,
+        },
+        _ => serde_json::Value::Null,
+    }
+}
+
 /// (the fork) The web IBIS's question answered (`crate::tablet`): the lines of the map's
 /// timetable that the bus's depot file knows (all of them without one), a line's trips of
 /// the day in both directions, or a trip taken on.

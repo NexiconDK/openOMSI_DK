@@ -360,6 +360,11 @@ impl Desk {
                 match crate::console::press(key) {
                     crate::console::Did::Sold => crate::tablet::ask_later(crate::tablet::Ask::Sell),
                     crate::console::Did::Ended => crate::tablet::ask_later(crate::tablet::Ask::EndTrip),
+                    crate::console::Did::Chose => {
+                        if let Some((line, tour, pos)) = crate::console::with(|c| c.take_chosen()) {
+                            crate::tablet::ask_later(crate::tablet::Ask::Start { line, tour, pos });
+                        }
+                    }
                     _ => {}
                 }
             }

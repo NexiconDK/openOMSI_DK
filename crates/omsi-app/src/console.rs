@@ -355,6 +355,14 @@ pub struct Console {
     pub locked: bool,
     /// (the fork) The three sounds of the sound menu, in the order of [`SOUNDS`].
     pub sound: [Sound; 3],
+    /// The line whose trips are being looked at (Turvalg), by its name in the timetable.
+    pub line: Option<String>,
+    /// Which leaf of the list on the screen, which the arrows in the foot bar turn.
+    pub leaf: usize,
+    /// A trip chosen and not yet taken on: the game drains it (`take_chosen`) and starts
+    /// it. The console cannot start a trip itself - only the game knows the timetable -
+    /// so it says which one and waits.
+    pub chosen: Option<(String, String, usize)>,
 }
 
 impl Default for Console {
@@ -373,6 +381,9 @@ impl Default for Console {
             locked: false,
             // the fault is the one the driver must hear over the bus, so it stands louder
             sound: [Sound { on: true, vol: 50 }, Sound { on: true, vol: 50 }, Sound { on: true, vol: 60 }],
+            line: None,
+            leaf: 0,
+            chosen: None,
         }
     }
 }
@@ -388,6 +399,8 @@ pub enum Did {
     Sold,
     /// **Afslut tur**: the trip is given back, so the game is to end it.
     Ended,
+    /// A trip was chosen: the game is to take it on (`Console::chosen`).
+    Chose,
 }
 
 impl Console {
@@ -452,6 +465,37 @@ impl Console {
                     return Did::Nothing;
                 }
                 self.screen = Screen::Serve;
+                Did::Moved
+            }
+            // (the fork) LINJEVALG and TURVALG, the manual's pages 9 and 10: a line
+            // opened shows its trips of the day, and a trip chosen is taken on by the
+            // game - the console knows no timetable, so it says which and waits.
+            "line" => {
+                if rest.is_empty() {
+                    return Did::Nothing;
+                }
+                self.line = Some(rest.to_string());
+                self.leaf = 0;
+                self.screen = Screen::Trips;
+                Did::Moved
+            }
+            "trip" => {
+                let (tour, pos) = rest.rsplit_once(':').unwrap_or((rest, ""));
+                let (Some(line), Ok(pos)) = (self.line.clone(), pos.parse::<usize>()) else { return Did::Nothing };
+                if tour.is_empty() {
+                    return Did::Nothing;
+                }
+                self.chosen = Some((line, tour.to_string(), pos));
+                Did::Chose
+            }
+            // the arrows in the foot bar leaf through whichever list is up
+            "leaf" => {
+                let Ok(d) = rest.parse::<i32>() else { return Did::Nothing };
+                let was = self.leaf;
+                self.leaf = self.leaf.saturating_add_signed(d as isize);
+                if self.leaf == was {
+                    return Did::Nothing;
+                }
                 Did::Moved
             }
             // (the fork) Afslut tur on the driving screen: the trip given back. The game
@@ -625,6 +669,12 @@ impl Console {
         if did == Did::Nothing { Did::Moved } else { did }
     }
 
+    /// The trip the driver chose, for the game to take on. Taken out, so it is started
+    /// once however many screens are drawing the console.
+    pub fn take_chosen(&mut self) -> Option<(String, String, usize)> {
+        self.chosen.take()
+    }
+
     /// The game tells the console whether a trip is being driven: Billetter has nothing to
     /// sell against until one is, and ESC goes back to the driving screen rather than to
     /// the list of lines.
@@ -658,6 +708,10 @@ impl Console {
         }
         if to == Screen::Tix && !matches!(self.screen, Screen::Tix | Screen::Sale) {
             self.tix_back = Some(self.screen);
+        }
+        // a list is opened at its top, not where it was left a quarter of an hour ago
+        if to != self.screen && matches!(to, Screen::Lines | Screen::Trips) {
+            self.leaf = 0;
         }
         self.screen = to;
         Did::Moved
@@ -785,6 +839,8 @@ impl Console {
             snd.insert(name.to_string(), json!({ "on": s.on, "vol": s.vol }));
         }
         v["sound"] = Value::Object(snd);
+        v["leaf"] = Value::from(self.leaf);
+        v["line"] = self.line.clone().map_or(Value::Null, Value::String);
         v
     }
 }
@@ -1253,6 +1309,44 @@ mod tests {
         c.press("esc");
         assert_eq!(c.driver, None, "the number goes with the driver");
         assert_eq!(c.pad.as_ref().unwrap().into, "driver");
+    }
+
+    /// (the fork) LINJEVALG and TURVALG, the manual's pages 9 and 10: a line opened shows
+    /// its trips, a trip chosen is handed to the game, and the arrows leaf through both.
+    #[test]
+    fn a_line_opens_its_trips_and_a_trip_is_handed_to_the_game() {
+        let mut c = Console::default();
+        c.screen = Screen::Lines;
+
+        assert_eq!(c.press("line:"), Did::Nothing, "a line with no name is no line");
+        assert_eq!(c.press("line:Linje 1A"), Did::Moved);
+        assert_eq!(c.screen, Screen::Trips);
+        assert_eq!(c.line.as_deref(), Some("Linje 1A"));
+        assert_eq!(c.value()["line"], "Linje 1A");
+
+        // the arrows leaf, and never back past the first leaf
+        assert_eq!(c.press("leaf:1"), Did::Moved);
+        assert_eq!(c.value()["leaf"], 1);
+        assert_eq!(c.press("leaf:-1"), Did::Moved);
+        assert_eq!(c.press("leaf:-1"), Did::Nothing, "there is no leaf before the first");
+        assert_eq!(c.value()["leaf"], 0);
+
+        // a trip chosen waits for the game, and is handed over once however many screens
+        // are drawing the console
+        c.press("leaf:1");
+        assert_eq!(c.press("trip:135S01:4"), Did::Chose);
+        assert_eq!(c.take_chosen(), Some(("Linje 1A".into(), "135S01".into(), 4)));
+        assert_eq!(c.take_chosen(), None, "and only the once");
+
+        // a trip pressed with no line open means nothing
+        let mut c = Console::default();
+        assert_eq!(c.press("trip:135S01:0"), Did::Nothing);
+
+        // a list is opened at its top rather than where it was left
+        c.press("line:Linje 1A");
+        c.press("leaf:2");
+        c.press("go:lines");
+        assert_eq!(c.value()["leaf"], 0);
     }
 
     /// (the fork) **Afslut tur** is a key like any other now, so the screen in the bus can

@@ -202,6 +202,8 @@ mod tests {
                 c.set_duty(true);
                 c.press("go:menu");
             })),
+            ("lines", Box::new(|c: &mut Console| c.screen = crate::console::Screen::Lines)),
+            ("trips", Box::new(|c: &mut Console| { c.press("line:Linje 1A"); })),
         ];
         let stops: Vec<Value> = ["AARHUS RUTEBILSTATION", "BANEGÅRDSPLADSEN", "PARK ALLÉ", "RÅDHUSET", "MØLLEPARKEN", "VESTERBRO TORV", "THORVALDSENSGADE", "CEREALIA", "VIBORGVEJ", "HASLE TORV", "JÆRNBROA", "SKEJBY"]
             .iter()
@@ -210,9 +212,23 @@ mod tests {
         for (name, set) in shots {
             let mut c = Console::default();
             set(&mut c);
+            let lines: Vec<Value> = ["1A", "2A", "4A", "11", "12", "13", "14", "15", "16", "17", "18", "100", "200"]
+                .iter()
+                .map(|s| serde_json::json!({ "name": format!("Linje {s}"), "sign": s }))
+                .collect();
+            let trips: Vec<Value> = (0..9)
+                .map(|i| {
+                    serde_json::json!({
+                        "tour": format!("135S{:02}", i + 1), "pos": 0,
+                        "dep": format!("{:02}:{:02}", 9 + i / 4, (i * 17) % 60), "arr": format!("{:02}:{:02}", 9 + i / 3, (i * 23) % 60),
+                        "from": "AARHUS RUTEBILSTATION", "to": "SKEJBY SYGEHUS", "sign": "1A", "driving": i == 2,
+                    })
+                })
+                .collect();
             let v = serde_json::json!({
-                "con": c.value(), "clock": "09:20:14", "date": "14/3/07",
+                "con": c.value(), "clock": "09:20:14", "date": "14/3/07", "sign": "1A",
                 "duty": { "line": "1A", "tour": "135S01", "zone": "4301", "next": 3, "stops": stops },
+                "lines": lines, "trips": trips,
             });
             let mut s = ConsoleScreen::new();
             s.update(&v);
@@ -233,15 +249,31 @@ mod tests {
         let mut worst = std::time::Duration::ZERO;
         let mut total = std::time::Duration::ZERO;
         for i in 0..20 {
-            let v = serde_json::json!({ "con": c.value(), "clock": format!("09:20:{i:02}"), "duty": { "line": "1A", "stops": stops } });
+            let v = serde_json::json!({ "con": c.value(), "clock": format!("09:{i:02}"), "duty": { "line": "1A", "stops": stops } });
             let at = std::time::Instant::now();
             s.update(&v);
-            s.frame().expect("the clock moved, so the page is drawn again");
+            s.frame().expect("the minute moved, so the page is drawn again");
             let took = at.elapsed();
             worst = worst.max(took);
             total += took;
         }
         println!("one frame: {:?} on average, {worst:?} at worst", total / 20);
+
+        // and what it costs when the state arrives but nothing the page shows has moved,
+        // which is what happens twice a second while driving: the speed and the stops
+        // change, the clock does not, and the page must not be drawn again for that
+        let mut idle = std::time::Duration::ZERO;
+        let mut drawn = 0;
+        for kmh in 0..40 {
+            let v = serde_json::json!({ "con": c.value(), "clock": "09:20", "speed": kmh, "duty": { "line": "1A", "stops": stops } });
+            let at = std::time::Instant::now();
+            s.update(&v);
+            if s.frame().is_some() {
+                drawn += 1;
+            }
+            idle += at.elapsed();
+        }
+        println!("a state that shows nothing new: {:?} each, drawn again {drawn} times out of 40", idle / 40);
     }
 
     /// (the fork) The page is drawn again only when something has moved, so a screen that

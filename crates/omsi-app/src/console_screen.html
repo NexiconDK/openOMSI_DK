@@ -58,6 +58,19 @@
   .stop.here { background: #e7eaf7; }
   .stop.past { color: #9aa0a6; }
 
+  /* Linjevalg and Turvalg: two lines to a row, six rows at a time (the manual's page 9) */
+  #list-head { height: 54px; background: #2f3192; color: #ffffff; font-size: 26px;
+               line-height: 54px; padding: 0px 14px 0px 14px; }
+  .pick { display: inline-block; width: 470px; height: 112px; margin: 0px 4px 4px 0px;
+          background: #ffffff; padding: 8px 12px 0px 12px; }
+  .pick.now { background: #ecebc2; }
+  .pick.gone { background: #d8dadc; color: #7d8287; }
+  .pick .top { font-size: 24px; line-height: 32px; color: #55595d; }
+  .pick .big { font-size: 34px; line-height: 44px; font-weight: 700; }
+  .pick .ends { font-size: 22px; line-height: 28px; }
+  /* a line of Linjevalg is one big number, so it is given the whole row's height */
+  .pick.line .big { font-size: 46px; line-height: 92px; }
+
   /* the list of lines, and anything else that is only a title yet */
   .title { text-align: center; font-size: 56px; line-height: 70px; font-weight: 700;
            color: #55595d; padding: 230px 0px 0px 0px; }
@@ -140,6 +153,12 @@
     <div class="hint" id="l-hint"></div>
   </div>
 
+  <!-- Linjevalg and Turvalg (the manual's pages 9 and 10) -->
+  <div class="pane" id="list">
+    <div id="list-head"></div>
+    <div id="rows"></div>
+  </div>
+
   <!-- every other screen of the console, until each is drawn here too -->
   <div class="pane" id="plain">
     <div class="title" id="p-title">Web-IBIS</div>
@@ -186,6 +205,17 @@ if (!O.vars) { O.vars = { num: {}, str: {} }; }
 if (!O.trigger) { O.trigger = function (n) {}; }
 
 var $ = (id) => document.getElementById(id);
+
+// (the fork) Drawing this page costs about 16 ms, so it matters a great deal that the
+// game can tell when it need not be drawn at all: it is drawn again only when the DOM
+// has moved. The state arrives twice a second with the speed and the stops in it, most of
+// which this page does not show, so every write is held against what was written last and
+// skipped when it is the same. Without that the page was redrawn twice a second while
+// driving, for a clock that changes once a minute.
+var was = {};
+var set = (id, v) => { if (was["t" + id] !== v) { was["t" + id] = v; $(id).textContent = v; } };
+var cls = (id, v) => { if (was["c" + id] !== v) { was["c" + id] = v; $(id).className = v; } };
+var put = (id, v) => { if (was["h" + id] !== v) { was["h" + id] = v; $(id).innerHTML = v; } };
 // what the game last sent under that name; "" for anything it has not decided
 var S = (k) => { var v = O.vars.str[k]; return v === undefined || v === null ? "" : String(v); };
 // a word the game sends, or the one this page was written with
@@ -214,10 +244,29 @@ tap("pent", "pad:enter");
 // the list of lines when there is none)
 $("k-linje").onclick = () => { O.trigger(S("s_con_on_duty") === "" ? "go:lines" : "go:duty"); };
 
+// a line or a trip pressed in the list: the key it carries is the console's own
+$("rows").onclick = (e) => {
+  var t = e.target;
+  // (the engine gives the innermost element, so the row is looked for up the parents)
+  for (var i = 0; i < 4 && t; i++) {
+    var key = t.getAttribute ? t.getAttribute("data-go") : null;
+    if (key) { O.trigger(key); return; }
+    t = t.parentNode;
+  }
+};
+// and the arrows in the foot bar leaf through it
+$("k-up").onclick = () => { O.trigger("leaf:-1"); };
+$("k-down").onclick = () => { O.trigger("leaf:1"); };
+
 // --- the screens -------------------------------------------------------------------
 // which pane the console's screen is drawn in; the rest are not drawn here yet, and say so
-var PANE = { duty: "duty", login: "login", start: "login" };
-var PANES = ["duty", "login", "plain", "pad"];
+var PANE = { duty: "duty", login: "login", start: "login", lines: "list", trips: "list" };
+var PANES = ["duty", "login", "plain", "pad", "list"];
+
+// how many of the console's own rows fit on a leaf (the manual's page 9: two to a row,
+// six rows), and how many leaves that makes of a list of n
+var PER = 12;
+var leaves = (n) => Math.max(1, Math.ceil(n / PER));
 // what the console calls each screen, for the pane that only names it. They are the
 // console's own Danish words, as the tablet has them written out too.
 var NAME = { lines: "Linjevalg", trips: "Turvalg", menu: "Menu", sound: "Indstil lyd",
@@ -230,22 +279,23 @@ function paint() {
   // the pad is a screen of its own here, since nothing can be laid over anything else
   var pane = S("s_con_pad_into") !== "" ? "pad" : (PANE[scr] || "plain");
   for (var i = 0; i < PANES.length; i++) {
-    $(PANES[i]).className = PANES[i] === pane ? "pane on" : "pane";
+    cls(PANES[i], PANES[i] === pane ? "pane on" : "pane");
   }
-  $("date").textContent = S("s_date");
-  $("time").textContent = S("s_clock");
+  set("date", S("s_date"));
+  set("time", S("s_clock"));
   // the console's own colours on the cells that have one (the manual's page 24)
-  $("cgps").className = "cell " + (S("s_duty_gps") === "" && S("s_con_on_duty") !== "" ? "bad" : "good");
-  $("crdr").className = "cell " + (S("s_con_shut") === "" ? "good" : "bad");
-  $("cwarn").className = "cell good";
+  cls("cgps", "cell " + (S("s_duty_gps") === "" && S("s_con_on_duty") !== "" ? "bad" : "good"));
+  cls("crdr", "cell " + (S("s_con_shut") === "" ? "good" : "bad"));
+  cls("cwarn", "cell good");
 
   footKeys();
+  if (pane === "list") { paintList(scr); }
   if (pane === "duty") { paintDuty(); }
   if (pane === "login") { paintLogin(); }
   if (pane === "pad") { paintPad(); }
   if (pane === "plain") {
-    $("p-title").textContent = NAME[scr] || "Web-IBIS";
-    $("p-under").textContent = scr && NAME[scr] ? "Tegnes her senere — brug tavlen imens" : "";
+    set("p-title", NAME[scr] || "Web-IBIS");
+    set("p-under", scr && NAME[scr] ? "Tegnes her senere — brug tavlen imens" : "");
   }
 }
 
@@ -255,24 +305,24 @@ function footKeys() {
   var k = ["menu", "tix", "linje", "serve"];
   for (var i = 0; i < k.length; i++) {
     var look = S("s_con_keys_" + k[i]);
-    $("k-" + k[i]).className = "key " + (look === "white" ? "" : look === "now" ? "now" : "off");
+    cls("k-" + k[i], "key " + (look === "white" ? "" : look === "now" ? "now" : "off"));
   }
-  $("k-esc").textContent = "ESC";
-  $("k-menu").textContent = W("menu", "Menu");
-  $("k-tix").textContent = W("tickets", "Billetter");
-  $("k-linje").textContent = W("line", "Linje");
-  $("k-serve").textContent = W("operation", "Betjening");
+  set("k-esc", "ESC");
+  set("k-menu", W("menu", "Menu"));
+  set("k-tix", W("tickets", "Billetter"));
+  set("k-linje", W("line", "Linje"));
+  set("k-serve", W("operation", "Betjening"));
 }
 
 function paintDuty() {
-  $("w-line").textContent = W("line", "Linje");
-  $("w-trip").textContent = W("rk_tour", "Tur");
-  $("w-zone").textContent = W("zone", "Zone");
-  $("v-line").textContent = S("s_duty_line") || "–";
-  $("v-trip").textContent = S("s_duty_tour") || "–";
-  $("v-zone").textContent = S("s_duty_zone");
-  $("v-slow").textContent = S("s_con_slow") === "" ? "" : W("delay", "Forsinkelse");
-  $("k-end").textContent = W("end_trip", "Afslut tur");
+  set("w-line", W("line", "Linje"));
+  set("w-trip", W("rk_tour", "Tur"));
+  set("w-zone", W("zone", "Zone"));
+  set("v-line", S("s_duty_line") || "–");
+  set("v-trip", S("s_duty_tour") || "–");
+  set("v-zone", S("s_duty_zone"));
+  set("v-slow", S("s_con_slow") === "" ? "" : W("delay", "Forsinkelse"));
+  set("k-end", W("end_trip", "Afslut tur"));
 
   // the stops of the trip, as many as the screen holds, with the console's own mark
   // against the one the bus is at or on its way to
@@ -287,23 +337,52 @@ function paintDuty() {
     var look = i === at ? " here" : i < at ? " past" : "";
     html += '<div class="stop' + look + '"><span class="mark">' + mark + '</span><span class="name">' + name + "</span></div>";
   }
-  $("stops").innerHTML = html;
+  put("stops", html);
+}
+
+// Linjevalg and Turvalg. The console says which leaf is up; this draws that leaf of
+// whichever list the game sent down with the state.
+function paintList(scr) {
+  var trips = scr === "trips";
+  var n = Number(S(trips ? "s_trips_n" : "s_lines_n") || "0");
+  var leaf = Math.min(Number(S("s_con_leaf") || "0"), leaves(n) - 1);
+  var from = leaf * PER;
+  var html = "";
+  for (var i = from; i < n && i < from + PER; i++) {
+    var k = (trips ? "s_trips_" : "s_lines_") + i + "_";
+    if (trips) {
+      // the trip being driven stands on yellow, one already driven on grey
+      var look = S(k + "driving") !== "" ? " now" : "";
+      html += '<span class="pick' + look + '" data-go="trip:' + S(k + "tour") + ":" + i + '">'
+            +   '<span class="top">' + S(k + "dep") + " - " + S(k + "arr") + "  " + S(k + "sign") + "</span>"
+            +   '<div class="ends">' + S(k + "from") + "</div>"
+            +   '<div class="ends">' + S(k + "to") + "</div>"
+            + "</span>";
+    } else {
+      html += '<span class="pick line" data-go="line:' + S(k + "name") + '">'
+            +   '<span class="big">' + S(k + "sign") + "</span>"
+            + "</span>";
+    }
+  }
+  put("rows", html || "<div class=\"under\">" + (trips ? "Ingen ture" : "Ingen linjer") + "</div>");
+  var head = trips ? W("line", "Linje") + " " + (S("s_sign") || S("s_con_line")) : W("pick_line", "Vælg en linje");
+  set("list-head", head + (leaves(n) > 1 ? "        " + (leaf + 1) + " / " + leaves(n) : ""));
 }
 
 function paintLogin() {
   var locked = S("s_con_locked") !== "";
-  $("l-head").textContent = locked ? W("console_locked", "Chaufførkonsollen er låst") : "Web-IBIS";
-  $("l-driver").textContent = W("driver", "Chaufførnummer") + ":";
-  $("l-password").textContent = W("password", "Adgangskode") + ":";
-  $("l-hint").textContent = locked ? W("lock_hint", "") : W("login_hint", "");
+  set("l-head", locked ? W("console_locked", "Chaufførkonsollen er låst") : "Web-IBIS");
+  set("l-driver", W("driver", "Chaufførnummer") + ":");
+  set("l-password", W("password", "Adgangskode") + ":");
+  set("l-hint", locked ? W("lock_hint", "") : W("login_hint", ""));
 
   var into = S("s_con_pad_into");
   var shown = S("s_con_pad_shown");
-  $("f-driver").textContent = into === "driver" ? shown : S("s_con_driver");
-  $("f-password").textContent = into === "password" ? shown : "";
+  set("f-driver", into === "driver" ? shown : S("s_con_driver"));
+  set("f-password", into === "password" ? shown : "");
   var pick = into === "" ? "driver" : into;
-  $("f-driver").className = "fld" + (pick === "driver" ? " here" : "");
-  $("f-password").className = "fld" + (pick === "password" ? " here" : "");
+  cls("f-driver", "fld" + (pick === "driver" ? " here" : ""));
+  cls("f-password", "fld" + (pick === "password" ? " here" : ""));
 }
 
 // which field the pad is typing into, said in words at the head of the panel
@@ -313,10 +392,10 @@ var INTO = { driver: "driver", password: "password", "sale:paid": "single", "sal
 
 function paintPad() {
   var into = S("s_con_pad_into");
-  $("into").textContent = W(INTO[into] || "", "");
-  $("shown").textContent = S("s_con_pad_shown");
+  set("into", W(INTO[into] || "", ""));
+  set("shown", S("s_con_pad_shown"));
   // ENTER with nothing typed does nothing, so it is marked dead, as on the tablet
-  $("pent").className = "pk tall" + (S("s_con_pad_enter") === "" ? " dead" : "");
+  cls("pent", "pk tall" + (S("s_con_pad_enter") === "" ? " dead" : ""));
 }
 
 O.update = (d) => { paint(); };
