@@ -90,6 +90,7 @@
     display: grid; grid-template-columns: 1fr 1fr; background: #d8e0e3; border-top: 1px solid #6b7580; }
   .drive .side, .drive .stops { display: grid; grid-template-rows: repeat(5, 1fr); }
   .drive .side { border-right: 1px solid #6b7580; }
+  .drive .panel .slow { color: #ffe600; font-weight: 700; }
   .drive .panel { grid-row: span 4; background: linear-gradient(#4f85d2, #6ba2e2); color: #dceaff;
     display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
     font-size: calc(40 * var(--u)); border-bottom: 1px solid #6b7580; }
@@ -110,7 +111,11 @@
   #duty .strip i.crowd svg { display: block; }
   /* (the fork) the GPS key, as the manual's page 12 has it: press it and the cell goes
      grey, and from then on the stops are served by hand */
-  .strip i.gps { cursor: pointer; }
+  .strip i.gps, .strip i.reader { cursor: pointer; }
+  /* (the fork) the manual's page 34: pressing the card reader key shuts the readers, and
+     the padlock hangs on the icon for as long as they are shut */
+  .strip i.reader .lock { display: none; }
+  body.shut .strip i.reader .lock { display: block; }
   .nogps .strip i.gps { background: #cdd0d6; }
   /* with the GPS off the driver's own key stands over the blue panel */
   .drive .side.manual .panel { grid-row: span 3; }
@@ -125,13 +130,17 @@
     bottom: calc(84 * var(--u) + var(--row));
     display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(5, 1fr);
     background: #d8e0e3; border-top: 1px solid #6b7580; }
-  .menu .sky { grid-column: span 2; grid-row: span 2; background: #2f3192; }
+  .menu .sky { background: #2f3192; }
+  .menu .sky.w2 { grid-column: span 2; }
+  .menu .sky.h2 { grid-row: span 2; }
   .menu .mi { background: #fff; border-right: 1px solid #6b7580; border-bottom: 1px solid #6b7580;
     display: flex; align-items: center; text-align: left; padding: 0 calc(24 * var(--u));
     font-size: calc(40 * var(--u)); color: #111; }
   .menu .mi.off { background: #ccd3d8; color: #6a7278; cursor: default; }
+  .menu .mi.on { background: #ecebc2; }
   .menu .mi:not(.dead):active { background: var(--pick); }
   #menu .foot .pram, #menu .foot .arrow,
+  #serve .foot .pram, #serve .foot .arrow,
   #sound .foot .pram, #sound .foot .arrow { visibility: hidden; }
 
   /* (the fork) INDSTILLING AF LYD, the manual's page 30: the console's own sound settings,
@@ -373,12 +382,16 @@
           <path d="M11.4 19.9l3.1-.6 1.4 2.7c-1.8.2-3.5-.6-4.5-2.1z"/></g>
         <ellipse cx="13.4" cy="12.1" rx="4.4" ry="2.6" fill="url(#g-gloss)" transform="rotate(-18 13.4 12.1)"/>
         <g stroke="#ffe600" stroke-width="1.1"><path d="M15.2 9.5v12.2"/><path d="M9.1 15.6h12.2"/></g></svg></i>
-      <i title="Kortl&#230;ser"><svg viewBox="0 0 24 24">
+      <i class="reader" title="Kortl&#230;ser"><svg viewBox="0 0 24 24">
         <path d="M8.1 3.2h8.4v14.1a4.2 4.2 0 0 1-4.2 4.2 4.2 4.2 0 0 1-4.2-4.2z" fill="url(#g-col)" stroke="#49535b" stroke-width=".9"/>
         <path d="M8.9 4h2.3v16.4a4.2 4.2 0 0 1-2.3-3.1z" fill="url(#g-gloss)"/>
         <path d="M8.7 3.9h7.2v2.2H8.7z" fill="#e8edf1"/>
         <ellipse cx="12.3" cy="15.4" rx="3.3" ry="3.9" fill="url(#g-dot)"/>
-        <ellipse cx="11.7" cy="14" rx="1.3" ry="1.6" fill="#fff" opacity=".55"/></svg></i>
+        <ellipse cx="11.7" cy="14" rx="1.3" ry="1.6" fill="#fff" opacity=".55"/>
+        <g class="lock">
+          <path d="M15.6 12.6v-1.9a2.5 2.5 0 0 1 5 0v1.9" fill="none" stroke="#c89a16" stroke-width="1.5"/>
+          <rect x="14.2" y="12.4" width="8.2" height="7.3" rx="1" fill="url(#g-warn)" stroke="#8a6a0d" stroke-width=".9"/>
+          <circle cx="18.3" cy="15.6" r="1.1" fill="#8a6a0d"/><rect x="17.8" y="15.8" width="1" height="2.4" fill="#8a6a0d"/></g></svg></i>
       <i class="green" title="Alarm"><svg viewBox="0 0 24 24">
         <path d="M12 2.6c.5 0 .9.3 1.2.8l9 15.6c.5.9-.1 2-1.2 2H3c-1.1 0-1.7-1.1-1.2-2l9-15.6c.3-.5.7-.8 1.2-.8z" fill="url(#g-warn)" stroke="#2b2b2b" stroke-width="1.3"/>
         <path d="M12 5.2 19 17.4H5z" fill="url(#g-gloss)"/>
@@ -430,13 +443,6 @@
     <div class="drive" id="duty-body"></div>
     <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
-    <div class="ask" id="warn"><div class="box">
-      <div class="ttl"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="#ffd400" stroke="#4e342e" stroke-width="1.4" stroke-linejoin="round"/>
-        <rect x="11" y="8.5" width="2" height="6" fill="#4e342e"/><rect x="11" y="16" width="2" height="2" fill="#4e342e"/></svg>
-        <span data-l="warning">Advarsel</span></div>
-      <div class="mid"><div class="what" id="warn-what"></div></div>
-      <div class="btns"><button class="lone" id="warn-ok">Ok</button></div>
-    </div></div>
   </section>
 
   <!-- (the fork) the paints the strip's icons are drawn with: the console runs software of
@@ -474,13 +480,32 @@
     <div class="bar"></div><div class="strip" data-strip></div>
     <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
     <div class="menu">
-      <div class="sky"></div>
+      <div class="sky w2 h2"></div>
       <button class="mi" data-m="lock" data-l="lock_console">L&aring;s konsol</button>
       <button class="mi off dead" type="button" data-l="telebus">Telebus</button>
       <button class="mi" data-m="logout" data-l="log_out">Log ud</button>
       <button class="mi" data-m="sound" type="button" data-l="set_sound">Indstil lyd</button>
       <button class="mi" data-m="change" data-l="driver_change">Chauff&oslash;rskift</button>
       <button class="mi off dead" type="button" data-l="maintenance">Vedligeholdelse</button>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
+  <!-- (the fork) BETJENING, as the manual's page 32 has it -->
+  <section id="serve" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="menu">
+      <button class="mi off dead" type="button" data-l="sale_card">Salg rejsekort</button>
+      <button class="mi off dead" type="button" data-l="top_up">Tank-op</button>
+      <div class="sky w2"></div>
+      <button class="mi off dead" type="button" data-l="reader_setup">Kortl&aelig;ser ops&aelig;tn.</button>
+      <div class="sky"></div>
+      <button class="mi" id="b-delay" type="button" data-l="delay_key">Forsinkelse</button>
+      <button class="mi" data-b="info" type="button" data-l="information">Information</button>
+      <button class="mi off dead" type="button" data-l="cancel_sale">Annuller salg</button>
+      <button class="mi off dead" type="button" data-l="checkin_extra">Check ind ekstra</button>
     </div>
     <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
@@ -514,7 +539,7 @@
     <button class="off" data-key="menu">Menu</button>
     <button class="blue dead" type="button">Billetter</button>
     <button class="now" data-key="linje">Linje</button>
-    <button class="blue dead" type="button">Betjening</button>
+    <button class="blue" data-key="serve" type="button">Betjening</button>
     <button class="off pram dead" type="button" title="Barnevogn"><svg viewBox="0 0 24 24">
       <path d="M5.4 8h9V5.4a2.8 2.8 0 0 1 2.8-2.8h1a2.8 2.8 0 0 1 2.8 2.8v6a3.2 3.2 0 0 1-3.2 3.2H8.6a3.2 3.2 0 0 1-3.2-3.2z" fill="#1b1b1b"/>
       <path d="M5.5 8.2C5.2 5.4 4.4 3.6 2.2 3.4" fill="none" stroke="#1b1b1b" stroke-width="1.5" stroke-linecap="round"/>
@@ -523,6 +548,22 @@
     <button class="arrow" data-key="up" title="Op"><svg viewBox="0 0 24 24"><path d="M12 3.4 20 12h-4.6v8.4H8.6V12H4z" fill="#111"/></svg></button>
     <button class="arrow" data-key="down" title="Ned"><svg viewBox="0 0 24 24"><path d="M12 20.6 4 12h4.6V3.6h6.8V12H20z" fill="#111"/></svg></button>
   </template>
+  <!-- (the fork) the console's own boxes: the keys that put them up stand in the strip
+       on every screen, so the boxes stand over the whole screen too -->
+  <div class="ask" id="warn"><div class="box">
+    <div class="ttl"><svg viewBox="0 0 24 24"><path d="M12 2.8 22 20.5H2z" fill="url(#g-warn)" stroke="#2b2b2b" stroke-width="1.4" stroke-linejoin="round"/>
+      <rect x="11" y="8.5" width="2" height="6" fill="#2b2b2b"/><rect x="11" y="16" width="2" height="2" fill="#2b2b2b"/></svg>
+      <span data-l="warning">Advarsel</span></div>
+    <div class="mid"><div class="what" id="warn-what"></div></div>
+    <div class="btns"><button class="lone" id="warn-ok" type="button">Ok</button></div>
+  </div></div>
+  <div class="ask" id="info"><div class="box">
+    <div class="ttl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="url(#g-help)"/>
+      <text x="12" y="17.4" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">i</text></svg>
+      <span data-l="information">Information</span></div>
+    <div class="mid"><div class="what" id="info-what">Kortl&aelig;sere aktive</div></div>
+    <div class="btns"><button class="lone" id="info-ok" type="button">Ok</button></div>
+  </div></div>
   <!-- (the fork) the console's number pad: it stands over whichever screen asked for it -->
   <div class="pad" id="pad"><div class="panel">
     <div class="shown" id="pad-shown"></div>
@@ -582,8 +623,11 @@ function footTabs(name) {
     const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
     if (!menu || !linje) return;
     const inMenu = name === "menu" || name === "sound";
+    const inServe = name === "serve";
     menu.className = inMenu ? "now" : "off";
-    linje.className = inMenu ? "blue" : "now";
+    linje.className = inMenu || inServe ? "blue" : "now";
+    const serve = f.querySelector("[data-key='serve']");
+    if (serve) serve.className = inServe ? "now" : "blue";
   });
 }
 
@@ -597,7 +641,7 @@ function words() {
   document.querySelectorAll("[data-l]").forEach((e) => { const w = labels[e.dataset.l]; if (w != null) e.textContent = w; });
   // (the console writes a colon after each of the two, and the manual's picture with it)
   $("l-driver").textContent = (labels.driver ?? "") + ":"; $("l-password").textContent = (labels.password ?? "") + ":";
-  loginWords(); $("lost").textContent = labels.lost ?? "⚠";
+  loginWords(); shutDraw(); $("lost").textContent = labels.lost ?? "⚠";
 }
 
 // (the fork) the login screen says two different things: the one the console shows when
@@ -762,11 +806,13 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
   const k = b.dataset.key;
   if (k === "esc") {
     if (screen === "sound") return show("menu");
+    if (screen === "serve") return show(state && state.duty ? "duty" : "lines");
     if (screen === "menu") return show(state && state.duty ? "duty" : "lines");
     if (screen === "lines") { store.set("driver", null); return show("login"); }
     return show("lines");
   }
   if (k === "menu") return show("menu");
+  if (k === "serve") return show("serve");
   if (k === "linje") return show(screen !== "duty" && state && state.duty ? "duty" : "lines");
   leaf(k === "down" ? 1 : -1);
 }));
@@ -872,7 +918,8 @@ function drawDuty() {
       ${hand ? `<button class="end" id="at-stop">${esc(d.at_stop ? L.departed : L.arrived)}</button>` : ""}
       <div class="panel"><span>${esc(L.line)}: ${esc(d.line || "")}</span>
         <span>${esc(L.tour)}: ${esc(d.tour || "")}</span>
-        <span>${esc(L.delay)}: ${esc(d.delay)}</span></div>
+        <span>${esc(L.delay)}: ${esc(d.delay)}</span>
+        ${slow ? `<span class="slow">${esc(L.delay_key)}</span>` : ""}</div>
       <button class="end" id="end-trip">${esc(L.end_trip)}</button>
       <div class="slot"></div>
     </div><div class="stops">${right}</div>`;
@@ -891,6 +938,48 @@ async function tell(what, body) {
   if (screen === "duty") drawDuty();
 }
 
+
+
+
+// (the fork) LÅS/ÅBEN KORTLÆSERE, the manual's page 34: pressing the card reader key in
+// the strip shuts the readers and hangs a padlock on it, and the console says which way
+// it went. Shut, nobody can hold a card to one, so the row of boxes takes no new cards.
+let shut = false;
+function shutDraw() {
+  document.body.classList.toggle("shut", shut);
+  $("info-what").textContent = (shut ? labels.readers_off : labels.readers_on) ?? "";
+}
+document.querySelectorAll(".strip .reader").forEach((e) => e.addEventListener("click", () => {
+  shut = !shut;
+  try { localStorage.setItem("shut", shut ? "1" : ""); } catch (e) {}
+  shutDraw();
+  beep("key");
+  $("info").classList.add("on");
+}));
+try { shut = localStorage.getItem("shut") === "1"; } catch (e) {}
+
+// (the fork) FORSINKELSE, the manual's page 32. On the real console the switch tells the
+// system to work the fare out by how far the journey went and not by how long it took.
+// There are no fares here to work out, so what it does is what the real one does as well:
+// it stands on until the driver puts it off again. The manual's own warning is that one
+// forgets it, so the driving screen says so in yellow for as long as it is on.
+let slow = false;
+function slowDraw() {
+  $("b-delay").classList.toggle("on", slow);
+  document.body.classList.toggle("slow", slow);
+}
+$("b-delay").addEventListener("click", () => {
+  slow = !slow;
+  try { localStorage.setItem("slow", slow ? "1" : ""); } catch (e) {}
+  slowDraw();
+  if (screen === "duty") drawDuty();
+});
+try { slow = localStorage.getItem("slow") === "1"; } catch (e) {}
+slowDraw();
+document.querySelectorAll("#serve [data-b]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.b === "info") $("info").classList.add("on");
+}));
+$("info-ok").addEventListener("click", () => $("info").classList.remove("on"));
 
 // (the fork) INDSTILLING AF LYD, the manual's page 30. The console beeps when a key is
 // pressed, differently when the key does nothing, and again when something is wrong; this
@@ -953,6 +1042,7 @@ sndDraw();
 // (the fork) the row of card readers along the foot of the screen: the last cards held
 // to one, newest first, the crossed ones checked out
 function drawCards() {
+  if (shut) return;   // (a shut reader takes no cards, so the row stands as it was)
   const c = (state && state.cards) || [];
   const html = Array.from({ length: 5 }, (_, i) => {
     const k = c[i];

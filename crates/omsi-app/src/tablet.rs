@@ -389,70 +389,74 @@ fn state_name(s: StopState) -> &'static str {
 
 /// The page's own words, in the interface's language.
 ///
-/// They come in two halves and are put together here: `json!` builds its object by one
-/// macro step per field, and the whole list in one go reaches the recursion limit the
-/// doctests are built with.
+/// They are written as a list rather than as one `json!` object: the macro builds an
+/// object by one expansion step for every field, and the list has outgrown the recursion
+/// limit the doctests are built with twice already.
 fn labels() -> Value {
     let tr = |k: &str| omsi_ui::tr(k).into_owned();
-    let mut v = json!({
-        "in_game": tr("In the game"),
-        "delay": tr("Delay"),
-        "trip": tr("Trip"),
-        "terminus": tr("terminus"),
-        "next_stop": tr("Next stop"),
-        "no_duty": tr("No duty running"),
-        "passengers": tr("Passengers"),
-        "paused": tr("Paused"),
-        "pick_line": tr("Choose a line"),
-        "line": tr("Line"),
-        "tour": tr("Tour"),
-        "all": tr("All"),
-    });
-    // (the fork) the console's own words, from the Rejsekort manual
-    let fork = json!({
-        "start_q": tr("You have chosen this trip. Is that right?"),
-        "question": tr("Question"),
-        "warning": tr("Warning"),
-        "end_trip": tr("End trip"),
-        "arrived": tr("Arrived"),
-        "departed": tr("Departed"),
-        "manual_pos": tr("((41)) : Manual position"),
-        "menu": tr("Menu"),
-        "lock_console": tr("Lock console"),
-        "driver_change": tr("Driver change"),
-        "telebus": tr("Telebus"),
-        "set_sound": tr("Set sound"),
-        "maintenance": tr("Maintenance"),
+    let words: &[(&str, &str)] = &[
+        ("in_game", "In the game"),
+        ("delay", "Delay"),
+        ("trip", "Trip"),
+        ("terminus", "terminus"),
+        ("next_stop", "Next stop"),
+        ("no_duty", "No duty running"),
+        ("passengers", "Passengers"),
+        ("paused", "Paused"),
+        ("pick_line", "Choose a line"),
+        ("line", "Line"),
+        ("tour", "Tour"),
+        ("all", "All"),
+        ("start_q", "You have chosen this trip. Is that right?"),
+        ("question", "Question"),
+        ("warning", "Warning"),
+        ("end_trip", "End trip"),
+        ("arrived", "Arrived"),
+        ("departed", "Departed"),
+        ("manual_pos", "((41)) : Manual position"),
+        ("menu", "Menu"),
+        ("lock_console", "Lock console"),
+        ("driver_change", "Driver change"),
+        ("telebus", "Telebus"),
+        ("set_sound", "Set sound"),
+        ("maintenance", "Maintenance"),
         // the sound settings, as the manual's page 30 has them
-        "snd_key": tr("Key active"),
-        "snd_dead": tr("Key not active"),
-        "snd_fault": tr("Fault"),
-        "volume": tr("Volume"),
-        "test": tr("Test"),
-        "save": tr("Save"),
-        "console_locked": tr("The driver console is locked"),
-        "lock_hint": tr("Type the password\nPress ESC for a driver change"),
-        "yes": tr("Yes"),
-        "no": tr("No"),
-        "duty": tr("Duty"),
-        "lines": tr("Lines"),
-        "log_out": tr("Log out"),
-        "no_lines": tr("No timetable on this map"),
-        "no_trips": tr("No trips today"),
-        "lost": tr("No connection to the game"),
-        "driver": tr("Driver number"),
-        "password": tr("Password"),
-        "login_hint": tr("Type a driver number and a password (any will do)"),
+        ("snd_key", "Key active"),
+        ("snd_dead", "Key not active"),
+        ("snd_fault", "Fault"),
+        ("volume", "Volume"),
+        // the Betjening menu, as the manual's page 32 has it
+        ("sale_card", "Rejsekort sale"),
+        ("top_up", "Top up"),
+        ("reader_setup", "Card reader setup"),
+        ("delay_key", "Delay"),
+        ("information", "Information"),
+        ("cancel_sale", "Cancel sale"),
+        ("checkin_extra", "Extra check in"),
+        ("readers_on", "Card readers active"),
+        ("readers_off", "Card readers not active"),
+        ("test", "Test"),
+        ("save", "Save"),
+        ("console_locked", "The driver console is locked"),
+        ("lock_hint", "Type the password\nPress ESC for a driver change"),
+        ("yes", "Yes"),
+        ("no", "No"),
+        ("duty", "Duty"),
+        ("lines", "Lines"),
+        ("log_out", "Log out"),
+        ("no_lines", "No timetable on this map"),
+        ("no_trips", "No trips today"),
+        ("lost", "No connection to the game"),
+        ("driver", "Driver number"),
+        ("password", "Password"),
+        ("login_hint", "Type a driver number and a password (any will do)"),
         // the console's start-up, as the manual's page 7 has it
-        "starting": tr("Starting managers… Please wait…"),
-        "updating": tr("Update under way.\nIt takes 3 minutes at most"),
-        "no_wifi_title": tr("No wi-fi"),
-        "no_wifi": tr("The console has no wi-fi connection. Press OK to go on."),
-    });
-    if let (Some(all), Some(fork)) = (v.as_object_mut(), fork.as_object()) {
-        all.extend(fork.iter().map(|(k, w)| (k.clone(), w.clone())));
-    }
-    v
+        ("starting", "Starting managers… Please wait…"),
+        ("updating", "Update under way.\nIt takes 3 minutes at most"),
+        ("no_wifi_title", "No wi-fi"),
+        ("no_wifi", "The console has no wi-fi connection. Press OK to go on."),
+    ];
+    Value::Object(words.iter().map(|(k, w)| ((*k).to_string(), Value::String(tr(w)))).collect())
 }
 
 /// What the page shows, in the interface's language: the texts are made here, the page only
