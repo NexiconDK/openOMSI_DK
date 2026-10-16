@@ -516,8 +516,14 @@ pub fn publish(duty: Option<&PlayerDuty>, clock: &omsi_sim::SimClock, bus: Optio
     let (day, month) = clock.day_month();
     let date = format!("{day}/{month}/{:02}", clock.year.rem_euclid(100));
     let mut v = state(duty, clock.time, &date, bus, speed_kmh, passengers, paused);
-    // (the fork) what the console has decided, for whichever screen is drawing it
-    v["con"] = crate::console::with(|c| c.value());
+    // (the fork) what the console has decided, for whichever screen is drawing it. The
+    // game tells it whether a trip is being driven: Billetter has nothing to sell against
+    // until one is, and ESC puts the console down on the driving screen rather than on
+    // the list of lines.
+    v["con"] = crate::console::with(|c| {
+        c.set_duty(duty.is_some());
+        c.value()
+    });
     // (the fork) the console's row of card readers, from who came and went in the bus
     {
         let mut guard = CARDS.lock().unwrap_or_else(|e| e.into_inner());

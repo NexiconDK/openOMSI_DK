@@ -972,7 +972,6 @@ let page = { lines: 0, trips: 0, duty: 0 }, suggest = 0, nowS = 0, dutyHead = ""
 // where ESC puts the console down again, and the screen Billetter was pressed from
 const onDuty = () => !!(state && state.duty);
 const whence = () => (onDuty() ? "duty" : "lines");
-let tixBack = null;
 
 // the screen as large as the tablet allows, at 16:9
 function fit() {
@@ -989,7 +988,10 @@ pic.src = "/tex/login.png";
 function show(name) {
   screen = name;
   document.querySelectorAll(".screen").forEach((e) => e.classList.toggle("on", e.id === name));
-  footTabs(name);
+  // there is one console however many screens draw it, so it is told where this one went
+  // (and not told again when it is this one that is following the console)
+  if (state && state.con && state.con.screen !== name) press("go:" + name);
+  footTabs();
   if (name === "lines") loadLines();
   if (name === "trips") loadTrips();
   if (name === "duty") drawDuty();
@@ -1005,24 +1007,17 @@ function show(name) {
 
 // (the fork) which of the console's menus the bar shows us standing in: yellow is the one
 // we are in, blue and grey are the ones that lead nowhere (the manual's page 5)
-function footTabs(name) {
+// (the fork) The bar along the foot, as the console says it stands: white is a key you can
+// press, grey one you cannot - and it sounds dead - and yellow is the menu you are standing
+// in (the manual's page 5). Which is which is worked out in the game, so the screen in the
+// bus marks the same keys without working it out a second way.
+function footTabs() {
+  const look = (state && state.con && state.con.keys) || {};
   document.querySelectorAll(".foot").forEach((f) => {
-    const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
-    if (!menu || !linje) return;
-    // (the fork) a key you can press stands white, one you cannot stands grey, and the
-    // menu you are standing in stands yellow - the manual's page 5
-    const inMenu = name === "menu" || name === "sound";
-    const inServe = name === "serve" || name === "rds" || name === "inf" || name === "void"
-      || name === "extra" || name === "kind";
-    const inTix = name === "tix" || name === "sale";
-    menu.className = inMenu ? "now" : "";
-    linje.className = inMenu || inServe || inTix ? "" : "now";
-    const serve = f.querySelector("[data-key='serve']");
-    if (serve) serve.className = inServe ? "now" : "";
-    // (the fork) Billetter sells against the trip being driven, so the key leads nowhere
-    // until one is chosen - and stands grey and dead until it does
-    const tix = f.querySelector("[data-key='tix']");
-    if (tix) tix.className = inTix ? "now" : onDuty() ? "" : "off dead";
+    for (const k of ["menu", "linje", "serve", "tix"]) {
+      const b = f.querySelector(`[data-key='${k}']`);
+      if (b) b.className = (look[k] ?? "white").replace("white", "");
+    }
   });
 }
 
@@ -1215,29 +1210,15 @@ function ask(t) {
 // saying a key leads nowhere.
 document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click", () => {
   const k = b.dataset.key;
+  // where ESC steps back to, and which screen a menu key opens, are the console's to say
   if (k === "esc") {
-    if (screen === "sound") return show("menu");
-    if (screen === "kind") return show("extra");
-    if (screen === "rds" || screen === "inf" || screen === "void" || screen === "extra") return show("serve");
-    if (screen === "sale") return show("tix");
-    if (screen === "tix") return show(tixBack || whence());
-    if (screen === "serve") return show(whence());
-    if (screen === "menu") return show(whence());
-    if (screen === "lines") { store.set("driver", null); return show("login"); }
-    return show("lines");
+    if (screen === "lines") store.set("driver", null);
+    return press("esc");
   }
-  if (k === "menu") return show("menu");
-  if (k === "serve") return show("serve");
-  // Billetter: the cash ticket's sales menu, the manual's page 13. There is nothing to
-  // sell against until a trip is taken on, so the key does nothing until then.
-  if (k === "tix") {
-    if (!onDuty()) return;
-    if (screen !== "tix" && screen !== "sale") tixBack = screen;
-    return show("tix");
-  }
+  if (k === "menu" || k === "serve" || k === "tix") return press("go:" + k);
   // the pram key in the bar turns a check-out reader into a check-in for one card
   if (k === "pram") return tell("/readers", { op: "pram" });
-  if (k === "linje") return show(screen !== "duty" && state && state.duty ? "duty" : "lines");
+  if (k === "linje") return press("go:" + (screen !== "duty" && onDuty() ? "duty" : "lines"));
   leaf(k === "down" ? 1 : -1);
 }));
 
@@ -1262,7 +1243,7 @@ function unlock() {
 }
 document.querySelectorAll("#menu [data-m]").forEach((b) => b.addEventListener("click", () => {
   const m = b.dataset.m;
-  if (m === "sound") return show("sound");
+  if (m === "sound") return press("go:sound");
   if (m === "lock") return lockConsole();
   unlock();
   if (m === "logout") store.set("driver", null);   // (a change keeps the duty and the number)
@@ -1441,15 +1422,18 @@ async function press(key) {
 }
 // whatever of the console is on the screen now
 function conDraw() {
+  // there is one console however many screens draw it, so the page stands where it says
+  const to = state && state.con && state.con.screen;
+  if (to && to !== screen && !booting) show(to);
+  footTabs();
   saleDraw(); voidKey(); xtrDraw(); shutDraw(); slowDraw();
 }
 
 // a zone key on the sales menu, or Flere... (no zones), which opens the ticket to be
 // written out by hand
-document.querySelectorAll("#tix [data-buy]").forEach((b) => b.addEventListener("click", async () => {
+document.querySelectorAll("#tix [data-buy]").forEach((b) => b.addEventListener("click", () => {
   whoClose();
-  await press(`buy:${b.dataset.buy}:${b.dataset.z}`);
-  show("sale");
+  press(`buy:${b.dataset.buy}:${b.dataset.z}`);
 }));
 
 function saleDraw() {
@@ -1498,11 +1482,7 @@ $("s-paid").addEventListener("click", () => { if (sale() && !sale().edit) padOpe
 // the manual's two presses: the first takes the ticket as it is written out (page 17),
 // the second is the one for when the driver HAS the money in his hand (pages 15 and 18).
 // Selling hands the ticket to whoever stands waiting for one at the cash desk.
-$("s-ok").addEventListener("click", async () => {
-  const was = sale()?.edit;
-  await press("ok");
-  if (!was) show(tixBack || whence());
-});
+$("s-ok").addEventListener("click", () => press("ok"));
 
 // (the fork) KONTANTBILLET - ANNULLER, the manual's pages 19 and 20. Only the ticket last
 // sold can be taken back - the manual says so in red - so the console keeps that one and
@@ -1522,9 +1502,9 @@ function voidDraw() {
 }
 // the key in the Betjening menu stands grey while there is no ticket to take back
 function voidKey() { $("b-void").className = lastSale() ? "mi" : "mi off dead"; }
-$("b-void").addEventListener("click", () => { if (lastSale()) show("void"); });
-$("v-no").addEventListener("click", () => show("serve"));
-$("v-yes").addEventListener("click", async () => { await press("void"); show("serve"); });
+$("b-void").addEventListener("click", () => { if (lastSale()) press("go:void"); });
+$("v-no").addEventListener("click", () => press("go:serve"));
+$("v-yes").addEventListener("click", () => press("void"));
 
 // (the fork) CHECK IND EKSTRA, the manual's pages 24 to 26: more travellers on one card,
 // or a card given another customer type for this journey alone. The manual's own four
@@ -1540,10 +1520,9 @@ $("v-yes").addEventListener("click", async () => { await press("void"); show("se
 let xtrPick = 0, xtrSaw = -1;
 const xtr = () => (state && state.con && state.con.extra) || null;
 
-async function xtrOpen() {
+function xtrOpen() {
   xtrSaw = state && state.read ? state.read.n : -1;
-  await press("extra:open");
-  show("extra");
+  return press("extra:open");
 }
 function xtrDraw() {
   const L = labels, x = xtr();
@@ -1564,7 +1543,6 @@ function xtrDraw() {
 }
 async function xtrDone() {
   await press("extra:done");
-  show("serve");
   say(labels.extra_done ?? "");
 }
 $("b-extra").addEventListener("click", xtrOpen);
@@ -1576,10 +1554,10 @@ document.querySelectorAll("#extra .cnt button").forEach((b) => b.addEventListene
   if (!b.classList.contains("dead")) press(`extra:step:${b.dataset.s}:${b.dataset.step}`);
 }));
 document.querySelectorAll("#extra .zone").forEach((b) => b.addEventListener("click", () => press("extra:zone:" + b.dataset.zone)));
-document.querySelectorAll("#extra [data-pick]").forEach((b) => b.addEventListener("click", () => { xtrPick = +b.dataset.pick; show("kind"); }));
+document.querySelectorAll("#extra [data-pick]").forEach((b) => b.addEventListener("click", () => { xtrPick = +b.dataset.pick; press("go:kind"); }));
 document.querySelectorAll("#kind [data-kind]").forEach((b) => b.addEventListener("click", async () => {
   await press(`extra:who:${xtrPick}:${b.dataset.kind}`);
-  show("extra");
+  press("go:extra");
 }));
 $("x-reset").addEventListener("click", () => press("extra:reset"));
 // OK, and the customer holds his card up once more - that is the check-in itself
@@ -1622,8 +1600,8 @@ $("b-delay").addEventListener("click", async () => {
   if (screen === "duty") drawDuty();
 });
 document.querySelectorAll("#serve [data-b]").forEach((b) => b.addEventListener("click", () => {
-  if (b.dataset.b === "rds") return show("rds");
-  if (b.dataset.b === "info") { tab = 0; return show("inf"); }
+  if (b.dataset.b === "info") tab = 0;
+  press("go:" + (b.dataset.b === "rds" ? "rds" : "inf"));
 }));
 $("info-ok").addEventListener("click", () => $("info").classList.remove("on"));
 
@@ -1683,7 +1661,7 @@ document.querySelectorAll("#sound [data-s]").forEach((b) => b.addEventListener("
 }));
 document.querySelectorAll("#sound [data-t]").forEach((b) => b.addEventListener("click", () => beep(b.dataset.t)));
 document.querySelectorAll("#sound [data-v]").forEach((b) => b.addEventListener("click", () => padOpen("vol:" + b.dataset.v)));
-$("snd-save").addEventListener("click", () => { sndSave(); beep("key"); show("menu"); });
+$("snd-save").addEventListener("click", () => { sndSave(); beep("key"); press("go:menu"); });
 sndLoad();
 sndDraw();
 

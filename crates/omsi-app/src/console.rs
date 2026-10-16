@@ -188,10 +188,96 @@ impl Extra {
     }
 }
 
+/// Which of the console's screens is up. There is one console, however many screens are
+/// drawing it, so the tablet and the screen in the bus always stand on the same one.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Screen {
+    Start,
+    Login,
+    Lines,
+    Trips,
+    Duty,
+    Menu,
+    Sound,
+    Serve,
+    Rds,
+    Inf,
+    Tix,
+    Sale,
+    Void,
+    Extra,
+    Kind,
+}
+
+impl Screen {
+    pub fn key(self) -> &'static str {
+        match self {
+            Screen::Start => "start",
+            Screen::Login => "login",
+            Screen::Lines => "lines",
+            Screen::Trips => "trips",
+            Screen::Duty => "duty",
+            Screen::Menu => "menu",
+            Screen::Sound => "sound",
+            Screen::Serve => "serve",
+            Screen::Rds => "rds",
+            Screen::Inf => "inf",
+            Screen::Tix => "tix",
+            Screen::Sale => "sale",
+            Screen::Void => "void",
+            Screen::Extra => "extra",
+            Screen::Kind => "kind",
+        }
+    }
+
+    fn of(name: &str) -> Option<Screen> {
+        [
+            Screen::Start, Screen::Login, Screen::Lines, Screen::Trips, Screen::Duty,
+            Screen::Menu, Screen::Sound, Screen::Serve, Screen::Rds, Screen::Inf,
+            Screen::Tix, Screen::Sale, Screen::Void, Screen::Extra, Screen::Kind,
+        ]
+        .into_iter()
+        .find(|s| s.key() == name)
+    }
+
+    /// Which of the console's menus this screen belongs under, for the bar along the foot:
+    /// the manual's page 5 puts the menu you are standing in on yellow.
+    fn under(self) -> Option<&'static str> {
+        match self {
+            Screen::Menu | Screen::Sound => Some("menu"),
+            Screen::Serve | Screen::Rds | Screen::Inf | Screen::Void | Screen::Extra | Screen::Kind => Some("serve"),
+            Screen::Tix | Screen::Sale => Some("tix"),
+            Screen::Lines | Screen::Trips | Screen::Duty => Some("linje"),
+            _ => None,
+        }
+    }
+}
+
+/// How a key of the bar along the foot stands: the manual's page 5 gives the colours their
+/// meaning. White is a key you can press, grey one you cannot - and it sounds dead - and
+/// yellow is the menu you are standing in.
+fn key_look(key: &str, screen: Screen, on_duty: bool) -> &'static str {
+    if screen.under() == Some(key) {
+        return "now";
+    }
+    // Billetter sells against the trip being driven: there is nothing to sell against
+    // until one is chosen
+    if key == "tix" && !on_duty {
+        return "off dead";
+    }
+    "white"
+}
+
 /// What the console has decided so far. One of these stands for the whole session, whether
 /// it is being drawn in a tablet or on the console's own screen in the bus.
-#[derive(Default, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Console {
+    /// The screen that is up.
+    pub screen: Screen,
+    /// The screen **Billetter** was pressed from, which ESC and a finished sale go back to.
+    pub tix_back: Option<Screen>,
+    /// Whether a trip is being driven; the game tells the console so (`set_duty`).
+    pub on_duty: bool,
     /// The ticket on the screen now.
     pub sale: Option<Sale>,
     /// The ticket last sold. Only that one can be taken back, which the manual's page 19
@@ -204,6 +290,21 @@ pub struct Console {
     pub shut: bool,
     /// (the fork) **Forsinkelse** (page 32): a switch that stands on until it is put off.
     pub slow: bool,
+}
+
+impl Default for Console {
+    fn default() -> Console {
+        Console {
+            screen: Screen::Start,
+            tix_back: None,
+            on_duty: false,
+            sale: None,
+            last: None,
+            extra: None,
+            shut: false,
+            slow: false,
+        }
+    }
 }
 
 /// What a press did, for the screen that sent it.
@@ -232,6 +333,7 @@ impl Console {
                 let (who, zones) = rest.split_once(':').unwrap_or((rest, "0"));
                 let Some(who) = Who::of(who) else { return Did::Nothing };
                 self.sale = Some(Sale::quick(who, zones.parse().unwrap_or(0)));
+                self.screen = Screen::Sale;
                 Did::Moved
             }
             "count" | "who" => {
@@ -269,6 +371,7 @@ impl Console {
                     return Did::Moved;
                 }
                 self.last = self.sale.take();
+                self.screen = self.tix_back.unwrap_or_else(|| self.home());
                 Did::Sold
             }
             // KONTANTBILLET - ANNULLER, the manual's pages 19 and 20
@@ -276,10 +379,20 @@ impl Console {
                 if self.last.take().is_none() {
                     return Did::Nothing;
                 }
+                self.screen = Screen::Serve;
                 Did::Moved
             }
             // CHECK IND EKSTRA, the manual's pages 24 to 26
             "extra" => self.extra_press(rest),
+            // the screen asked for by name, and ESC, which steps back out of it
+            "go" => match Screen::of(rest) {
+                Some(s) => self.go(s),
+                None => Did::Nothing,
+            },
+            "esc" => {
+                self.screen = self.back();
+                Did::Moved
+            }
             // (the fork) the card reader key in the strip (page 34) and Forsinkelse (32):
             // both are switches that stand where they are put
             "shut" => {
@@ -294,6 +407,65 @@ impl Console {
         }
     }
 
+    /// The game tells the console whether a trip is being driven: Billetter has nothing to
+    /// sell against until one is, and ESC goes back to the driving screen rather than to
+    /// the list of lines.
+    pub fn set_duty(&mut self, on: bool) {
+        // the trip given back under the driver's feet: there is nothing to sell against
+        // any more, so the console leaves the cash ticket rather than standing on a screen
+        // whose keys have all died
+        if self.on_duty && !on && matches!(self.screen, Screen::Tix | Screen::Sale) {
+            self.screen = Screen::Lines;
+            self.sale = None;
+        }
+        self.on_duty = on;
+    }
+
+    /// Where the console puts itself down: the driving screen while a trip is being driven,
+    /// else the list of lines.
+    fn home(&self) -> Screen {
+        if self.on_duty {
+            Screen::Duty
+        } else {
+            Screen::Lines
+        }
+    }
+
+    /// A screen asked for by name. **Billetter** remembers where it was pressed from, so
+    /// that ESC and a finished sale both come back to it.
+    fn go(&mut self, to: Screen) -> Did {
+        // there is nothing to sell against until a trip is taken on
+        if to == Screen::Tix && !self.on_duty {
+            return Did::Nothing;
+        }
+        if to == Screen::Tix && !matches!(self.screen, Screen::Tix | Screen::Sale) {
+            self.tix_back = Some(self.screen);
+        }
+        self.screen = to;
+        Did::Moved
+    }
+
+    /// Where ESC steps back to, screen by screen, as the manual's own menus nest.
+    fn back(&self) -> Screen {
+        match self.screen {
+            Screen::Sound => Screen::Menu,
+            Screen::Kind => Screen::Extra,
+            Screen::Rds | Screen::Inf | Screen::Void | Screen::Extra => Screen::Serve,
+            Screen::Sale => Screen::Tix,
+            Screen::Tix => self.tix_back.unwrap_or_else(|| self.home()),
+            Screen::Serve | Screen::Menu | Screen::Duty | Screen::Trips => self.home(),
+            // from the list of lines there is nowhere further back but out
+            Screen::Lines => Screen::Login,
+            other => other,
+        }
+    }
+
+    /// How the bar along the foot stands now (the manual's page 5).
+    fn keys(&self) -> Value {
+        let look = |k: &str| key_look(k, self.screen, self.on_duty);
+        json!({ "menu": look("menu"), "tix": look("tix"), "linje": look("linje"), "serve": look("serve") })
+    }
+
     /// CHECK IND EKSTRA's own keys, the manual's four steps on pages 24 to 26.
     ///
     /// * `open` - the key in Betjening, or the crowd in the strip: the console waits
@@ -306,6 +478,7 @@ impl Console {
         match verb {
             "open" => {
                 self.extra = Some(Extra { step: Step::Hold, ..Extra::stock(Who::Adult) });
+                self.screen = Screen::Extra;
                 Did::Moved
             }
             // a pensioner travelling along is checked in as an adult, which the manual's
@@ -323,6 +496,7 @@ impl Console {
                     return Did::Nothing;
                 }
                 self.extra = None;
+                self.screen = Screen::Serve;
                 Did::Moved
             }
             _ => {
@@ -367,7 +541,13 @@ impl Console {
     /// What the screens draw. Anything the console has not decided is left out rather than
     /// sent as nothing, so a screen can tell "no ticket" from "a ticket costing nothing".
     pub fn value(&self) -> Value {
-        let mut v = json!({ "can_void": self.last.is_some(), "shut": self.shut, "slow": self.slow });
+        let mut v = json!({
+            "screen": self.screen.key(),
+            "keys": self.keys(),
+            "can_void": self.last.is_some(),
+            "shut": self.shut,
+            "slow": self.slow,
+        });
         if let Some(s) = self.sale.as_ref() {
             v["sale"] = s.value();
         }
@@ -581,6 +761,91 @@ mod tests {
         assert_eq!(c.value()["shut"], true);
         c.press("shut");
         assert_eq!((c.shut, c.slow), (false, true));
+    }
+
+    /// (the fork) ESC steps back out of the console's menus the way they nest, and where
+    /// it puts the console down depends on whether a trip is being driven.
+    #[test]
+    fn esc_steps_back_out_of_the_menus() {
+        let mut c = Console::default();
+        c.set_duty(true);
+        for (from, to) in [
+            (Screen::Sound, Screen::Menu),
+            (Screen::Kind, Screen::Extra),
+            (Screen::Extra, Screen::Serve),
+            (Screen::Rds, Screen::Serve),
+            (Screen::Inf, Screen::Serve),
+            (Screen::Void, Screen::Serve),
+            (Screen::Sale, Screen::Tix),
+            (Screen::Serve, Screen::Duty),
+            (Screen::Menu, Screen::Duty),
+            (Screen::Lines, Screen::Login),
+        ] {
+            c.screen = from;
+            c.press("esc");
+            assert_eq!(c.screen, to, "ESC from {:?}", from);
+        }
+        // without a trip the console puts itself down on the list of lines instead
+        c.set_duty(false);
+        c.screen = Screen::Menu;
+        c.press("esc");
+        assert_eq!(c.screen, Screen::Lines);
+    }
+
+    /// (the fork) Billetter leads nowhere until a trip is taken on, and remembers where it
+    /// was pressed from.
+    #[test]
+    fn billetter_remembers_where_it_was_pressed_from() {
+        let mut c = Console::default();
+        c.screen = Screen::Lines;
+        assert_eq!(c.press("go:tix"), Did::Nothing, "nothing to sell against yet");
+        assert_eq!(c.screen, Screen::Lines);
+        assert_eq!(c.value()["keys"]["tix"], "off dead");
+
+        c.set_duty(true);
+        c.screen = Screen::Serve;
+        assert_eq!(c.press("go:tix"), Did::Moved);
+        assert_eq!(c.value()["keys"]["tix"], "now");
+        // down into the ticket and back out again lands where Billetter was pressed
+        c.press("go:sale");
+        c.press("esc");
+        assert_eq!(c.screen, Screen::Tix);
+        c.press("esc");
+        assert_eq!(c.screen, Screen::Serve, "back where Billetter was pressed from");
+
+        // and the trip ending under the driver's feet takes him off the ticket: there is
+        // nothing to sell against any more
+        c.press("go:tix");
+        c.press("buy:adult:2");
+        assert_eq!(c.screen, Screen::Sale);
+        c.set_duty(false);
+        assert_eq!(c.screen, Screen::Lines);
+        assert!(c.sale.is_none(), "the half-written ticket goes with it");
+    }
+
+    /// (the fork) The manual's page 5 gives the bar's colours their meaning: white can be
+    /// pressed, grey cannot, yellow is the menu you are standing in.
+    #[test]
+    fn the_bar_marks_the_menu_you_are_standing_in() {
+        let mut c = Console::default();
+        c.set_duty(true);
+        c.screen = Screen::Duty;
+        let k = c.value()["keys"].clone();
+        assert_eq!((&k["linje"], &k["menu"], &k["serve"], &k["tix"]), (&json!("now"), &json!("white"), &json!("white"), &json!("white")));
+
+        // every screen under a menu puts that menu on yellow, not only the menu itself
+        for s in [Screen::Menu, Screen::Sound] {
+            c.screen = s;
+            assert_eq!(c.value()["keys"]["menu"], "now", "{s:?}");
+        }
+        for s in [Screen::Serve, Screen::Rds, Screen::Inf, Screen::Void, Screen::Extra, Screen::Kind] {
+            c.screen = s;
+            assert_eq!(c.value()["keys"]["serve"], "now", "{s:?}");
+        }
+        for s in [Screen::Tix, Screen::Sale] {
+            c.screen = s;
+            assert_eq!(c.value()["keys"]["tix"], "now", "{s:?}");
+        }
     }
 
     /// (the fork) A key that means nothing here sounds dead and moves nothing.
