@@ -584,6 +584,14 @@ fn labels() -> Value {
         ("child", "Barn"),
         ("bike", "Cykel"),
         ("void_q", "Bekræft annullering?"),
+        // CHECK IND EKSTRA, the manual's pages 24 to 26
+        ("temp_change", "Midlertidig ændring"),
+        ("hold_rk", "Hold rejsekort hen på salgskortlæser"),
+        ("hold_again", "Hold rejsekortet hen på salgskortlæseren igen"),
+        ("z_local", "Lokal"),
+        ("z_far", "Ml. landsdele"),
+        ("dog", "Hund"),
+        ("extra_done", "Kortet er checket ind. Ændringen slettes, når kortet checkes ud."),
         // the card reader setup, as the manual's page 33 has it
         ("reader_head", "Card reader setup"),
         ("all_in", "All in"),
@@ -797,8 +805,10 @@ mod tests {
         asked.extend([
             "starting", "updating", "driver", "password", "login_hint", "lost",
             "no_duty", "line", "tour", "delay", "end_trip",
-            // the cash ticket writes the customer types into its own fields
-            "adult", "child", "bike",
+            // the cash ticket and Check ind ekstra write the customer types, and the
+            // console's own messages, into their screens from the script
+            "adult", "child", "bike", "dog", "hold_rk", "hold_again", "extra_done",
+            "readers_on", "readers_off",
         ]);
         for key in &asked {
             assert!(!sent[key].is_null(), "the page asks for {key:?} and labels() has no such word");

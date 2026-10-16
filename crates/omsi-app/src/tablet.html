@@ -135,6 +135,7 @@
   .menu .sky { background: #2f3192; }
   .menu .sky.w2 { grid-column: span 2; }
   .menu .sky.h2 { grid-row: span 2; }
+  .menu .sky.h3 { grid-row: span 3; }
   .menu .mi { background: #fff; border-right: 1px solid #6b7580; border-bottom: 1px solid #6b7580;
     display: flex; align-items: center; text-align: left; padding: 0 calc(24 * var(--u));
     font-size: calc(40 * var(--u)); color: #111; }
@@ -142,18 +143,59 @@
   .menu .mi.on { background: #ecebc2; }
   .menu .mi:not(.dead):active { background: var(--pick); }
   #menu .foot .arrow, #rds .foot .arrow, #inf .foot .arrow,
-  #serve .foot .arrow, #sound .foot .arrow { visibility: hidden; }
+  #serve .foot .arrow, #sound .foot .arrow,
+  #extra .foot .arrow, #kind .foot .arrow { visibility: hidden; }
+
+  /* (the fork) CHECK IND EKSTRA, the manual's pages 24 to 26: more travellers on one card,
+     or a card given another customer type for this one journey. Three slots, each a count
+     and a customer type, and the choice of a local journey or one between regions. */
+  .xtr { position: absolute; left: 0; right: 0; top: var(--bar);
+    bottom: calc(84 * var(--u) + var(--row)); color: #e8f1ff;
+    background: radial-gradient(120% 95% at 62% 16%, #6f9fe4 0%, #4b81d2 46%, #33639f 100%); }
+  .xtr .cap { position: absolute; left: calc(22 * var(--u)); top: calc(4 * var(--u));
+    font-size: calc(23 * var(--u)); color: #b9cfe9; }
+  .xtr .c1 { left: calc(26 * var(--u)); width: calc(396 * var(--u)); }
+  .xtr .c2 { left: calc(442 * var(--u)); width: calc(396 * var(--u)); }
+  .xtr .c3 { left: calc(858 * var(--u)); width: calc(396 * var(--u)); }
+  .xtr .cnt { position: absolute; top: calc(32 * var(--u)); height: calc(72 * var(--u));
+    display: flex; border-radius: calc(5 * var(--u)); overflow: hidden; }
+  .xtr .cnt button { width: calc(96 * var(--u)); background: #ebebe6; color: #1a1a1a;
+    font-size: calc(40 * var(--u)); font-weight: 700; }
+  .xtr .cnt button:active { background: var(--pick); }
+  .xtr .cnt i { flex: 1; background: #8fcbe2; color: #eaf6fd; font-style: normal;
+    font-size: calc(40 * var(--u)); font-weight: 700;
+    display: flex; align-items: center; justify-content: center; }
+  .xtr .drop { position: absolute; top: calc(112 * var(--u)); height: calc(72 * var(--u));
+    background: #e7e3d6; color: #141414; border-radius: calc(5 * var(--u));
+    display: flex; align-items: center; padding: 0 calc(16 * var(--u));
+    font-size: calc(34 * var(--u)); font-weight: 700; }
+  .xtr .drop span { flex: 1; text-align: left; }
+  .xtr .drop em { font-style: normal; font-size: calc(24 * var(--u)); }
+  .xtr .drop:active { background: var(--pick); }
+  .xtr .zone { position: absolute; top: calc(194 * var(--u)); height: calc(66 * var(--u));
+    background: #e7e3d6; color: #141414; border-radius: calc(5 * var(--u));
+    font-size: calc(30 * var(--u)); font-weight: 700; }
+  .xtr .zone.on { background: #ddc478; }
+  .xtr .zone:active { background: var(--pick); }
+  .xtr .reset { position: absolute; left: calc(26 * var(--u)); top: calc(336 * var(--u));
+    width: calc(300 * var(--u)); height: calc(78 * var(--u)); background: #d6403a; color: #1a1a1a;
+    border-radius: calc(5 * var(--u)); font-size: calc(32 * var(--u)); font-weight: 700; }
+  .xtr .ok { position: absolute; right: calc(26 * var(--u)); top: calc(300 * var(--u));
+    width: calc(330 * var(--u)); height: calc(124 * var(--u)); background: #5cb24a; color: #111;
+    border-radius: calc(5 * var(--u)); font-size: calc(44 * var(--u)); font-weight: 700; }
+  .xtr .reset:active, .xtr .ok:active { background: var(--pick); }
 
   /* (the fork) INFORMATIONER PÅ REJSEKORT, the manual's pages 35 to 37: what the console
      knows about the card last held to a reader, under its five tabs */
   .inf { position: absolute; left: 0; right: 0; top: var(--bar); bottom: calc(84 * var(--u) + var(--row));
     background: #b0b6ba; color: #111; }
-  .inf .wait { position: absolute; inset: 0; background: #b9bfc4; display: flex; flex-direction: column;
+  .inf .wait, .xtr .wait { position: absolute; inset: 0; background: #b9bfc4; color: #111;
+    display: flex; flex-direction: column; text-align: center;
     align-items: center; justify-content: center; gap: calc(40 * var(--u)); font-size: calc(28 * var(--u)); }
-  .inf .wait .ttl { position: absolute; left: 0; right: 0; top: 0; background: #e4e6ea;
+  .inf .wait .ttl, .xtr .wait .ttl { position: absolute; left: 0; right: 0; top: 0; background: #e4e6ea;
     border-bottom: 1px solid #6b7580; display: flex; align-items: center; gap: calc(12 * var(--u));
     padding: calc(7 * var(--u)) calc(16 * var(--u)); font-size: calc(30 * var(--u)); }
-  .inf .wait .ttl svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
+  .inf .wait .ttl svg, .xtr .wait .ttl svg { width: calc(32 * var(--u)); height: calc(32 * var(--u)); }
   .inf .tabs2 { display: flex; gap: calc(8 * var(--u)); padding: calc(8 * var(--u)); background: #2f4b9e; }
   .inf .tabs2 button { flex: 1; height: calc(54 * var(--u)); border: 0; border-radius: calc(5 * var(--u));
     background: #4760ad; color: #fff; font-size: calc(24 * var(--u)); font-weight: 700; }
@@ -664,7 +706,7 @@
       <button class="mi" id="b-delay" type="button" data-l="delay_key">Forsinkelse</button>
       <button class="mi" data-b="info" type="button" data-l="information">Information</button>
       <button class="mi off dead" id="b-void" type="button" data-l="cancel_sale">Annuller salg</button>
-      <button class="mi off dead" type="button" data-l="checkin_extra">Check ind ekstra</button>
+      <button class="mi" id="b-extra" type="button" data-l="checkin_extra">Check ind ekstra</button>
     </div>
     <div class="cards" data-cards></div>
     <div class="foot" data-foot></div>
@@ -803,6 +845,48 @@
     <div class="foot" data-foot></div>
   </section>
 
+  <!-- (the fork) CHECK IND EKSTRA, the manual's pages 24 to 26 -->
+  <section id="extra" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="xtr">
+      <div class="cap" data-l="temp_change">Midlertidig &aelig;ndring</div>
+      <div class="cnt c1"><button type="button" data-s="0" data-step="-1">&minus;</button><i id="x-n0">1</i><button type="button" data-s="0" data-step="1">+</button></div>
+      <div class="cnt c2"><button type="button" data-s="1" data-step="-1">&minus;</button><i id="x-n1">0</i><button type="button" data-s="1" data-step="1">+</button></div>
+      <div class="cnt c3"><button type="button" data-s="2" data-step="-1">&minus;</button><i id="x-n2">0</i><button type="button" data-s="2" data-step="1">+</button></div>
+      <button class="drop c1" type="button" data-pick="0"><span id="x-t0">Voksen</span><em>&#9660;</em></button>
+      <button class="drop c2" type="button" data-pick="1"><span id="x-t1">Barn</span><em>&#9660;</em></button>
+      <button class="drop c3" type="button" data-pick="2"><span id="x-t2">Cykel</span><em>&#9660;</em></button>
+      <button class="zone c1 on" type="button" data-zone="local" data-l="z_local">Lokal</button>
+      <button class="zone c2" type="button" data-zone="far" data-l="z_far">Ml. landsdele</button>
+      <button class="reset" id="x-reset" type="button" data-l="reset">Nulstil</button>
+      <button class="ok" id="x-ok" type="button">OK</button>
+      <div class="wait" id="x-wait">
+        <div class="ttl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="url(#g-help)"/>
+          <text x="12" y="17.4" text-anchor="middle" font-size="14" font-weight="700" fill="#fff" font-family="DejaVu Sans, Verdana, sans-serif">i</text></svg>
+          <span data-l="information">Information</span></div>
+        <span id="x-say" data-l="hold_rk">Hold rejsekort hen p&aring; salgskortl&aelig;ser</span>
+      </div>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
+  <!-- CHECK IND EKSTRA - VALG AF KUNDETYPE, the manual's page 26 -->
+  <section id="kind" class="screen">
+    <div class="bar"></div><div class="strip" data-strip></div>
+    <div class="clock"><span class="c-date"></span><span class="c-time"></span></div>
+    <div class="menu">
+      <button class="mi" type="button" data-kind="adult" data-l="adult">Voksen</button>
+      <button class="mi" type="button" data-kind="child" data-l="child">Barn</button>
+      <button class="mi" type="button" data-kind="bike" data-l="bike">Cykel</button>
+      <button class="mi" type="button" data-kind="dog" data-l="dog">Hund</button>
+      <div class="sky w2 h3"></div>
+    </div>
+    <div class="cards" data-cards></div>
+    <div class="foot" data-foot></div>
+  </section>
+
   <!-- (the fork) KONTANTBILLET - ANNULLER, the manual's pages 19 and 20 -->
   <section id="void" class="screen">
     <div class="bar"></div><div class="strip" data-strip></div>
@@ -911,6 +995,7 @@ function show(name) {
   if (name === "sale") saleDraw();
   if (name === "void") voidDraw();
   if (name === "serve") voidKey();
+  if (name === "extra") xtrDraw();
   // (the login keeps what stands in it while the console is locked: the driver's number)
   if (name === "login") { padClose(); if (!locked) { $("driver").value = ""; $("password").value = ""; } }
 }
@@ -922,7 +1007,8 @@ function footTabs(name) {
     const menu = f.querySelector("[data-key='menu']"), linje = f.querySelector("[data-key='linje']");
     if (!menu || !linje) return;
     const inMenu = name === "menu" || name === "sound";
-    const inServe = name === "serve" || name === "rds" || name === "inf" || name === "void";
+    const inServe = name === "serve" || name === "rds" || name === "inf" || name === "void"
+      || name === "extra" || name === "kind";
     const inTix = name === "tix" || name === "sale";
     menu.className = inMenu ? "now" : "off";
     linje.className = inMenu || inServe || inTix ? "blue" : "now";
@@ -1120,7 +1206,8 @@ document.querySelectorAll("[data-key]").forEach((b) => b.addEventListener("click
   const k = b.dataset.key;
   if (k === "esc") {
     if (screen === "sound") return show("menu");
-    if (screen === "rds" || screen === "inf" || screen === "void") return show("serve");
+    if (screen === "kind") return show("extra");
+    if (screen === "rds" || screen === "inf" || screen === "void" || screen === "extra") return show("serve");
     if (screen === "sale") return show("tix");
     if (screen === "tix") return show(tixBack || whence());
     if (screen === "serve") return show(whence());
@@ -1171,7 +1258,8 @@ document.querySelectorAll("#menu [data-m]").forEach((b) => b.addEventListener("c
 }));
 
 function leaf(d) {
-  if (screen === "tix" || screen === "sale" || screen === "void") return;   // (one screenful)
+  // (these screens are one screenful each, so the arrows have nothing to leaf through)
+  if (["tix", "sale", "void", "extra", "kind"].includes(screen)) return;
   if (screen === "lines") { page.lines = Math.max(0, Math.min(page.lines + d, leaves(lines.length, PER.lines) - 1)); return drawLines(); }
   if (screen === "trips") { page.trips = Math.max(0, Math.min(page.trips + d, leaves(trips.length, PER.trips) - 1)); return drawTrips(true); }
   page.duty = Math.max(0, page.duty + d);
@@ -1430,20 +1518,88 @@ $("b-void").addEventListener("click", () => { if (lastSale) show("void"); });
 $("v-no").addEventListener("click", () => show("serve"));
 $("v-yes").addEventListener("click", () => { lastSale = null; voidKey(); show("serve"); });
 
+// (the fork) CHECK IND EKSTRA, the manual's pages 24 to 26: more travellers on one card,
+// or a card given another customer type for this journey alone. The manual's own four
+// steps - press the key, let the customer hold his card to the sales reader, set the
+// three slots, press OK, and have him hold the card up once more. Then he is checked in,
+// and the change stands until the card is checked out again.
+//
+// The card read is the one the Information screen waits for as well: the next card a
+// passenger holds to a reader, getting on or getting off.
+const MOST = 29;            // the manual: at most 29 on one Rejsekort
+const stock = (t) => [{ n: 1, t }, { n: 0, t: "child" }, { n: 0, t: "bike" }];
+let xtr = { step: "hold", rows: stock("adult"), zone: "local", was: "adult", saw: -1, pick: 0 };
+
+function xtrOpen() {
+  xtr = { step: "hold", rows: stock("adult"), zone: "local", was: "adult",
+          saw: state && state.read ? state.read.n : -1, pick: 0 };
+  show("extra");
+}
+// the card is read: the console fills the first slot with what the card itself is. A
+// pensioner travelling along is checked in as an adult, which the manual's page 26 says.
+function xtrStart(r) {
+  xtr.was = r && r.who === labels.child ? "child" : "adult";
+  xtr.rows = stock(xtr.was);
+  xtr.zone = "local";
+  xtr.step = "form";
+  xtrDraw();
+}
+function xtrDraw() {
+  const L = labels, total = xtr.rows.reduce((a, r) => a + r.n, 0);
+  $("x-wait").style.display = xtr.step === "form" ? "none" : "flex";
+  $("x-say").textContent = (xtr.step === "again" ? L.hold_again : L.hold_rk) ?? "";
+  xtr.rows.forEach((r, i) => {
+    $("x-n" + i).textContent = r.n;
+    $("x-t" + i).textContent = L[r.t] ?? r.t;
+  });
+  document.querySelectorAll("#extra .zone").forEach((b) => b.classList.toggle("on", b.dataset.zone === xtr.zone));
+  // a key that would take the count past its end is marked dead, and sounds like it
+  document.querySelectorAll("#extra .cnt button").forEach((b) => {
+    const s = +b.dataset.s, d = +b.dataset.step, n = xtr.rows[s].n + d;
+    b.classList.toggle("dead", n < (s === 0 ? 1 : 0) || (d > 0 && total >= MOST));
+  });
+}
+function xtrDone() {
+  xtr.step = "hold";
+  show("serve");
+  say(labels.extra_done ?? "");
+}
+$("b-extra").addEventListener("click", xtrOpen);
+document.querySelectorAll("#extra .cnt button").forEach((b) => b.addEventListener("click", () => {
+  if (b.classList.contains("dead")) return;
+  xtr.rows[+b.dataset.s].n += +b.dataset.step;
+  xtrDraw();
+}));
+document.querySelectorAll("#extra .zone").forEach((b) => b.addEventListener("click", () => { xtr.zone = b.dataset.zone; xtrDraw(); }));
+document.querySelectorAll("#extra [data-pick]").forEach((b) => b.addEventListener("click", () => { xtr.pick = +b.dataset.pick; show("kind"); }));
+document.querySelectorAll("#kind [data-kind]").forEach((b) => b.addEventListener("click", () => {
+  xtr.rows[xtr.pick].t = b.dataset.kind;
+  show("extra");
+}));
+$("x-reset").addEventListener("click", () => { xtr.rows = stock(xtr.was); xtr.zone = "local"; xtrDraw(); });
+// OK, and the customer holds his card up once more - that is the check-in itself
+$("x-ok").addEventListener("click", () => {
+  xtr.step = "again";
+  xtr.saw = state && state.read ? state.read.n : -1;
+  xtrDraw();
+});
+
 // (the fork) LÅS/ÅBEN KORTLÆSERE, the manual's page 34: pressing the card reader key in
 // the strip shuts the readers and hangs a padlock on it, and the console says which way
 // it went. Shut, nobody can hold a card to one, so the row of boxes takes no new cards.
 let shut = false;
-function shutDraw() {
-  document.body.classList.toggle("shut", shut);
-  $("info-what").textContent = (shut ? labels.readers_off : labels.readers_on) ?? "";
+function shutDraw() { document.body.classList.toggle("shut", shut); }
+// the console's own information box, for whatever it has just been told to say
+function say(text) {
+  $("info-what").textContent = text || "";
+  $("info").classList.add("on");
+  beep("key");
 }
 document.querySelectorAll(".strip .reader").forEach((e) => e.addEventListener("click", () => {
   shut = !shut;
   try { localStorage.setItem("shut", shut ? "1" : ""); } catch (e) {}
   shutDraw();
-  beep("key");
-  $("info").classList.add("on");
+  say((shut ? labels.readers_off : labels.readers_on) ?? "");
 }));
 try { shut = localStorage.getItem("shut") === "1"; } catch (e) {}
 
@@ -1619,6 +1775,11 @@ async function tick() {
       if (screen === "rds") rdsDraw();
       // (a fresh card read fills the Information screen as soon as it comes)
       if (screen === "inf" && s.read && s.read.n !== sawRead) { sawRead = s.read.n; infDraw(); }
+      // and carries Check ind ekstra from one of the manual's steps to the next
+      if (screen === "extra" && xtr.step !== "form" && s.read && s.read.n !== xtr.saw) {
+        xtr.saw = s.read.n;
+        if (xtr.step === "hold") xtrStart(s.read); else xtrDone();
+      }
       document.querySelectorAll(".c-date").forEach((e) => { e.textContent = s.date || ""; });
       document.querySelectorAll(".c-time").forEach((e) => { e.textContent = s.clock || ""; });
       if (first) { if (!booting) route(); }
